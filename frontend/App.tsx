@@ -85,25 +85,21 @@ function App() {
   }
 
   return (
-  <div className="flex flex-col min-h-screen">
-    <div className="flex flex-col items-center justify-center flex-grow w-full">
-      <div className="w-full">
-        <Navbar />
-        <main className="p-8">
-          <div className="w-full">
-            {vmsError && <p className="text-red-500 mb-4 text-center">Error fetching machines: {vmsError.message}</p>}
-            {isLoading && <p className="mb-4 text-gray-400 text-center">Loading...</p>}
-            {!isLoading && !vms?.length && <p className="mb-4 text-gray-400 text-center">No machines available.</p>}
-            {vms && vms.length > 0 && (
-              <MachinesTable vms={vms} auth={auth} queryClient={queryClient} node={NODE} />
-            )}
-          </div>
-        </main>
-        <Footer />
-      </div>
-    </div>
-  </div>
-);
+    <>
+      <Navbar />
+      <main className="flex-1 p-8">
+        <div className="max-w-7xl mx-auto">
+          {vmsError && <p className="text-red-500 mb-4 text-center">Error fetching machines: {vmsError.message}</p>}
+          {isLoading && <p className="mb-4 text-gray-400 text-center">Loading...</p>}
+          {!isLoading && !vms?.length && <p className="mb-4 text-gray-400 text-center">No machines available.</p>}
+          {vms && vms.length > 0 && (
+            <MachinesTable vms={vms} auth={auth} queryClient={queryClient} node={NODE} />
+          )}
+        </div>
+      </main>
+      <Footer />
+    </>
+  );
 }
 
 export default App;

@@ -2,8 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  height: 100%;
+}
+
 body {
-  @apply bg-gray-900 text-white; /* Removed flex flex-col min-h-screen */
+  @apply bg-gray-900 text-white flex flex-col;
+  min-height: 100%;
+  margin: 0;
 }
 
 nav {
@@ -12,10 +18,24 @@ nav {
 
 table {
   @apply border-collapse border border-white;
+  width: 100%; /* Ensure table spans its container */
+}
+
+main {
+  @apply flex-1 p-8;
+  /* Add space for the 5px gap and footer */
+  padding-bottom: 70px; /* Adjust based on footer height + 5px gap */
 }
 
 footer {
   @apply bg-gray-900 border-t border-gray-700 p-6;
+  width: 100%;
+  /* Position footer at the bottom with a 5px gap above it */
+  margin-top: 5px; /* 5px gap above footer */
+  /* Using fixed positioning to stick to bottom */
+  position: fixed;
+  bottom: 0;
+  left: 0;
 }
 
 th, td {
