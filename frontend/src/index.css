@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-gray-900 text-white; /* Removed flex flex-col min-h-screen */
+}
+
+nav {
+  @apply bg-gradient-to-r from-gray-900 to-gray-800 p-4 shadow-lg;
+}
+
+table {
+  @apply border-collapse border border-white;
+}
+
+footer {
+  @apply bg-gray-900 border-t border-gray-700 p-6;
+}
+
+th, td {
+  @apply text-center;
+}
