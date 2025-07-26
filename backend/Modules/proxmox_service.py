@@ -1,4 +1,4 @@
-# Modules/proxmox_service.py (updated with missing imports for HTTPException and status)
+# Modules/proxmox_service.py (updated to add get_vm_status method)
 import requests
 import os
 from typing import Dict, Any, List
@@ -63,6 +63,17 @@ class ProxmoxService:
             logger.error("Failed to fetch VM config for vmid %d: Status %d, Response: %s. Check user permissions.", vmid, response.status_code, response.text)
             raise HTTPException(status_code=response.status_code, detail="Failed to fetch VM config")
         return response.json()["data"]
+
+    def get_vm_status(self, node: str, vmid: int, csrf_token: str, ticket: str) -> str:
+        self.set_auth_cookie(ticket)
+        response = self.session.get(
+            f"{PROXMOX_BASE_URL}/nodes/{node}/qemu/{vmid}/status/current",
+            headers={"CSRFPreventionToken": csrf_token}
+        )
+        if response.status_code != 200:
+            logger.error("Failed to fetch VM status for vmid %d: Status %d, Response: %s", vmid, response.status_code, response.text)
+            raise HTTPException(status_code=response.status_code, detail="Failed to fetch VM status")
+        return response.json()["data"]["status"]
 
     def execute_agent_command(self, node: str, vmid: int, command: str, csrf_token: str, ticket: str) -> Any:
         self.set_auth_cookie(ticket)

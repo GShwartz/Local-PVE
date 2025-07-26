@@ -4,40 +4,108 @@
 
 html {
   height: 100%;
+  overflow-y: hidden; /* Hide vertical scrollbar */
 }
 
 body {
   @apply bg-gray-900 text-white flex flex-col;
   min-height: 100%;
   margin: 0;
+  overflow-y: hidden; /* Hide vertical scrollbar */
 }
 
 nav {
   @apply bg-gradient-to-r from-gray-900 to-gray-800 p-4 shadow-lg;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 table {
   @apply border-collapse border border-white;
-  width: 100%; /* Ensure table spans its container */
+  width: 100%; /* Ensure table takes full width */
+  margin-bottom: 5px; /* Add 5px gap beneath table */
+  border-bottom: 2px solid white; /* Add bottom border */
+  max-height: 70rem; /* Fixed max height for table */
 }
 
 main {
   @apply flex-1 p-8;
-  /* Add space for the 5px gap and footer */
-  padding-bottom: 70px; /* Adjust based on footer height + 5px gap */
+  margin-top: 2rem; /* Add gap below navbar */
+  margin-bottom: 80px; /* Adjusted for footer */
 }
 
 footer {
   @apply bg-gray-900 border-t border-gray-700 p-6;
   width: 100%;
-  /* Position footer at the bottom with a 5px gap above it */
-  margin-top: 5px; /* 5px gap above footer */
-  /* Using fixed positioning to stick to bottom */
   position: fixed;
   bottom: 0;
   left: 0;
+  height: 70px; /* Explicit height for calculation */
+  margin-top: 10px; /* Add gap above footer */
 }
 
 th, td {
   @apply text-center;
+}
+
+/* Ensure table container allows scrolling for table */
+.overflow-x-auto {
+  max-height: 40rem; /* Increased by 10rem */
+  overflow-y: auto;
+  /* Custom scrollbar styling */
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: #4b5563 #1f2937; /* Thumb and track colors for Firefox */
+}
+
+/* Webkit browsers (Chrome, Safari, Edge) */
+.overflow-x-auto::-webkit-scrollbar {
+  width: 8px; /* Scrollbar width */
+}
+
+.overflow-x-auto::-webkit-scrollbar-track {
+  background: #1f2937; /* Track color (dark gray) */
+  border-radius: 4px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb {
+  background: #4b5563; /* Thumb color (gray) */
+  border-radius: 4px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb:hover {
+  background: #6b7280; /* Lighter gray on hover */
+}
+
+/* Ensure expanded row content is scrollable */
+.expanded-content {
+  max-height: 40rem; /* Limit expanded row height to fit within table */
+  overflow-y: auto;
+  /* Custom scrollbar styling for expanded content */
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: #4b5563 #1f2937; /* Thumb and track colors for Firefox */
+}
+
+/* Webkit browsers for expanded content */
+.expanded-content::-webkit-scrollbar {
+  width: 8px; /* Scrollbar width */
+}
+
+.expanded-content::-webkit-scrollbar-track {
+  background: #1f2937; /* Track color (dark gray) */
+  border-radius: 4px;
+}
+
+.expanded-content::-webkit-scrollbar-thumb {
+  background: #4b5563; /* Thumb color (gray) */
+  border-radius: 4px;
+}
+
+.expanded-content::-webkit-scrollbar-thumb:hover {
+  background: #6b7280; /* Lighter gray on hover */
+}
+
+/* Narrower columns for CPU, Status, RAM, HDD Sizes */
+.narrow-col {
+  @apply w-20; /* Fixed width for narrower columns */
 }

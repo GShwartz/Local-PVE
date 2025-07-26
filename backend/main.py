@@ -1,4 +1,4 @@
-# main.py (updated to import from Modules)
+# main.py (updated to add /vm/{node}/{vmid}/status endpoint)
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 import os
@@ -36,13 +36,17 @@ async def list_vms(node: str, csrf_token: str, ticket: str, service: ProxmoxServ
 
 @app.post("/vm/{node}/{vmid}/{action}")
 async def control_vm(node: str, vmid: int, action: str, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
-    if action not in ["start", "stop", "shutdown", "reboot", "hibernate"]:
+    if action not in ["start", "stop", "shutdown", "reboot", "hibernate", "resume"]:
         raise HTTPException(status_code=400, detail="Invalid action")
     return service.vm_action(node, vmid, action, csrf_token, ticket)
 
 @app.get("/task/{node}/{upid}")
 async def get_task_status(node: str, upid: str, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
     return service.get_task_status(node, upid, csrf_token, ticket)
+
+@app.get("/vm/{node}/{vmid}/status")
+async def get_vm_status(node: str, vmid: int, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
+    return {"status": service.get_vm_status(node, vmid, csrf_token, ticket)}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
