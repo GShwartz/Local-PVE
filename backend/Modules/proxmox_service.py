@@ -1,34 +1,37 @@
-# Modules/proxmox_service.py (updated to add get_vm_status method)
 import requests
 import os
 from typing import Dict, Any, List
-import urllib3  # Added to suppress insecure request warnings
+import urllib3
 import re
 import logging
-from fastapi import HTTPException, status  # Added import for HTTPException and status
+from fastapi import HTTPException, status
+import logging.handlers
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
+# Configure logging to console and file
+log_file = os.path.join(os.path.dirname(__file__), 'proxmox_service.log')
+handler = logging.handlers.RotatingFileHandler(log_file, maxBytes=5*1024*1024, backupCount=3)
+handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+logging.basicConfig(level=logging.INFO, handlers=[handler, logging.StreamHandler()])
 logger = logging.getLogger(__name__)
 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)  # Suppress HTTPS verification warnings for local use
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# Environment variables (for scalability/upgrades: load from .env or secrets manager)
 PROXMOX_HOST = os.getenv("PROXMOX_HOST", "10.0.0.7:8006")
 PROXMOX_BASE_URL = f"https://{PROXMOX_HOST}/api2/json"
 
 class ProxmoxService:
     def __init__(self):
         self.session = requests.Session()
-        self.session.verify = False  # Disable SSL verify for local self-signed certs (enable in prod with certs)
+        self.session.verify = False
 
     def login(self, username: str, password: str) -> Dict[str, str]:
         try:
+            logger.info(f"Attempting login with username: {username}")
             response = self.session.post(
                 f"{PROXMOX_BASE_URL}/access/ticket",
                 data={"username": username, "password": password}
             )
-            response.raise_for_status()  # Raise if not 200
+            response.raise_for_status()
             data = response.json()["data"]
             self.session.cookies.set("PVEAuthCookie", data["ticket"])
             logger.info("Login successful for user: %s", username)
@@ -45,10 +48,8 @@ class ProxmoxService:
 
     def get_nodes(self, csrf_token: str, ticket: str) -> Any:
         self.set_auth_cookie(ticket)
-        response = self.session.get(
-            f"{PROXMOX_BASE_URL}/nodes",
-            # No CSRF header needed for GET
-        )
+        logger.info("Fetching nodes")
+        response = self.session.get(f"{PROXMOX_BASE_URL}/nodes")
         if response.status_code != 200:
             logger.error("Failed to fetch nodes: Status %d, Response: %s", response.status_code, response.text)
             raise HTTPException(status_code=response.status_code, detail="Failed to fetch nodes")
@@ -56,16 +57,16 @@ class ProxmoxService:
 
     def get_vm_config(self, node: str, vmid: int, ticket: str) -> Dict[str, Any]:
         self.set_auth_cookie(ticket)
-        response = self.session.get(
-            f"{PROXMOX_BASE_URL}/nodes/{node}/qemu/{vmid}/config"
-        )
+        logger.info(f"Fetching VM config for vmid {vmid} on node {node}")
+        response = self.session.get(f"{PROXMOX_BASE_URL}/nodes/{node}/qemu/{vmid}/config")
         if response.status_code != 200:
-            logger.error("Failed to fetch VM config for vmid %d: Status %d, Response: %s. Check user permissions.", vmid, response.status_code, response.text)
+            logger.error("Failed to fetch VM config for vmid %d: Status %d, Response: %s", vmid, response.status_code, response.text)
             raise HTTPException(status_code=response.status_code, detail="Failed to fetch VM config")
         return response.json()["data"]
 
     def get_vm_status(self, node: str, vmid: int, csrf_token: str, ticket: str) -> str:
         self.set_auth_cookie(ticket)
+        logger.info(f"Fetching VM status for vmid {vmid} on node {node}")
         response = self.session.get(
             f"{PROXMOX_BASE_URL}/nodes/{node}/qemu/{vmid}/status/current",
             headers={"CSRFPreventionToken": csrf_token}
@@ -75,26 +76,108 @@ class ProxmoxService:
             raise HTTPException(status_code=response.status_code, detail="Failed to fetch VM status")
         return response.json()["data"]["status"]
 
+    def get_snapshots(self, node: str, vmid: int, csrf_token: str, ticket: str) -> List[Dict[str, Any]]:
+        self.set_auth_cookie(ticket)
+        logger.info(f"Fetching snapshots for vmid {vmid} on node {node}")
+        response = self.session.get(
+            f"{PROXMOX_BASE_URL}/nodes/{node}/qemu/{vmid}/snapshot",
+            headers={"CSRFPreventionToken": csrf_token}
+        )
+        if response.status_code != 200:
+            logger.error("Failed to fetch snapshots for vmid %d: Status %d, Response: %s", vmid, response.status_code, response.text)
+            raise HTTPException(status_code=response.status_code, detail="Failed to fetch snapshots")
+        snapshots = response.json()["data"]
+        return [
+            {
+                "name": snap["name"],
+                "description": snap.get("description", ""),
+                "snaptime": snap.get("snaptime")
+            }
+            for snap in snapshots
+            if snap["name"] != "current"
+        ]
+
+    def revert_snapshot(self, node: str, vmid: int, snapname: str, csrf_token: str, ticket: str) -> str:
+        self.set_auth_cookie(ticket)
+        logger.info(f"Reverting snapshot {snapname} for vmid {vmid} on node {node}")
+        response = self.session.post(
+            f"{PROXMOX_BASE_URL}/nodes/{node}/qemu/{vmid}/snapshot/{snapname}/rollback",
+            headers={"CSRFPreventionToken": csrf_token}
+        )
+        if response.status_code != 200:
+            logger.error("Failed to revert snapshot %s for vmid %d: Status %d, Response: %s", snapname, vmid, response.status_code, response.text)
+            raise HTTPException(status_code=response.status_code, detail=f"Failed to revert snapshot {snapname}: {response.text}")
+        logger.info(f"Snapshot revert response: {response.json()['data']}")
+        return response.json()["data"]
+
+    def delete_snapshot(self, node: str, vmid: int, snapname: str, csrf_token: str, ticket: str) -> str:
+        self.set_auth_cookie(ticket)
+        logger.info(f"Deleting snapshot {snapname} for vmid {vmid} on node {node}")
+        response = self.session.delete(
+            f"{PROXMOX_BASE_URL}/nodes/{node}/qemu/{vmid}/snapshot/{snapname}",
+            headers={"CSRFPreventionToken": csrf_token}
+        )
+        if response.status_code != 200:
+            logger.error("Failed to delete snapshot %s for vmid %d: Status %d, Response: %s", snapname, vmid, response.status_code, response.text)
+            raise HTTPException(status_code=response.status_code, detail=f"Failed to delete snapshot {snapname}: {response.text}")
+        logger.info(f"Snapshot delete response: {response.json()['data']}")
+        return response.json()["data"]
+
+    def create_snapshot(self, node: str, vmid: int, snapname: str, description: str, vmstate: int, csrf_token: str, ticket: str) -> str:
+        self.set_auth_cookie(ticket)
+        endpoint = f"{PROXMOX_BASE_URL}/nodes/{node}/qemu/{vmid}/snapshot"
+        logger.info(f"Creating snapshot '{snapname}' for vmid {vmid} on node {node} at {endpoint} with description '{description}' and vmstate {vmstate}")
+        try:
+            response = self.session.post(
+                endpoint,
+                data={
+                    "snapname": snapname,
+                    "description": description,
+                    "vmstate": str(vmstate)  # Convert to string for form data
+                },
+                headers={"CSRFPreventionToken": csrf_token}
+            )
+            response.raise_for_status()
+            logger.info(f"Snapshot created successfully: Status {response.status_code}, Data: {response.json()['data']}")
+            return response.json()["data"]
+        except requests.exceptions.HTTPError as e:
+            error_message = response.text
+            try:
+                error_json = response.json()
+                error_message = error_json.get('errors', {}).get('snapname', error_json.get('data', response.text))
+            except ValueError:
+                pass
+            logger.error(
+                "Failed to create snapshot '%s' for vmid %d on node %s: Status %d, Endpoint: %s, Response: %s",
+                snapname, vmid, node, response.status_code, endpoint, error_message
+            )
+            raise HTTPException(status_code=400, detail=f"Failed to create snapshot '{snapname}': {error_message}")
+        except Exception as e:
+            logger.error(
+                "Unexpected error creating snapshot '%s' for vmid %d on node %s: Endpoint: %s, Error: %s",
+                snapname, vmid, node, endpoint, str(e)
+            )
+            raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
     def execute_agent_command(self, node: str, vmid: int, command: str, csrf_token: str, ticket: str) -> Any:
         self.set_auth_cookie(ticket)
+        logger.info(f"Executing agent command {command} for vmid {vmid} on node {node}")
         response = self.session.post(
             f"{PROXMOX_BASE_URL}/nodes/{node}/qemu/{vmid}/agent",
             json={"command": command},
-            headers={"CSRFPreventionToken": csrf_token}  # Required for POST
+            headers={"CSRFPreventionToken": csrf_token}
         )
         if response.status_code == 200:
             return response.json().get("data")
         logger.warning("Agent command %s failed for vmid %d: Status %d, Response: %s", command, vmid, response.status_code, response.text)
-        return None  # Agent not available or error
+        return None
 
     def get_vms(self, node: str, csrf_token: str, ticket: str) -> List[Dict[str, Any]]:
         self.set_auth_cookie(ticket)
-        response = self.session.get(
-            f"{PROXMOX_BASE_URL}/nodes/{node}/qemu",
-            # No CSRF header needed for GET
-        )
+        logger.info(f"Fetching VMs for node {node}")
+        response = self.session.get(f"{PROXMOX_BASE_URL}/nodes/{node}/qemu")
         if response.status_code != 200:
-            logger.error("Failed to fetch VMs for node %s: Status %d, Response: %s. Check user permissions or node status.", node, response.status_code, response.text)
+            logger.error("Failed to fetch VMs for node %s: Status %d, Response: %s", node, response.status_code, response.text)
             raise HTTPException(status_code=response.status_code, detail="Failed to fetch VMs")
         raw_response = response.json()
         logger.info("Raw Proxmox QEMU response for node %s: %s", node, raw_response)
@@ -104,16 +187,14 @@ class ProxmoxService:
         for vm in vms:
             vmid = vm["vmid"]
             config = self.get_vm_config(node, vmid, ticket)
-            vm["cpus"] = int(config.get("cores", 0))  # Ensure integer
-            vm["ram"] = int(config.get("memory", 0))  # Ensure integer in MB
-            vm["name"] = config.get("name", f"VM {vmid}")  # Fallback name
-            vm["status"] = vm.get("status", "stopped")  # Default status
+            vm["cpus"] = int(config.get("cores", 0))
+            vm["ram"] = int(config.get("memory", 0))
+            vm["name"] = config.get("name", f"VM {vmid}")
+            vm["status"] = vm.get("status", "stopped")
 
-            # Add OS type mapping
             ostype = config.get("ostype", "unknown").lower()
             vm["os"] = 'Windows' if 'win' in ostype else 'Linux'
 
-            # Parse disks from config
             disks = []
             disk_prefixes = ["ide", "sata", "scsi", "virtio"]
             for key, value in config.items():
@@ -124,12 +205,10 @@ class ProxmoxService:
             vm["num_hdd"] = len(disks)
             vm["hdd_sizes"] = ", ".join(disks) if disks else "N/A"
 
-            # Default agent fields
             vm["hdd_free"] = "N/A"
             vm["ip_address"] = "N/A"
 
             if vm.get("status") == "running":
-                # Fetch fsinfo
                 fsinfo = self.execute_agent_command(node, vmid, "get-fsinfo", csrf_token, ticket)
                 if isinstance(fsinfo, list):
                     free_spaces = []
@@ -143,7 +222,6 @@ class ProxmoxService:
                 else:
                     vm["hdd_free"] = "N/A" if fsinfo is None else "Error"
 
-                # Fetch network interfaces
                 netinfo = self.execute_agent_command(node, vmid, "network-get-interfaces", csrf_token, ticket)
                 if isinstance(netinfo, dict) and 'result' in netinfo:
                     ips = []
@@ -159,20 +237,22 @@ class ProxmoxService:
 
     def vm_action(self, node: str, vmid: int, action: str, csrf_token: str, ticket: str) -> Any:
         self.set_auth_cookie(ticket)
-        # Map 'hibernate' to Proxmox 'suspend'
         if action == 'hibernate':
             action = 'suspend'
+        logger.info(f"Performing action {action} for vmid {vmid} on node {node}")
         response = self.session.post(
             f"{PROXMOX_BASE_URL}/nodes/{node}/qemu/{vmid}/status/{action}",
-            headers={"CSRFPreventionToken": csrf_token}  # Required for POST
+            headers={"CSRFPreventionToken": csrf_token}
         )
         if response.status_code != 200:
             logger.error("Failed to %s VM %d: Status %d, Response: %s", action, vmid, response.status_code, response.text)
-            raise HTTPException(status_code=response.status_code, detail=f"Failed to {action} VM")
-        return response.json()["data"]  # Returns UPID (task ID)
+            raise HTTPException(status_code=response.status_code, detail=f"Failed to {action} VM: {response.text}")
+        logger.info(f"VM action response: {response.json()['data']}")
+        return response.json()["data"]
 
     def get_task_status(self, node: str, upid: str, csrf_token: str, ticket: str) -> Dict[str, Any]:
         self.set_auth_cookie(ticket)
+        logger.info(f"Fetching task status for UPID {upid} on node {node}")
         response = self.session.get(
             f"{PROXMOX_BASE_URL}/nodes/{node}/tasks/{upid}/status",
             headers={"CSRFPreventionToken": csrf_token}
@@ -180,4 +260,5 @@ class ProxmoxService:
         if response.status_code != 200:
             logger.error("Failed to fetch task status for UPID %s: Status %d, Response: %s", upid, response.status_code, response.text)
             raise HTTPException(status_code=response.status_code, detail="Failed to fetch task status")
+        logger.info(f"Task status response: {response.json()['data']}")
         return response.json()["data"]
