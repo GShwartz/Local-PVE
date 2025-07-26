@@ -6,6 +6,7 @@ import re
 import logging
 from fastapi import HTTPException, status
 import logging.handlers
+from .models import VMCreateRequest
 
 # Configure logging to console and file
 log_file = os.path.join(os.path.dirname(__file__), 'proxmox_service.log')
@@ -261,4 +262,43 @@ class ProxmoxService:
             logger.error("Failed to fetch task status for UPID %s: Status %d, Response: %s", upid, response.status_code, response.text)
             raise HTTPException(status_code=response.status_code, detail="Failed to fetch task status")
         logger.info(f"Task status response: {response.json()['data']}")
+        return response.json()["data"]
+
+    def create_vm(self, node: str, vm_create: VMCreateRequest, csrf_token: str, ticket: str) -> str:
+        self.set_auth_cookie(ticket)
+        logger.info(f"Creating VM '{vm_create.name}' on node {node}")
+
+        # Get next available VMID
+        response = self.session.get(f"{PROXMOX_BASE_URL}/cluster/nextid")
+        if response.status_code != 200:
+            logger.error("Failed to get next VMID: Status %d, Response: %s", response.status_code, response.text)
+            raise HTTPException(status_code=response.status_code, detail="Failed to get next VMID")
+        vmid = response.json()["data"]
+
+        data = {
+            "vmid": vmid,
+            "name": vm_create.name,
+            "cores": vm_create.cpus,
+            "memory": vm_create.ram,
+            "net0": "virtio,bridge=vmbr0",
+            "agent": 1,
+            "ostype": "l26",
+            "scsi0": "local-lvm:32",
+        }
+
+        if vm_create.source == "ISO":
+            data["ide2"] = "local:iso/ubuntu-22.04.3-live-server-amd64.iso,media=cdrom"  # Assume this ISO exists in Proxmox storage
+            data["boot"] = "order=ide2;scsi0;net0"
+        else:
+            data["boot"] = "order=scsi0;net0"
+
+        response = self.session.post(
+            f"{PROXMOX_BASE_URL}/nodes/{node}/qemu",
+            data=data,
+            headers={"CSRFPreventionToken": csrf_token}
+        )
+        if response.status_code != 200:
+            logger.error("Failed to create VM %s: Status %d, Response: %s", vm_create.name, response.status_code, response.text)
+            raise HTTPException(status_code=response.status_code, detail=f"Failed to create VM: {response.text}")
+        logger.info(f"VM creation response: {response.json()['data']}")
         return response.json()["data"]

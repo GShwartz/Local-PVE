@@ -1,4 +1,3 @@
-# Modules/models.py
 from pydantic import BaseModel
 
 class LoginRequest(BaseModel):
@@ -8,3 +7,9 @@ class LoginRequest(BaseModel):
 class AuthResponse(BaseModel):
     ticket: str
     csrf_token: str
+
+class VMCreateRequest(BaseModel):
+    name: str
+    cpus: int
+    ram: int
+    source: str

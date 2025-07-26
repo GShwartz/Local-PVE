@@ -1,3 +1,4 @@
+// App.tsx
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -6,6 +7,8 @@ import Footer from './src/Footer';
 import MachinesTable from './src/MachinesTable';
 import LoginError from './src/LoginError';
 import Loading from './src/Loading';
+import CreateVMModal from './src/CreateVMModal'; // This import remains unchanged as we will fix the export in CreateVMModal.tsx
+import Alerts, { Alert } from './src/Alerts';
 
 // Define types for API responses and state
 interface Credentials {
@@ -43,6 +46,20 @@ function App() {
   const [auth, setAuth] = useState<Auth | null>(null);
   const [loginError, setLoginError] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+
+  const addAlert = (message: string, type: string): void => {
+    const id: string = `${Date.now()}-${Math.random()}`;
+    setAlerts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setAlerts((prev) => prev.filter((alert) => alert.id !== id));
+    }, 5000);
+  };
+
+  const dismissAlert = (id: string): void => {
+    setAlerts((prevState) => prevState.filter((alert) => alert.id !== id));
+  };
 
   const loginMutation = useMutation({
     mutationFn: async (): Promise<Auth> => {
@@ -86,7 +103,8 @@ function App() {
 
   return (
     <>
-      <Navbar />
+      <Navbar onCreateClick={() => setIsCreateModalOpen(true)} />
+      <Alerts alerts={alerts} dismissAlert={dismissAlert} />
       <main className="flex-1 p-8">
         <div className="max-w-7xl mx-auto">
           {vmsError && <p className="text-red-500 mb-4 text-center">Error fetching machines: {vmsError.message}</p>}
@@ -98,6 +116,14 @@ function App() {
         </div>
       </main>
       <Footer />
+      <CreateVMModal
+        isOpen={isCreateModalOpen}
+        closeModal={() => setIsCreateModalOpen(false)}
+        auth={auth}
+        node={NODE}
+        queryClient={queryClient}
+        addAlert={addAlert}
+      />
     </>
   );
 }

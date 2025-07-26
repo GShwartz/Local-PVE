@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 import uvicorn
 from pydantic import BaseModel
-from Modules.models import LoginRequest, AuthResponse
+from Modules.models import LoginRequest, AuthResponse, VMCreateRequest
 from Modules.proxmox_service import ProxmoxService
 
 class SnapRequest(BaseModel):
@@ -80,6 +80,13 @@ async def control_vm(node: str, vmid: int, action: str, csrf_token: str, ticket:
     if action not in ["start", "stop", "shutdown", "reboot", "hibernate", "resume"]:
         raise HTTPException(status_code=400, detail="Invalid action")
     return service.vm_action(node, vmid, action, csrf_token, ticket)
+
+@app.post("/vm/{node}")
+async def create_vm(node: str, vm_create: VMCreateRequest, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
+    try:
+        return service.create_vm(node, vm_create, csrf_token, ticket)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create VM: {str(e)}")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

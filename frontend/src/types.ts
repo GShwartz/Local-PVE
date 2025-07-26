@@ -25,3 +25,17 @@ export interface TaskStatus {
   status: string;
   exitstatus?: string;
 }
+
+export interface VMCreate {
+  name: string;
+  cpus: number;
+  ram: number;
+  source: string;
+}
+export interface VMUpdate {
+  vmid: number;
+  name?: string;
+  cpus?: number;
+  ram?: number;
+  source?: string;
+}

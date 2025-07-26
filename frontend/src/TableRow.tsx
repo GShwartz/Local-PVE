@@ -74,7 +74,7 @@ const TableRow = ({
         <td className="px-2 py-4 text-center">
           {expandedRows.has(vm.vmid) ? '▼' : ''}
         </td>
-        <td className="px-6 py-4 text-center flex space-x-2 justify-center">
+        <td className="px-2 py-2 text-center flex space-x-2 justify-center">
           <button
             onClick={(e) => {
               e.stopPropagation();
