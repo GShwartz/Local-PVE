@@ -3,6 +3,7 @@ import { UseMutationResult } from '@tanstack/react-query';
 import { VM, Auth, Snapshot } from './types';
 import SnapshotsView from './SnapshotsView';
 import axios from 'axios';
+import { useState, useEffect } from 'react';
 
 interface TableRowProps {
   vm: VM;
@@ -47,6 +48,17 @@ const TableRow = ({
     enabled: snapshotView === vm.vmid,
   });
 
+  // Check if any action is pending for the VM
+  const hasPendingActions = pendingActions[vm.vmid]?.length > 0;
+
+  const [isStarting, setIsStarting] = useState(false);
+
+  useEffect(() => {
+    if (isStarting && vm.status === 'running') {
+      setIsStarting(false);
+    }
+  }, [vm.status, isStarting]);
+
   return (
     <>
       <tr
@@ -78,11 +90,14 @@ const TableRow = ({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              vmMutation.mutate({ vmid: vm.vmid, action: 'start' });
+              setIsStarting(true);
+              vmMutation.mutate({ vmid: vm.vmid, action: 'start' }, {
+                onError: () => setIsStarting(false),
+              });
             }}
-            disabled={vm.status === 'running' || vm.status === 'suspended' || pendingActions[vm.vmid]?.includes('start')}
+            disabled={vm.status === 'running' || vm.status === 'suspended' || hasPendingActions || isStarting}
             className={`px-3 py-1 text-sm font-medium rounded-md active:scale-95 transition-transform duration-100 ${
-              vm.status === 'running' || vm.status === 'suspended' || pendingActions[vm.vmid]?.includes('start')
+              vm.status === 'running' || vm.status === 'suspended' || hasPendingActions || isStarting
                 ? 'bg-gray-600 cursor-not-allowed'
                 : 'bg-green-600 hover:bg-green-700'
             } text-white`}
