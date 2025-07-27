@@ -18,20 +18,20 @@ const TableHeader = ({ sortConfig, handleSort }: TableHeaderProps) => {
   ];
 
   return (
-    <thead className="text-xs uppercase bg-gray-800 text-gray-400">
+    <thead className="table-header">
       <tr>
         {headers.map(({ key, label }) => (
           <th
             key={key}
             scope="col"
-            className={`px-6 py-3 cursor-pointer text-center ${key === 'cpus' || key === 'ram' || key === 'hdd_sizes' || key === 'status' ? 'narrow-col' : ''}`}
+            className={`table-header-th ${key === 'cpus' || key === 'ram' || key === 'hdd_sizes' || key === 'status' ? 'narrow-col' : ''}`}
             onClick={() => handleSort(key)}
           >
             {label} {sortConfig.key === key && (sortConfig.direction === 'asc' ? '↑' : '↓')}
           </th>
         ))}
-        <th scope="col" className="px-2 py-3 w-8"></th>
-        <th scope="col" className="px-6 py-3 text-center">Actions</th>
+        <th scope="col" className="table-header-empty"></th>
+        <th scope="col" className="table-header-action">Actions</th>
       </tr>
     </thead>
   );

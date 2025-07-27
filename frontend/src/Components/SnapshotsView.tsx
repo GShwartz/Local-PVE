@@ -1,5 +1,6 @@
 import { UseMutationResult } from '@tanstack/react-query';
 import { VM, Snapshot } from '../types';
+import { useState } from 'react';
 
 interface SnapshotsViewProps {
   vm: VM;
@@ -12,6 +13,48 @@ interface SnapshotsViewProps {
   pendingActions: { [vmid: number]: string[] };
 }
 
+interface PopconfirmProps {
+  isOpen: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+  message: string;
+  action: 'revert' | 'delete' | null;
+}
+
+const Popconfirm: React.FC<PopconfirmProps> = ({ isOpen, onConfirm, onCancel, message, action }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-center items-center bg-black/50">
+      <div className="relative p-4 w-full max-w-sm max-h-full">
+        <div className="relative bg-white rounded-lg shadow-sm dark:bg-gray-700">
+          <div className="p-4 md:p-5">
+            <p className="text-sm text-gray-900 dark:text-white mb-4">{message}</p>
+            <div className="flex justify-end space-x-2">
+              <button
+                onClick={onCancel}
+                className="px-3 py-1 text-sm font-medium text-gray-900 bg-gray-200 rounded-md hover:bg-gray-300 dark:bg-gray-600 dark:text-white dark:hover:bg-gray-500"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={onConfirm}
+                className={`px-3 py-1 text-sm font-medium text-white rounded-md ${
+                  action === 'revert'
+                    ? 'bg-purple-600 hover:bg-purple-700'
+                    : 'bg-red-600 hover:bg-red-700'
+                }`}
+              >
+                {action === 'revert' ? 'Revert' : 'Remove'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const SnapshotsView = ({
   vm,
   snapshots,
@@ -22,6 +65,35 @@ const SnapshotsView = ({
   deleteSnapshotMutation,
   pendingActions,
 }: SnapshotsViewProps) => {
+  const isCreatingSnapshot = pendingActions[vm.vmid]?.some((action) =>
+    action.startsWith('create-')
+  );
+  const isRevertingSnapshot = pendingActions[vm.vmid]?.some((action) =>
+    action.startsWith('revert-')
+  );
+  const [popconfirm, setPopconfirm] = useState<{
+    isOpen: boolean;
+    action: 'revert' | 'delete' | null;
+    snapname: string | null;
+  }>({ isOpen: false, action: null, snapname: null });
+
+  const showPopconfirm = (action: 'revert' | 'delete', snapname: string) => {
+    setPopconfirm({ isOpen: true, action, snapname });
+  };
+
+  const handleConfirm = () => {
+    if (popconfirm.action === 'revert' && popconfirm.snapname) {
+      snapshotMutation.mutate({ vmid: vm.vmid, snapname: popconfirm.snapname });
+    } else if (popconfirm.action === 'delete' && popconfirm.snapname) {
+      deleteSnapshotMutation.mutate({ vmid: vm.vmid, snapname: popconfirm.snapname });
+    }
+    setPopconfirm({ isOpen: false, action: null, snapname: null });
+  };
+
+  const handleCancel = () => {
+    setPopconfirm({ isOpen: false, action: null, snapname: null });
+  };
+
   return (
     <>
       {snapshotsLoading && <p>Loading snapshots...</p>}
@@ -35,7 +107,12 @@ const SnapshotsView = ({
               </h5>
               <button
                 onClick={() => openModal(vm.vmid)}
-                className="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-3 py-1 text-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+                disabled={isCreatingSnapshot || isRevertingSnapshot}
+                className={`text-white font-medium rounded-lg text-sm px-3 py-1 text-center ${
+                  isCreatingSnapshot || isRevertingSnapshot
+                    ? 'bg-gray-600 cursor-not-allowed'
+                    : 'bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800'
+                }`}
               >
                 Take Snapshot
               </button>
@@ -53,7 +130,12 @@ const SnapshotsView = ({
               </h5>
               <button
                 onClick={() => openModal(vm.vmid)}
-                className="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-3 py-1 text-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+                disabled={isCreatingSnapshot || isRevertingSnapshot}
+                className={`text-white font-medium rounded-lg text-sm px-3 py-1 text-center ${
+                  isCreatingSnapshot || isRevertingSnapshot
+                    ? 'bg-gray-600 cursor-not-allowed'
+                    : 'bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800'
+                }`}
               >
                 Take Snapshot
               </button>
@@ -75,11 +157,17 @@ const SnapshotsView = ({
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            snapshotMutation.mutate({ vmid: vm.vmid, snapname: snapshot.name });
+                            showPopconfirm('revert', snapshot.name);
                           }}
-                          disabled={pendingActions[vm.vmid]?.includes(`revert-${snapshot.name}`)}
+                          disabled={
+                            isRevertingSnapshot ||
+                            isCreatingSnapshot ||
+                            pendingActions[vm.vmid]?.includes(`delete-${snapshot.name}`)
+                          }
                           className={`px-3 py-1 text-sm font-medium rounded-md active:scale-95 transition-transform duration-100 ${
-                            pendingActions[vm.vmid]?.includes(`revert-${snapshot.name}`)
+                            isRevertingSnapshot ||
+                            isCreatingSnapshot ||
+                            pendingActions[vm.vmid]?.includes(`delete-${snapshot.name}`)
                               ? 'bg-gray-600 cursor-not-allowed'
                               : 'bg-purple-600 hover:bg-purple-700'
                           } text-white`}
@@ -89,11 +177,17 @@ const SnapshotsView = ({
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            deleteSnapshotMutation.mutate({ vmid: vm.vmid, snapname: snapshot.name });
+                            showPopconfirm('delete', snapshot.name);
                           }}
-                          disabled={pendingActions[vm.vmid]?.includes(`delete-${snapshot.name}`)}
+                          disabled={
+                            pendingActions[vm.vmid]?.includes(`delete-${snapshot.name}`) ||
+                            isCreatingSnapshot ||
+                            pendingActions[vm.vmid]?.includes(`revert-${snapshot.name}`)
+                          }
                           className={`px-3 py-1 text-sm font-medium rounded-md active:scale-95 transition-transform duration-100 ${
-                            pendingActions[vm.vmid]?.includes(`delete-${snapshot.name}`)
+                            pendingActions[vm.vmid]?.includes(`delete-${snapshot.name}`) ||
+                            isCreatingSnapshot ||
+                            pendingActions[vm.vmid]?.includes(`revert-${snapshot.name}`)
                               ? 'bg-gray-600 cursor-not-allowed'
                               : 'bg-red-600 hover:bg-red-700'
                           } text-white`}
@@ -109,6 +203,17 @@ const SnapshotsView = ({
           </div>
         </div>
       )}
+      <Popconfirm
+        isOpen={popconfirm.isOpen}
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
+        message={
+          popconfirm.action === 'revert'
+            ? `Are you sure you want to revert to snapshot "${popconfirm.snapname}"? This action cannot be undone.`
+            : `Are you sure you want to delete snapshot "${popconfirm.snapname}"? This action cannot be undone.`
+        }
+        action={popconfirm.action}
+      />
     </>
   );
 };

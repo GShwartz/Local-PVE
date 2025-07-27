@@ -3,7 +3,7 @@ import { UseMutationResult } from '@tanstack/react-query';
 import { VM, Auth, Snapshot } from '../types';
 import SnapshotsView from '../Components/SnapshotsView';
 import axios from 'axios';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 interface TableRowProps {
   vm: VM;
@@ -19,6 +19,8 @@ interface TableRowProps {
   auth: Auth;
   node: string;
   openEditModal: (vm: VM) => void;
+  editingVmid: number | null;
+  cancelEdit: () => void;
 }
 
 const getSnapshots = async ({ node, vmid, csrf, ticket }: { node: string; vmid: number; csrf: string; ticket: string }): Promise<Snapshot[]> => {
@@ -43,6 +45,8 @@ const TableRow = ({
   auth,
   node,
   openEditModal,
+  editingVmid,
+  cancelEdit,
 }: TableRowProps) => {
   const { data: snapshots, isLoading: snapshotsLoading, error: snapshotsError } = useQuery({
     queryKey: ['snapshots', node, vm.vmid, auth.csrf_token, auth.ticket],
@@ -50,11 +54,20 @@ const TableRow = ({
     enabled: snapshotView === vm.vmid,
   });
 
-  // Check if any action is pending for the VM
   const hasPendingActions = pendingActions[vm.vmid]?.length > 0;
-
+  const isCreatingSnapshot = pendingActions[vm.vmid]?.some((action) => action.startsWith('create-'));
   const [isStarting, setIsStarting] = useState(false);
   const [isHalting, setIsHalting] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editVMName, setEditVMName] = useState(vm.name);
+  const cellRef = useRef<HTMLTableCellElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isEditing]);
 
   useEffect(() => {
     if (isStarting && vm.status === 'running') {
@@ -68,63 +81,126 @@ const TableRow = ({
     }
   }, [vm.status, isHalting]);
 
+  const handleEditSubmit = (e: React.FormEvent): void => {
+    e.preventDefault();
+    console.log(`Would update VM ${vm.name} to ${editVMName}`);
+    setIsEditing(false);
+    setEditVMName(editVMName);
+    cancelEdit();
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditVMName(vm.name);
+    cancelEdit();
+  };
+
+  const handleToggleRow = () => {
+    toggleRow(vm.vmid);
+  };
+
   return (
     <>
       <tr
-        className="bg-gray-900 border-b border-gray-700 hover:bg-gray-700 cursor-pointer"
+        className="bg-gray-900 border-b border-gray-700 hover:bg-gray-700"
+        style={{ height: '48px' }}
         onClick={() => toggleRow(vm.vmid)}
       >
-        <td className="px-6 py-4 text-center">{vm.vmid}</td>
-        <td className="px-6 py-4 text-center">
-          <div className="flex items-center justify-center">
-            {vm.name}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                openEditModal(vm);
-              }}
-              className="ml-2"
-            >
-              <svg className="w-4 h-4 text-gray-400 hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-              </svg>
-            </button>
-          </div>
+        <td className="px-6 py-4 text-center" style={{ height: '48px', verticalAlign: 'middle' }}>{vm.vmid}</td>
+        <td
+          className="px-6 py-4 text-center relative"
+          ref={cellRef}
+          style={{ height: '48px', verticalAlign: 'middle' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {isEditing ? (
+            <form onSubmit={handleEditSubmit} onClick={(e) => e.stopPropagation()} className="flex items-center justify-center space-x-2 w-full">
+              <input
+                type="text"
+                value={editVMName}
+                ref={inputRef}
+                onClick={(e) => e.stopPropagation()}
+                onChange={(e) => setEditVMName(e.target.value)}
+                className="w-32 p-1 bg-gray-900 text-white rounded-md text-sm"
+                placeholder="New VM Name"
+                style={{ height: '32px', lineHeight: '1.5' }}
+                disabled={editingVmid !== null && editingVmid !== vm.vmid}
+              />
+              <button
+                type="submit"
+                onClick={(e) => e.stopPropagation()}
+                className="px-2 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50"
+                style={{ height: '32px', lineHeight: '1.5' }}
+                disabled={editingVmid !== null && editingVmid !== vm.vmid}
+              >
+                Rename
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCancelEdit();
+                }}
+                className="px-2 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
+                style={{ height: '32px', lineHeight: '1.5' }}
+                disabled={editingVmid !== null && editingVmid !== vm.vmid}
+              >
+                Cancel
+              </button>
+            </form>
+          ) : (
+            <div className="flex items-center justify-center" style={{ height: '32px', lineHeight: '1.5' }}>
+              {vm.name}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsEditing(true);
+                  openEditModal(vm);
+                }}
+                disabled={editingVmid !== null && editingVmid !== vm.vmid}
+                className={`ml-2 text-gray-400 hover:text-white ${editingVmid !== null && editingVmid !== vm.vmid ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+              </button>
+            </div>
+          )}
         </td>
-        <td className="px-6 py-4 text-center">{vm.ip_address}</td>
-        <td className="px-6 py-4 text-center">{vm.os}</td>
-        <td className="px-6 py-4 text-center narrow-col">{vm.cpus}</td>
-        <td className="px-6 py-4 text-center narrow-col">{vm.ram}</td>
-        <td className="px-6 py-4 text-center narrow-col">{vm.hdd_sizes}</td>
-        <td className="px-6 py-4 text-center narrow-col">
+        <td className="px-6 py-4 text-center" style={{ height: '48px', verticalAlign: 'middle' }}>{vm.ip_address}</td>
+        <td className="px-6 py-4 text-center" style={{ height: '48px', verticalAlign: 'middle' }}>{vm.os}</td>
+        <td className="px-6 py-4 text-center narrow-col" style={{ height: '48px', verticalAlign: 'middle' }}>{vm.cpus}</td>
+        <td className="px-6 py-4 text-center narrow-col" style={{ height: '48px', verticalAlign: 'middle' }}>{vm.ram}</td>
+        <td className="px-6 py-4 text-center narrow-col" style={{ height: '48px', verticalAlign: 'middle' }}>{vm.hdd_sizes}</td>
+        <td className="px-6 py-4 text-center narrow-col" style={{ height: '48px', verticalAlign: 'middle' }}>
           <span
             className={`px-2 py-1 rounded-full text-xs font-semibold ${
               vm.status === 'running' ? 'bg-green-600 text-white' :
               vm.status === 'suspended' ? 'bg-yellow-600 text-white' :
               'bg-red-600 text-white'
             }`}
+            style={{ lineHeight: '1.5' }}
           >
             {vm.status}
           </span>
         </td>
-        <td className="px-2 py-4 text-center">
-          {expandedRows.has(vm.vmid) ? '▼' : ''}
-        </td>
-        <td className="px-2 py-2 text-center flex space-x-2 justify-center">
+        <td className="px-2 py-4 text-center" style={{ height: '48px', verticalAlign: 'middle' }}></td>
+        <td className="px-2 py-2 text-center flex space-x-2 justify-center" style={{ height: '48px', verticalAlign: 'middle' }}>
           <button
             onClick={(e) => {
               e.stopPropagation();
               setIsStarting(true);
               vmMutation.mutate({ vmid: vm.vmid, action: 'start', name: vm.name }, {
                 onError: () => setIsStarting(false),
-             });
+              });
             }}
-            disabled={vm.status === 'running' || vm.status === 'suspended' || hasPendingActions || isStarting}
+            disabled={vm.status === 'running' || vm.status === 'suspended' || hasPendingActions || isStarting || isCreatingSnapshot}
             className={`px-3 py-1 text-sm font-medium rounded-md active:scale-95 transition-transform duration-100 ${
-              vm.status === 'running' || vm.status === 'suspended' || hasPendingActions || isStarting
+              vm.status === 'running' || vm.status === 'suspended' || hasPendingActions || isStarting || isCreatingSnapshot
                 ? 'bg-gray-600 cursor-not-allowed'
                 : 'bg-green-600 hover:bg-green-700'
             } text-white`}
+            style={{ height: '32px', lineHeight: '1.5' }}
           >
             Start
           </button>
@@ -136,12 +212,13 @@ const TableRow = ({
                 onError: () => setIsHalting(false),
               });
             }}
-            disabled={vm.status !== 'running' || pendingActions[vm.vmid]?.includes('stop') || pendingActions[vm.vmid]?.includes('shutdown') || isHalting}
+            disabled={vm.status !== 'running' || pendingActions[vm.vmid]?.includes('stop') || pendingActions[vm.vmid]?.includes('shutdown') || isHalting || isCreatingSnapshot}
             className={`px-3 py-1 text-sm font-medium rounded-md active:scale-95 transition-transform duration-100 ${
-              vm.status !== 'running' || pendingActions[vm.vmid]?.includes('stop') || pendingActions[vm.vmid]?.includes('shutdown') || isHalting
+              vm.status !== 'running' || pendingActions[vm.vmid]?.includes('stop') || pendingActions[vm.vmid]?.includes('shutdown') || isHalting || isCreatingSnapshot
                 ? 'bg-gray-600 cursor-not-allowed'
                 : 'bg-red-600 hover:bg-red-700'
             } text-white`}
+            style={{ height: '32px', lineHeight: '1.5' }}
           >
             Stop
           </button>
@@ -153,12 +230,13 @@ const TableRow = ({
                 onError: () => setIsHalting(false),
               });
             }}
-            disabled={vm.status !== 'running' || pendingActions[vm.vmid]?.includes('shutdown') || pendingActions[vm.vmid]?.includes('stop') || isHalting}
+            disabled={vm.status !== 'running' || pendingActions[vm.vmid]?.includes('shutdown') || pendingActions[vm.vmid]?.includes('stop') || isHalting || isCreatingSnapshot}
             className={`px-3 py-1 text-sm font-medium rounded-md active:scale-95 transition-transform duration-100 ${
-              vm.status !== 'running' || pendingActions[vm.vmid]?.includes('shutdown') || pendingActions[vm.vmid]?.includes('stop') || isHalting
+              vm.status !== 'running' || pendingActions[vm.vmid]?.includes('shutdown') || pendingActions[vm.vmid]?.includes('stop') || isHalting || isCreatingSnapshot
                 ? 'bg-gray-600 cursor-not-allowed'
                 : 'bg-yellow-600 hover:bg-yellow-700'
             } text-white`}
+            style={{ height: '32px', lineHeight: '1.5' }}
           >
             Shutdown
           </button>
@@ -167,12 +245,13 @@ const TableRow = ({
               e.stopPropagation();
               vmMutation.mutate({ vmid: vm.vmid, action: 'reboot', name: vm.name });
             }}
-            disabled={vm.status !== 'running' || pendingActions[vm.vmid]?.includes('reboot') || pendingActions[vm.vmid]?.includes('stop') || pendingActions[vm.vmid]?.includes('shutdown') || isHalting}
+            disabled={vm.status !== 'running' || pendingActions[vm.vmid]?.includes('reboot') || pendingActions[vm.vmid]?.includes('stop') || pendingActions[vm.vmid]?.includes('shutdown') || isHalting || isCreatingSnapshot}
             className={`px-3 py-1 text-sm font-medium rounded-md active:scale-95 transition-transform duration-100 ${
-              vm.status !== 'running' || pendingActions[vm.vmid]?.includes('reboot') || pendingActions[vm.vmid]?.includes('stop') || pendingActions[vm.vmid]?.includes('shutdown') || isHalting
+              vm.status !== 'running' || pendingActions[vm.vmid]?.includes('reboot') || pendingActions[vm.vmid]?.includes('stop') || pendingActions[vm.vmid]?.includes('shutdown') || isHalting || isCreatingSnapshot
                 ? 'bg-gray-600 cursor-not-allowed'
                 : 'bg-indigo-600 hover:bg-indigo-700'
             } text-white`}
+            style={{ height: '32px', lineHeight: '1.5' }}
           >
             Reboot
           </button>
@@ -187,14 +266,25 @@ const TableRow = ({
                 ? 'bg-gray-600 cursor-not-allowed'
                 : 'bg-purple-600 hover:bg-purple-700'
             } text-white`}
+            style={{ height: '32px', lineHeight: '1.5' }}
           >
             Snapshots
           </button>
         </td>
+        <td
+          className="px-2 py-4 text-center cursor-pointer"
+          style={{ height: '48px', verticalAlign: 'middle' }}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleToggleRow();
+          }}
+        >
+          {expandedRows.has(vm.vmid) ? '▲' : '▼'}
+        </td>
       </tr>
       {expandedRows.has(vm.vmid) && (
         <tr>
-          <td colSpan={10} className="px-6 py-4 bg-gray-800 text-center">
+          <td colSpan={11} className="px-6 py-4 bg-gray-800 text-center">
             <div className="expanded-content">
               {snapshotView === vm.vmid ? (
                 <SnapshotsView
