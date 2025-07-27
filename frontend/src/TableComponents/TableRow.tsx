@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { UseMutationResult } from '@tanstack/react-query';
-import { VM, Auth, Snapshot } from './types';
-import SnapshotsView from './SnapshotsView';
+import { VM, Auth, Snapshot } from '../types';
+import SnapshotsView from '../Components/SnapshotsView';
 import axios from 'axios';
 import { useState, useEffect } from 'react';
 
@@ -11,11 +11,11 @@ interface TableRowProps {
   toggleRow: (vmid: number) => void;
   snapshotView: number | null;
   showSnapshots: (vmid: number) => void;
-  openModal: (vmid: number) => void;
+  openModal: (vmid: number, vmName: string) => void;
   pendingActions: { [vmid: number]: string[] };
-  vmMutation: UseMutationResult<string, any, { vmid: number; action: string }, unknown>;
-  snapshotMutation: UseMutationResult<string, any, { vmid: number; snapname: string }, unknown>;
-  deleteSnapshotMutation: UseMutationResult<string, any, { vmid: number; snapname: string }, unknown>;
+  vmMutation: UseMutationResult<string, any, { vmid: number; action: string; name?: string }, unknown>;
+  snapshotMutation: UseMutationResult<string, any, { vmid: number; snapname: string; name?: string }, unknown>;
+  deleteSnapshotMutation: UseMutationResult<string, any, { vmid: number; snapname: string; name?: string }, unknown>;
   auth: Auth;
   node: string;
 }
@@ -52,12 +52,19 @@ const TableRow = ({
   const hasPendingActions = pendingActions[vm.vmid]?.length > 0;
 
   const [isStarting, setIsStarting] = useState(false);
+  const [isHalting, setIsHalting] = useState(false);
 
   useEffect(() => {
     if (isStarting && vm.status === 'running') {
       setIsStarting(false);
     }
   }, [vm.status, isStarting]);
+
+  useEffect(() => {
+    if (isHalting && vm.status !== 'running') {
+      setIsHalting(false);
+    }
+  }, [vm.status, isHalting]);
 
   return (
     <>
@@ -91,9 +98,9 @@ const TableRow = ({
             onClick={(e) => {
               e.stopPropagation();
               setIsStarting(true);
-              vmMutation.mutate({ vmid: vm.vmid, action: 'start' }, {
+              vmMutation.mutate({ vmid: vm.vmid, action: 'start', name: vm.name }, {
                 onError: () => setIsStarting(false),
-              });
+             });
             }}
             disabled={vm.status === 'running' || vm.status === 'suspended' || hasPendingActions || isStarting}
             className={`px-3 py-1 text-sm font-medium rounded-md active:scale-95 transition-transform duration-100 ${
@@ -107,11 +114,14 @@ const TableRow = ({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              vmMutation.mutate({ vmid: vm.vmid, action: 'stop' });
+              setIsHalting(true);
+              vmMutation.mutate({ vmid: vm.vmid, action: 'stop', name: vm.name }, {
+                onError: () => setIsHalting(false),
+              });
             }}
-            disabled={vm.status !== 'running' || pendingActions[vm.vmid]?.includes('stop')}
+            disabled={vm.status !== 'running' || pendingActions[vm.vmid]?.includes('stop') || pendingActions[vm.vmid]?.includes('shutdown') || isHalting}
             className={`px-3 py-1 text-sm font-medium rounded-md active:scale-95 transition-transform duration-100 ${
-              vm.status !== 'running' || pendingActions[vm.vmid]?.includes('stop')
+              vm.status !== 'running' || pendingActions[vm.vmid]?.includes('stop') || pendingActions[vm.vmid]?.includes('shutdown') || isHalting
                 ? 'bg-gray-600 cursor-not-allowed'
                 : 'bg-red-600 hover:bg-red-700'
             } text-white`}
@@ -121,11 +131,14 @@ const TableRow = ({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              vmMutation.mutate({ vmid: vm.vmid, action: 'shutdown' });
+              setIsHalting(true);
+              vmMutation.mutate({ vmid: vm.vmid, action: 'shutdown', name: vm.name }, {
+                onError: () => setIsHalting(false),
+              });
             }}
-            disabled={vm.status !== 'running' || pendingActions[vm.vmid]?.includes('shutdown')}
+            disabled={vm.status !== 'running' || pendingActions[vm.vmid]?.includes('shutdown') || pendingActions[vm.vmid]?.includes('stop') || isHalting}
             className={`px-3 py-1 text-sm font-medium rounded-md active:scale-95 transition-transform duration-100 ${
-              vm.status !== 'running' || pendingActions[vm.vmid]?.includes('shutdown')
+              vm.status !== 'running' || pendingActions[vm.vmid]?.includes('shutdown') || pendingActions[vm.vmid]?.includes('stop') || isHalting
                 ? 'bg-gray-600 cursor-not-allowed'
                 : 'bg-yellow-600 hover:bg-yellow-700'
             } text-white`}
@@ -135,11 +148,11 @@ const TableRow = ({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              vmMutation.mutate({ vmid: vm.vmid, action: 'reboot' });
+              vmMutation.mutate({ vmid: vm.vmid, action: 'reboot', name: vm.name });
             }}
-            disabled={vm.status !== 'running' || pendingActions[vm.vmid]?.includes('reboot')}
+            disabled={vm.status !== 'running' || pendingActions[vm.vmid]?.includes('reboot') || pendingActions[vm.vmid]?.includes('stop') || pendingActions[vm.vmid]?.includes('shutdown') || isHalting}
             className={`px-3 py-1 text-sm font-medium rounded-md active:scale-95 transition-transform duration-100 ${
-              vm.status !== 'running' || pendingActions[vm.vmid]?.includes('reboot')
+              vm.status !== 'running' || pendingActions[vm.vmid]?.includes('reboot') || pendingActions[vm.vmid]?.includes('stop') || pendingActions[vm.vmid]?.includes('shutdown') || isHalting
                 ? 'bg-gray-600 cursor-not-allowed'
                 : 'bg-indigo-600 hover:bg-indigo-700'
             } text-white`}
@@ -155,7 +168,7 @@ const TableRow = ({
             className={`px-3 py-1 text-sm font-medium rounded-md active:scale-95 transition-transform duration-100 ${
               pendingActions[vm.vmid]?.includes('snapshots')
                 ? 'bg-gray-600 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700'
+                : 'bg-purple-600 hover:bg-purple-700'
             } text-white`}
           >
             Snapshots
@@ -172,7 +185,7 @@ const TableRow = ({
                   snapshots={snapshots}
                   snapshotsLoading={snapshotsLoading}
                   snapshotsError={snapshotsError}
-                  openModal={openModal}
+                  openModal={(vmid) => openModal(vmid, vm.name)}
                   snapshotMutation={snapshotMutation}
                   deleteSnapshotMutation={deleteSnapshotMutation}
                   pendingActions={pendingActions}

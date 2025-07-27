@@ -1,4 +1,4 @@
-import { VM } from './types';
+import { VM } from '../types';
 
 interface TableHeaderProps {
   sortConfig: { key: keyof VM; direction: 'asc' | 'desc' };

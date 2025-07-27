@@ -1,6 +1,5 @@
-// SnapshotsView.tsx
 import { UseMutationResult } from '@tanstack/react-query';
-import { VM, Snapshot } from './types';
+import { VM, Snapshot } from '../types';
 
 interface SnapshotsViewProps {
   vm: VM;

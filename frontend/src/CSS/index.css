@@ -37,7 +37,7 @@ footer {
   @apply bg-gray-900 border-t border-gray-700 p-6;
   width: 100%;
   position: fixed;
-  bottom: 0;
+  bottom: 2rem;
   left: 0;
   height: 70px; /* Explicit height for calculation */
   margin-top: 10px; /* Add gap above footer */
@@ -106,4 +106,29 @@ th, td {
 /* Narrower columns for CPU, Status, RAM, HDD Sizes */
 .narrow-col {
   @apply w-20; /* Fixed width for narrower columns */
+}
+
+/* Custom scrollbar for notification history */
+.custom-scrollbar {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: #4b5563 #1f2937; /* Thumb and track colors for Firefox */
+}
+
+/* Webkit browsers (Chrome, Safari, Edge) */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px; /* Scrollbar width */
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #1f2937; /* Track color (dark gray) */
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #4b5563; /* Thumb color (gray) */
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #6b7280; /* Lighter gray on hover */
 }

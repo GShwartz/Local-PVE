@@ -2,13 +2,13 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import Navbar from './src/Navbar';
-import Footer from './src/Footer';
-import MachinesTable from './src/MachinesTable';
-import LoginError from './src/LoginError';
-import Loading from './src/Loading';
-import CreateVMModal from './src/CreateVMModal'; // This import remains unchanged as we will fix the export in CreateVMModal.tsx
-import Alerts, { Alert } from './src/Alerts';
+import Navbar from './src/Components/Navbar';
+import Footer from './src/Components/Footer';
+import MachinesTable from './src/TableComponents/MachinesTable';
+import LoginError from './src/Components/LoginError';
+import Loading from './src/Components/Loading';
+import CreateVMModal from './src/Components/CreateVMModal'; // This import remains unchanged as we will fix the export in CreateVMModal.tsx
+import Alerts, { Alert } from './src/Components/Alerts';
 
 // Define types for API responses and state
 interface Credentials {
@@ -48,10 +48,13 @@ function App() {
   const queryClient = useQueryClient();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [alertHistory, setAlertHistory] = useState<Alert[]>([]);
 
   const addAlert = (message: string, type: string): void => {
     const id: string = `${Date.now()}-${Math.random()}`;
-    setAlerts((prev) => [...prev, { id, message, type }]);
+    const newAlert = { id, message, type };
+    setAlerts((prev) => [...prev, newAlert]);
+    setAlertHistory((prev) => [...prev, newAlert]);
     setTimeout(() => {
       setAlerts((prev) => prev.filter((alert) => alert.id !== id));
     }, 5000);
@@ -103,7 +106,10 @@ function App() {
 
   return (
     <>
-      <Navbar onCreateClick={() => setIsCreateModalOpen(true)} />
+      <Navbar
+        onCreateClick={() => setIsCreateModalOpen(true)}
+        alertHistory={alertHistory}
+      />
       <Alerts alerts={alerts} dismissAlert={dismissAlert} />
       <main className="flex-1 p-8">
         <div className="max-w-7xl mx-auto">
@@ -111,7 +117,7 @@ function App() {
           {isLoading && <p className="mb-4 text-gray-400 text-center">Loading...</p>}
           {!isLoading && !vms?.length && <p className="mb-4 text-gray-400 text-center">No machines available.</p>}
           {vms && vms.length > 0 && (
-            <MachinesTable vms={vms} auth={auth} queryClient={queryClient} node={NODE} />
+            <MachinesTable vms={vms} auth={auth} queryClient={queryClient} node={NODE} addAlert={addAlert} />
           )}
         </div>
       </main>

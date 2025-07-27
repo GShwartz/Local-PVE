@@ -1,40 +1,28 @@
-// MachinesTable.tsx
 import { useState } from 'react';
-import Alerts, { Alert } from './Alerts';
 import TableHeader from './TableHeader';
 import TableRow from './TableRow';
-import SnapshotModal from './SnapshotModal';
-import { Auth, VM } from './types';
-import { useVMMutation, useSnapshotMutation, useDeleteSnapshotMutation, useCreateSnapshotMutation } from './vmMutations'; // Adjust path as needed
+import SnapshotModal from '../Components/SnapshotModal';
+import { Auth, VM } from '../types';
+import { useVMMutation, useSnapshotMutation, useDeleteSnapshotMutation, useCreateSnapshotMutation } from '../Components/vmMutations';
 
 interface MachinesTableProps {
   vms: VM[];
   auth: Auth;
   queryClient: any;
   node: string;
+  addAlert: (message: string, type: string) => void;
 }
 
-const MachinesTable = ({ vms, auth, queryClient, node }: MachinesTableProps) => {
+const MachinesTable = ({ vms, auth, queryClient, node, addAlert }: MachinesTableProps) => {
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [snapshotView, setSnapshotView] = useState<number | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: keyof VM; direction: 'asc' | 'desc' }>({ key: 'vmid', direction: 'asc' });
-  const [alerts, setAlerts] = useState<Alert[]>([]);
   const [pendingActions, setPendingActions] = useState<{ [vmid: number]: string[] }>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [snapshotName, setSnapshotName] = useState('');
   const [currentVmid, setCurrentVmid] = useState<number | null>(null);
-
-  const addAlert = (message: string, type: string): void => {
-    const id: string = `${Date.now()}-${Math.random()}`;
-    setAlerts((prev) => [...prev, { id, message, type }]);
-    setTimeout(() => {
-      setAlerts((prev) => prev.filter((alert) => alert.id !== id));
-    }, 5000);
-  };
-
-  const dismissAlert = (id: string): void => {
-    setAlerts((prevState) => prevState.filter((alert) => alert.id !== id));
-  };
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [currentVM, setCurrentVM] = useState<VM | null>(null);
 
   const toggleRow = (vmid: number): void => {
     const newExpanded = new Set(expandedRows);
@@ -50,14 +38,21 @@ const MachinesTable = ({ vms, auth, queryClient, node }: MachinesTableProps) => 
   };
 
   const showSnapshots = (vmid: number): void => {
-    const newExpanded = new Set(expandedRows);
-    newExpanded.clear();
-    newExpanded.add(vmid);
-    setExpandedRows(newExpanded);
-    setSnapshotView(vmid);
+    if (snapshotView === vmid && expandedRows.has(vmid)) {
+      setSnapshotView(null);
+      const newExpanded = new Set(expandedRows);
+      newExpanded.delete(vmid);
+      setExpandedRows(newExpanded);
+    } else {
+      const newExpanded = new Set(expandedRows);
+      newExpanded.clear();
+      newExpanded.add(vmid);
+      setExpandedRows(newExpanded);
+      setSnapshotView(vmid);
+    }
   };
 
-  const openModal = (vmid: number): void => {
+  const openModal = (vmid: number, _vmName: string): void => {
     setCurrentVmid(vmid);
     setSnapshotName('');
     setIsModalOpen(true);
@@ -67,6 +62,16 @@ const MachinesTable = ({ vms, auth, queryClient, node }: MachinesTableProps) => 
     setIsModalOpen(false);
     setCurrentVmid(null);
     setSnapshotName('');
+  };
+
+  const openEditModal = (vm: VM): void => {
+    setCurrentVM(vm);
+    setIsEditModalOpen(true);
+  };
+
+  const closeEditModal = (): void => {
+    setIsEditModalOpen(false);
+    setCurrentVM(null);
   };
 
   const handleSort = (key: keyof VM): void => {
@@ -111,7 +116,6 @@ const MachinesTable = ({ vms, auth, queryClient, node }: MachinesTableProps) => 
 
   return (
     <>
-      <Alerts alerts={alerts} dismissAlert={dismissAlert} />
       <div className="overflow-x-auto mb-10">
         <table className="w-full text-sm text-gray-200 border-collapse">
           <TableHeader sortConfig={sortConfig} handleSort={handleSort} />
@@ -131,6 +135,7 @@ const MachinesTable = ({ vms, auth, queryClient, node }: MachinesTableProps) => 
                 deleteSnapshotMutation={deleteSnapshotMutation}
                 auth={auth}
                 node={node}
+                openEditModal={openEditModal}
               />
             ))}
           </tbody>
@@ -148,6 +153,20 @@ const MachinesTable = ({ vms, auth, queryClient, node }: MachinesTableProps) => 
         node={node}
         auth={auth}
       />
+      {isEditModalOpen && currentVM && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+          <div className="bg-gray-800 p-6 rounded-lg shadow-lg">
+            <h2 className="text-lg font-semibold mb-4 text-white">Edit VM: {currentVM.name}</h2>
+            {/* Add edit form here */}
+            <button
+              onClick={closeEditModal}
+              className="px-4 py-2 bg-red-600 text-white rounded-md"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 };
