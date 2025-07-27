@@ -18,6 +18,7 @@ interface TableRowProps {
   deleteSnapshotMutation: UseMutationResult<string, any, { vmid: number; snapname: string; name?: string }, unknown>;
   auth: Auth;
   node: string;
+  openEditModal: (vm: VM) => void;
 }
 
 const getSnapshots = async ({ node, vmid, csrf, ticket }: { node: string; vmid: number; csrf: string; ticket: string }): Promise<Snapshot[]> => {
@@ -41,6 +42,7 @@ const TableRow = ({
   deleteSnapshotMutation,
   auth,
   node,
+  openEditModal,
 }: TableRowProps) => {
   const { data: snapshots, isLoading: snapshotsLoading, error: snapshotsError } = useQuery({
     queryKey: ['snapshots', node, vm.vmid, auth.csrf_token, auth.ticket],
@@ -73,7 +75,22 @@ const TableRow = ({
         onClick={() => toggleRow(vm.vmid)}
       >
         <td className="px-6 py-4 text-center">{vm.vmid}</td>
-        <td className="px-6 py-4 text-center">{vm.name}</td>
+        <td className="px-6 py-4 text-center">
+          <div className="flex items-center justify-center">
+            {vm.name}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                openEditModal(vm);
+              }}
+              className="ml-2"
+            >
+              <svg className="w-4 h-4 text-gray-400 hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              </svg>
+            </button>
+          </div>
+        </td>
         <td className="px-6 py-4 text-center">{vm.ip_address}</td>
         <td className="px-6 py-4 text-center">{vm.os}</td>
         <td className="px-6 py-4 text-center narrow-col">{vm.cpus}</td>
