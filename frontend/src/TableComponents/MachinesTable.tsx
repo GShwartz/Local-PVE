@@ -21,8 +21,6 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert }: MachinesTable
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [snapshotName, setSnapshotName] = useState('');
   const [currentVmid, setCurrentVmid] = useState<number | null>(null);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [currentVM, setCurrentVM] = useState<VM | null>(null);
 
   const toggleRow = (vmid: number): void => {
     const newExpanded = new Set(expandedRows);
@@ -62,16 +60,6 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert }: MachinesTable
     setIsModalOpen(false);
     setCurrentVmid(null);
     setSnapshotName('');
-  };
-
-  const openEditModal = (vm: VM): void => {
-    setCurrentVM(vm);
-    setIsEditModalOpen(true);
-  };
-
-  const closeEditModal = (): void => {
-    setIsEditModalOpen(false);
-    setCurrentVM(null);
   };
 
   const handleSort = (key: keyof VM): void => {
@@ -135,7 +123,6 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert }: MachinesTable
                 deleteSnapshotMutation={deleteSnapshotMutation}
                 auth={auth}
                 node={node}
-                openEditModal={openEditModal}
               />
             ))}
           </tbody>
@@ -153,20 +140,6 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert }: MachinesTable
         node={node}
         auth={auth}
       />
-      {isEditModalOpen && currentVM && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-          <div className="bg-gray-800 p-6 rounded-lg shadow-lg">
-            <h2 className="text-lg font-semibold mb-4 text-white">Edit VM: {currentVM.name}</h2>
-            {/* Add edit form here */}
-            <button
-              onClick={closeEditModal}
-              className="px-4 py-2 bg-red-600 text-white rounded-md"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
     </>
   );
 };
