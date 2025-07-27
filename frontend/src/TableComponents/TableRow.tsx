@@ -174,12 +174,12 @@ const TableRow = ({
         <td className="px-6 py-4 text-center narrow-col" style={{ height: '48px', verticalAlign: 'middle' }}>{vm.hdd_sizes}</td>
         <td className="px-6 py-4 text-center narrow-col" style={{ height: '48px', verticalAlign: 'middle' }}>
           <span
-            className={`px-2 py-1 rounded-full text-xs font-semibold ${
+            className={`px-3 py-1 rounded-full text-sm font-medium ${
               vm.status === 'running' ? 'bg-green-600 text-white' :
               vm.status === 'suspended' ? 'bg-yellow-600 text-white' :
               'bg-red-600 text-white'
             }`}
-            style={{ lineHeight: '1.5' }}
+            style={{ height: '32px', lineHeight: '1.5', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
           >
             {vm.status}
           </span>
