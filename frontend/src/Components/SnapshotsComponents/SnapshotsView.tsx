@@ -96,7 +96,34 @@ const SnapshotsView = ({
 
   return (
     <>
-      {snapshotsLoading && <p>Loading snapshots...</p>}
+      <style>
+        {`
+          .loader{
+    display: block;
+    position: relative;
+    height: 20px;
+    width: 140px;
+    background-image: 
+    linear-gradient(#FFF 20px, transparent 0), 
+    linear-gradient(#FFF 20px, transparent 0), 
+    linear-gradient(#FFF 20px, transparent 0), 
+    linear-gradient(#FFF 20px, transparent 0);
+    background-repeat: no-repeat;
+    background-size: 20px auto;
+    background-position: 0 0, 40px 0, 80px 0, 120px 0;
+    animation: pgfill 1s linear infinite;
+  }
+  @keyframes pgfill {
+    0% {   background-image: linear-gradient(#FFF 20px, transparent 0), linear-gradient(#FFF 20px, transparent 0), linear-gradient(#FFF 20px, transparent 0), linear-gradient(#FFF 20px, transparent 0); }
+    25% {   background-image: linear-gradient(#FF3D00 20px, transparent 0), linear-gradient(#FFF 20px, transparent 0), linear-gradient(#FFF 20px, transparent 0), linear-gradient(#FFF 20px, transparent 0); }
+    50% {   background-image: linear-gradient(#FFF 20px, transparent 0), linear-gradient(#FF3D00 20px, transparent 0), linear-gradient(#FFF 20px, transparent 0), linear-gradient(#FFF 20px, transparent 0); }
+    75% {   background-image: linear-gradient(#FFF 20px, transparent 0), linear-gradient(#FFF 20px, transparent 0), linear-gradient(#FF3D00 20px, transparent 0), linear-gradient(#FFF 20px, transparent 0); }
+    100% {   background-image: linear-gradient(#FFF 20px, transparent 0), linear-gradient(#FFF 20px, transparent 0), linear-gradient(#FFF 20px, transparent 0), linear-gradient(#FF3D00 20px, transparent 0); }
+  }
+  
+        `}
+      </style>
+      {snapshotsLoading && <p className="sr-only">Loading snapshots...</p>}
       {snapshotsError && <p className="text-red-500">Error loading snapshots: {snapshotsError.message}</p>}
       {snapshots && snapshots.length === 0 && (
         <div className="flex justify-center">
@@ -105,6 +132,7 @@ const SnapshotsView = ({
               <h5 className="text-base font-semibold text-gray-900 md:text-xl dark:text-white">
                 Snapshots
               </h5>
+              <span className="loader" aria-label="Snapshot animation"></span>
               <button
                 onClick={() => openModal(vm.vmid)}
                 disabled={isCreatingSnapshot || isRevertingSnapshot}
@@ -128,6 +156,7 @@ const SnapshotsView = ({
               <h5 className="text-base font-semibold text-gray-900 md:text-xl dark:text-white">
                 Snapshots
               </h5>
+              <span className="loader" aria-label="Snapshot animation"></span>
               <button
                 onClick={() => openModal(vm.vmid)}
                 disabled={isCreatingSnapshot || isRevertingSnapshot}
