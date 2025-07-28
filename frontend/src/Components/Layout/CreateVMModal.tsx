@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import axios from 'axios';
-import { Auth, TaskStatus, VMCreate } from '../types'; // Adjust path as needed
+import { Auth, TaskStatus, VMCreate } from '../../types'; // Adjust path as needed
 
 const API_BASE = 'http://localhost:8000';
 

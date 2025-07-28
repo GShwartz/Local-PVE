@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import Navbar from './src/Components/Navbar';
-import Footer from './src/Components/Footer';
+import Navbar from './src/Components/Layout/Navbar';
+import Footer from './src/Components/Layout/Footer';
 import MachinesTable from './src/Components/TableComponents/MachinesTable';
 import LoginError from './src/Components/LoginError';
 import Loading from './src/Components/Loading';
-import CreateVMModal from './src/Components/CreateVMModal';
+import CreateVMModal from './src/Components/Layout/CreateVMModal';
 import Alerts, { Alert } from './src/Components/Alerts';
 
 // Define types for API responses and state

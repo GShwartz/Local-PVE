@@ -36,12 +36,15 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert }: MachinesTable
     setExpandedRows(newExpanded);
   };
 
-  const showSnapshots = (vmid: number): void => {
-    if (snapshotView === vmid && expandedRows.has(vmid)) {
+  const showSnapshots = (vmid: number | null): void => {
+    if (vmid === null) {
       setSnapshotView(null);
-      const newExpanded = new Set(expandedRows);
-      newExpanded.delete(vmid);
-      setExpandedRows(newExpanded);
+      setExpandedRows(new Set());
+      return;
+    }
+    if (snapshotView === vmid) {
+      setSnapshotView(null);
+      setExpandedRows(new Set());
     } else {
       const newExpanded = new Set(expandedRows);
       newExpanded.clear();
@@ -119,26 +122,31 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert }: MachinesTable
         <table className="w-full text-sm text-gray-200 border-collapse">
           <TableHeader sortConfig={sortConfig} handleSort={handleSort} />
           <tbody>
-            {sortedVms.map((vm) => (
-              <TableRow
-                key={vm.vmid}
-                vm={vm}
-                expandedRows={expandedRows}
-                toggleRow={toggleRow}
-                snapshotView={snapshotView}
-                showSnapshots={showSnapshots}
-                openModal={openModal}
-                pendingActions={pendingActions}
-                vmMutation={vmMutation}
-                snapshotMutation={snapshotMutation}
-                deleteSnapshotMutation={deleteSnapshotMutation}
-                auth={auth}
-                node={node}
-                openEditModal={openEditModal}
-                editingVmid={editingVmid}
-                cancelEdit={cancelEdit} // Pass the cancelEdit function
-              />
-            ))}
+            {sortedVms.map((vm, idx) => {
+              const prevVm = sortedVms[idx - 1];
+              const hasRowAboveExpanded = prevVm ? expandedRows.has(prevVm.vmid) : false;
+              return (
+                <TableRow
+                  key={vm.vmid}
+                  vm={vm}
+                  expandedRows={expandedRows}
+                  toggleRow={toggleRow}
+                  snapshotView={snapshotView}
+                  showSnapshots={showSnapshots}
+                  openModal={openModal}
+                  pendingActions={pendingActions}
+                  vmMutation={vmMutation}
+                  snapshotMutation={snapshotMutation}
+                  deleteSnapshotMutation={deleteSnapshotMutation}
+                  auth={auth}
+                  node={node}
+                  openEditModal={openEditModal}
+                  editingVmid={editingVmid}
+                  cancelEdit={cancelEdit}
+                  hasRowAboveExpanded={hasRowAboveExpanded}
+                />
+              );
+            })}
           </tbody>
         </table>
       </div>

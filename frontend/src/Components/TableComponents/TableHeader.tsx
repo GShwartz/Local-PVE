@@ -32,8 +32,8 @@ const TableHeader = ({ sortConfig, handleSort }: TableHeaderProps) => {
           </th>
         ))}
         <th scope="col" className="table-header-apply px-2 py-4 border-r border-gray-700" style={{ height: '48px', verticalAlign: 'middle' }}></th>
-        <th scope="col" className="table-header-empty" style={{ height: '48px', verticalAlign: 'middle' }}></th>
         <th scope="col" className="table-header-action px-2 py-4" style={{ height: '48px', verticalAlign: 'middle' }}>Actions</th>
+        <th scope="col" className="table-header-toggle px-2 py-4" style={{ height: '48px', verticalAlign: 'middle' }}></th>
       </tr>
     </thead>
   );

@@ -34,7 +34,7 @@ const ActionButtons = ({ vm, pendingActions, vmMutation, showSnapshots, onToggle
       style={{ height: '48px', verticalAlign: 'middle' }}
       onClick={onToggleRow}
     >
-      <div className="flex space-x-2 justify-center items-center" style={{ height: '48px' }}>
+      <div className="flex space-x-2.5 justify-center items-center" style={{ height: '48px' }}>
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -49,7 +49,7 @@ const ActionButtons = ({ vm, pendingActions, vmMutation, showSnapshots, onToggle
               ? 'bg-gray-600 cursor-not-allowed'
               : 'bg-green-600 hover:bg-green-700'
           } text-white`}
-          style={{ height: '32px', lineHeight: '1' }}
+          style={{ height: '34px', lineHeight: '1.5' }}
         >
           Start
         </button>
@@ -67,7 +67,7 @@ const ActionButtons = ({ vm, pendingActions, vmMutation, showSnapshots, onToggle
               ? 'bg-gray-600 cursor-not-allowed'
               : 'bg-red-600 hover:bg-red-700'
           } text-white`}
-          style={{ height: '32px', lineHeight: '1' }}
+          style={{ height: '34px', lineHeight: '1.5' }}
         >
           Stop
         </button>
@@ -85,7 +85,7 @@ const ActionButtons = ({ vm, pendingActions, vmMutation, showSnapshots, onToggle
               ? 'bg-gray-600 cursor-not-allowed'
               : 'bg-yellow-600 hover:bg-yellow-700'
           } text-white`}
-          style={{ height: '32px', lineHeight: '1' }}
+          style={{ height: '34px', lineHeight: '1.5' }}
         >
           Shutdown
         </button>
@@ -100,7 +100,7 @@ const ActionButtons = ({ vm, pendingActions, vmMutation, showSnapshots, onToggle
               ? 'bg-gray-600 cursor-not-allowed'
               : 'bg-indigo-600 hover:bg-indigo-700'
           } text-white`}
-          style={{ height: '32px', lineHeight: '1' }}
+          style={{ height: '34px', lineHeight: '1.5' }}
         >
           Reboot
         </button>
@@ -110,12 +110,12 @@ const ActionButtons = ({ vm, pendingActions, vmMutation, showSnapshots, onToggle
             showSnapshots(vm.vmid);
           }}
           disabled={pendingActions[vm.vmid]?.includes('snapshots')}
-          className={`px-2 py-1 text-sm font-medium rounded-md active:scale-95 transition-transform duration-100 ${
+          className={`px-2 py-1 text-md font-medium rounded-md active:scale-95 transition-transform duration-100 ${
             pendingActions[vm.vmid]?.includes('snapshots')
               ? 'bg-gray-600 cursor-not-allowed'
               : 'bg-purple-600 hover:bg-purple-700'
           } text-white`}
-          style={{ height: '32px', lineHeight: '1' }}
+          style={{ height: '34px', lineHeight: '1.5' }}
         >
           Snapshots
         </button>

@@ -24,6 +24,7 @@ interface TableRowProps {
   openEditModal: (vm: VM) => void;
   editingVmid: number | null;
   cancelEdit: () => void;
+  hasRowAboveExpanded: boolean;
 }
 
 const getSnapshots = async ({ node, vmid, csrf, ticket }: { node: string; vmid: number; csrf: string; ticket: string }): Promise<Snapshot[]> => {
@@ -50,6 +51,7 @@ const TableRow = ({
   openEditModal,
   editingVmid,
   cancelEdit,
+  hasRowAboveExpanded,
 }: TableRowProps) => {
   const { data: snapshots, isLoading: snapshotsLoading, error: snapshotsError } = useQuery({
     queryKey: ['snapshots', node, vm.vmid, auth.csrf_token, auth.ticket],
@@ -62,10 +64,6 @@ const TableRow = ({
     cpu: null,
     ram: null,
   });
-
-  const handleToggleRow = () => {
-    toggleRow(vm.vmid);
-  };
 
   const handleApplyChanges = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
@@ -147,45 +145,47 @@ const TableRow = ({
             Apply
           </button>
         </td>
-        <td className="px-2 py-4 text-center" style={{ height: '48px', verticalAlign: 'middle' }}></td>
-        <ActionButtons
-          vm={vm}
-          pendingActions={pendingActions}
-          vmMutation={vmMutation}
-          showSnapshots={showSnapshots}
-          onToggleRow={handleToggleRow}
-        />
+        <td
+          className={`px-2 py-2 text-center action-buttons-cell ${hasRowAboveExpanded ? 'border-t border-gray-700' : ''}`}
+          style={{ height: '48px', verticalAlign: 'middle' }}
+        >
+          <ActionButtons
+            vm={vm}
+            pendingActions={pendingActions}
+            vmMutation={vmMutation}
+            showSnapshots={showSnapshots}
+            onToggleRow={() => {}}
+          />
+        </td>
         <td
           className="px-2 py-4 text-center cursor-pointer"
           style={{ height: '48px', verticalAlign: 'middle' }}
-          onClick={handleToggleRow}
+          onClick={() => toggleRow(vm.vmid)}
         >
-          {expandedRows.has(vm.vmid) ? '▲' : '▼'}
+          {expandedRows.has(vm.vmid) && snapshotView !== vm.vmid ? '▲' : '▼'}
         </td>
       </tr>
       {expandedRows.has(vm.vmid) && (
-        <tr>
-          <td colSpan={12} className="px-6 py-4 bg-gray-800 text-center">
+        <tr className="border-b border-gray-700">
+          <td colSpan={9} className="px-6 py-4 bg-gray-800 text-center border-r border-gray-700">
             <div className="expanded-content">
-              {snapshotView === vm.vmid ? (
-                <SnapshotsView
-                  vm={vm}
-                  snapshots={snapshots}
-                  snapshotsLoading={snapshotsLoading}
-                  snapshotsError={snapshotsError}
-                  openModal={(vmid) => openModal(vmid, vm.name)}
-                  snapshotMutation={snapshotMutation}
-                  deleteSnapshotMutation={deleteSnapshotMutation}
-                  pendingActions={pendingActions}
-                />
-              ) : (
-                <>
-                  Expanded details for {vm.name}:
-                  <pre className="text-sm overflow-auto">{JSON.stringify(vm, null, 2)}</pre>
-                </>
-              )}
             </div>
           </td>
+          <td className="px-2 py-2 text-center action-buttons-cell" style={{ height: '48px', verticalAlign: 'middle' }}>
+            {snapshotView === vm.vmid && (
+              <SnapshotsView
+                vm={vm}
+                snapshots={snapshots}
+                snapshotsLoading={snapshotsLoading}
+                snapshotsError={snapshotsError}
+                openModal={(vmid) => openModal(vmid, vm.name)}
+                snapshotMutation={snapshotMutation}
+                deleteSnapshotMutation={deleteSnapshotMutation}
+                pendingActions={pendingActions}
+              />
+            )}
+          </td>
+          <td className="px-2 py-4 text-center border-b border-gray-700" style={{ height: '48px', verticalAlign: 'middle' }}></td>
         </tr>
       )}
     </>

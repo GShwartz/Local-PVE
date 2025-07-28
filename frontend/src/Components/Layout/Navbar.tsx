@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Alert } from './Alerts';
+import { Alert } from '../Alerts';
 
 const Navbar = ({ onCreateClick, alertHistory }: { onCreateClick: () => void; alertHistory: Alert[] }) => {
   const [showHistory, setShowHistory] = useState(false);

@@ -79,7 +79,7 @@ const CPUCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply
               </select>
             </div>
           ) : (
-            <span className="cursor-pointer hover:bg-gray-600 hover:scale-110 transition-all duration-200 px-2 py-1 rounded">
+            <span className="cursor-pointer hover:bg-gray-900 hover:scale-110 transition-all duration-200 px-2 py-1 rounded">
               {editCPUs}
             </span>
           )}

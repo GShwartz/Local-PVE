@@ -140,3 +140,31 @@ th, td {
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #6b7280; /* Lighter gray on hover */
 }
+
+/* Styling for snapshots card in ActionButtons */
+.snapshots-card {
+  @apply bg-gray-800 p-2 rounded-md mt-2 w-full max-w-xs z-20;
+  max-height: 20rem; /* Limit height to prevent overflow */
+  overflow-y: auto; /* Enable scrolling for snapshots */
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: #4b5563 #1f2937; /* Thumb and track colors for Firefox */
+}
+
+/* Webkit browsers for snapshots card */
+.snapshots-card::-webkit-scrollbar {
+  width: 8px; /* Scrollbar width */
+}
+
+.snapshots-card::-webkit-scrollbar-track {
+  background: #1f2937; /* Track color (dark gray) */
+  border-radius: 4px;
+}
+
+.snapshots-card::-webkit-scrollbar-thumb {
+  background: #4b5563; /* Thumb color (gray) */
+  border-radius: 4px;
+}
+
+.snapshots-card::-webkit-scrollbar-thumb:hover {
+  background: #6b7280; /* Lighter gray on hover */
+}
