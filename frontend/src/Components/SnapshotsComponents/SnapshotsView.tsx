@@ -140,7 +140,7 @@ const SnapshotsView = ({
                 Take Snapshot
               </button>
             </div>
-            <div className="max-h-80 overflow-y-auto">
+            <div className="max-h-40 overflow-y-auto">
               <ul className="my-4 space-y-3">
                 {snapshots.map((snapshot) => (
                   <li key={snapshot.name}>

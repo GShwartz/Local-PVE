@@ -44,6 +44,7 @@ const CPUCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply
       setChangesToApply((prev) => ({ ...prev, cpu: value }));
       vmMutation.mutate({ vmid: vm.vmid, action: 'update_cpu', name: vm.name, cpus: value });
     } else {
+      setOldCPUs(null); // Reset oldCPUs if the selected value is the same as the original
       setChangesToApply((prev) => ({ ...prev, cpu: null }));
     }
     setIsEditingCPU(false);

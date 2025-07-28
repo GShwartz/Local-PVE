@@ -85,7 +85,7 @@ th, td {
 
 /* Ensure expanded row content is scrollable */
 .expanded-content {
-  max-height: 40rem; /* Limit expanded row height to fit within table */
+  height: 10rem; /* Set to 10rem as starting height */
   overflow-y: auto;
   /* Custom scrollbar styling for expanded content */
   scrollbar-width: thin; /* Firefox */
@@ -143,8 +143,9 @@ th, td {
 
 /* Styling for snapshots card in ActionButtons */
 .snapshots-card {
-  @apply bg-gray-800 p-2 rounded-md mt-2 w-full max-w-xs z-20;
-  max-height: 20rem; /* Limit height to prevent overflow */
+  @apply bg-gray-800 p-2 rounded-md mt-2 w-full;
+  width: 21rem; /* Increased by 1rem from max-w-xs (~20rem) */
+  margin-top: 2rem !important; /* Increased gap to 2rem with !important to override potential conflicts */
   overflow-y: auto; /* Enable scrolling for snapshots */
   scrollbar-width: thin; /* Firefox */
   scrollbar-color: #4b5563 #1f2937; /* Thumb and track colors for Firefox */

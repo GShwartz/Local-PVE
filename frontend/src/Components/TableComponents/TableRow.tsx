@@ -147,7 +147,7 @@ const TableRow = ({
         </td>
         <td
           className={`px-2 py-2 text-center action-buttons-cell ${hasRowAboveExpanded ? 'border-t border-gray-700' : ''}`}
-          style={{ height: '48px', verticalAlign: 'middle' }}
+          style={{ height: '48px', verticalAlign: 'middle', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
         >
           <ActionButtons
             vm={vm}
@@ -171,7 +171,7 @@ const TableRow = ({
             <div className="expanded-content">
             </div>
           </td>
-          <td className="px-2 py-2 text-center action-buttons-cell" style={{ height: '48px', verticalAlign: 'middle' }}>
+          <td className={`px-2 pt-2 pb-2 text-center action-buttons-cell flex-1 justify-center items-center ${hasRowAboveExpanded ? 'border-t border-gray-700' : ''}`} style={{ height: '11rem', verticalAlign: 'middle' }}>
             {snapshotView === vm.vmid && (
               <SnapshotsView
                 vm={vm}
@@ -185,7 +185,7 @@ const TableRow = ({
               />
             )}
           </td>
-          <td className="px-2 py-4 text-center border-b border-gray-700" style={{ height: '48px', verticalAlign: 'middle' }}></td>
+          <td className="px-2 py-4 text-center border-b border-gray-700" style={{ height: '11rem', verticalAlign: 'middle' }}></td>
         </tr>
       )}
     </>
