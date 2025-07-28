@@ -98,29 +98,105 @@ const SnapshotsView = ({
     <>
       <style>
         {`
-          .loader{
-    display: block;
-    position: relative;
-    height: 20px;
-    width: 140px;
-    background-image: 
-    linear-gradient(#FFF 20px, transparent 0), 
-    linear-gradient(#FFF 20px, transparent 0), 
-    linear-gradient(#FFF 20px, transparent 0), 
-    linear-gradient(#FFF 20px, transparent 0);
-    background-repeat: no-repeat;
-    background-size: 20px auto;
-    background-position: 0 0, 40px 0, 80px 0, 120px 0;
-    animation: pgfill 1s linear infinite;
-  }
-  @keyframes pgfill {
-    0% {   background-image: linear-gradient(#FFF 20px, transparent 0), linear-gradient(#FFF 20px, transparent 0), linear-gradient(#FFF 20px, transparent 0), linear-gradient(#FFF 20px, transparent 0); }
-    25% {   background-image: linear-gradient(#FF3D00 20px, transparent 0), linear-gradient(#FFF 20px, transparent 0), linear-gradient(#FFF 20px, transparent 0), linear-gradient(#FFF 20px, transparent 0); }
-    50% {   background-image: linear-gradient(#FFF 20px, transparent 0), linear-gradient(#FF3D00 20px, transparent 0), linear-gradient(#FFF 20px, transparent 0), linear-gradient(#FFF 20px, transparent 0); }
-    75% {   background-image: linear-gradient(#FFF 20px, transparent 0), linear-gradient(#FFF 20px, transparent 0), linear-gradient(#FF3D00 20px, transparent 0), linear-gradient(#FFF 20px, transparent 0); }
-    100% {   background-image: linear-gradient(#FFF 20px, transparent 0), linear-gradient(#FFF 20px, transparent 0), linear-gradient(#FFF 20px, transparent 0), linear-gradient(#FF3D00 20px, transparent 0); }
-  }
-  
+          .loader {
+            display: block;
+            height: 20px;
+            width: 140px;
+            margin: 0 auto;
+            background-image: 
+              linear-gradient(#4B5563 20px, transparent 0), 
+              linear-gradient(#4B5563 20px, transparent 0), 
+              linear-gradient(#4B5563 20px, transparent 0), 
+              linear-gradient(#4B5563 20px, transparent 0);
+            background-repeat: no-repeat;
+            background-size: 20px auto;
+            background-position: 0 0, 40px 0, 80px 0, 120px 0;
+            animation: pgfill 1s linear infinite;
+          }
+          .dark .loader {
+            background-image: 
+              linear-gradient(#D1D5DB 20px, transparent 0), 
+              linear-gradient(#D1D5DB 20px, transparent 0), 
+              linear-gradient(#D1D5DB 20px, transparent 0), 
+              linear-gradient(#D1D5DB 20px, transparent 0);
+          }
+          @keyframes pgfill {
+            0% {
+              background-image: 
+                linear-gradient(#4B5563 20px, transparent 0), 
+                linear-gradient(#4B5563 20px, transparent 0), 
+                linear-gradient(#4B5563 20px, transparent 0), 
+                linear-gradient(#4B5563 20px, transparent 0);
+            }
+            25% {
+              background-image: 
+                linear-gradient(#FF3D00 20px, transparent 0), 
+                linear-gradient(#4B5563 20px, transparent 0), 
+                linear-gradient(#4B5563 20px, transparent 0), 
+                linear-gradient(#4B5563 20px, transparent 0);
+            }
+            50% {
+              background-image: 
+                linear-gradient(#4B5563 20px, transparent 0), 
+                linear-gradient(#FF3D00 20px, transparent 0), 
+                linear-gradient(#4B5563 20px, transparent 0), 
+                linear-gradient(#4B5563 20px, transparent 0);
+            }
+            75% {
+              background-image: 
+                linear-gradient(#4B5563 20px, transparent 0), 
+                linear-gradient(#4B5563 20px, transparent 0), 
+                linear-gradient(#FF3D00 20px, transparent 0), 
+                linear-gradient(#4B5563 20px, transparent 0);
+            }
+            100% {
+              background-image: 
+                linear-gradient(#4B5563 20px, transparent 0), 
+                linear-gradient(#4B5563 20px, transparent 0), 
+                linear-gradient(#4B5563 20px, transparent 0), 
+                linear-gradient(#FF3D00 20px, transparent 0);
+            }
+          }
+          .dark .loader {
+            animation: pgfill-dark 1s linear infinite;
+          }
+          @keyframes pgfill-dark {
+            0% {
+              background-image: 
+                linear-gradient(#D1D5DB 20px, transparent 0), 
+                linear-gradient(#D1D5DB 20px, transparent 0), 
+                linear-gradient(#D1D5DB 20px, transparent 0), 
+                linear-gradient(#D1D5DB 20px, transparent 0);
+            }
+            25% {
+              background-image: 
+                linear-gradient(#FF3D00 20px, transparent 0), 
+                linear-gradient(#D1D5DB 20px, transparent 0), 
+                linear-gradient(#D1D5DB 20px, transparent 0), 
+                linear-gradient(#D1D5DB 20px, transparent 0);
+            }
+            50% {
+              background-image: 
+                linear-gradient(#D1D5DB 20px, transparent 0), 
+                linear-gradient(#FF3D00 20px, transparent 0), 
+                linear-gradient(#D1D5DB 20px, transparent 0), 
+                linear-gradient(#D1D5DB 20px, transparent 0);
+            }
+            75% {
+              background-image: 
+                linear-gradient(#D1D5DB 20px, transparent 0), 
+                linear-gradient(#D1D5DB 20px, transparent 0), 
+                linear-gradient(#FF3D00 20px, transparent 0), 
+                linear-gradient(#D1D5DB 20px, transparent 0);
+            }
+            100% {
+              background-image: 
+                linear-gradient(#D1D5DB 20px, transparent 0), 
+                linear-gradient(#D1D5DB 20px, transparent 0), 
+                linear-gradient(#D1D5DB 20px, transparent 0), 
+                linear-gradient(#FF3D00 20px, transparent 0);
+            }
+          }
         `}
       </style>
       {snapshotsLoading && <p className="sr-only">Loading snapshots...</p>}
@@ -132,7 +208,9 @@ const SnapshotsView = ({
               <h5 className="text-base font-semibold text-gray-900 md:text-xl dark:text-white">
                 Snapshots
               </h5>
-              <span className="loader" aria-label="Snapshot animation"></span>
+              {(isCreatingSnapshot || isRevertingSnapshot) && (
+                <span className="loader" aria-label="Snapshot action in progress"></span>
+              )}
               <button
                 onClick={() => openModal(vm.vmid)}
                 disabled={isCreatingSnapshot || isRevertingSnapshot}
@@ -156,7 +234,9 @@ const SnapshotsView = ({
               <h5 className="text-base font-semibold text-gray-900 md:text-xl dark:text-white">
                 Snapshots
               </h5>
-              <span className="loader" aria-label="Snapshot animation"></span>
+              {(isCreatingSnapshot || isRevertingSnapshot) && (
+                <span className="loader" aria-label="Snapshot action in progress"></span>
+              )}
               <button
                 onClick={() => openModal(vm.vmid)}
                 disabled={isCreatingSnapshot || isRevertingSnapshot}
