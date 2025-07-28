@@ -1,13 +1,12 @@
-// App.tsx
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Navbar from './src/Components/Navbar';
 import Footer from './src/Components/Footer';
-import MachinesTable from './src/TableComponents/MachinesTable';
+import MachinesTable from './src/Components/TableComponents/MachinesTable';
 import LoginError from './src/Components/LoginError';
 import Loading from './src/Components/Loading';
-import CreateVMModal from './src/Components/CreateVMModal'; // This import remains unchanged as we will fix the export in CreateVMModal.tsx
+import CreateVMModal from './src/Components/CreateVMModal';
 import Alerts, { Alert } from './src/Components/Alerts';
 
 // Define types for API responses and state
@@ -110,17 +109,21 @@ function App() {
         onCreateClick={() => setIsCreateModalOpen(true)}
         alertHistory={alertHistory}
       />
-      <Alerts alerts={alerts} dismissAlert={dismissAlert} />
-      <main className="flex-1 p-8">
-        <div className="max-w-7xl mx-auto">
-          {vmsError && <p className="text-red-500 mb-4 text-center">Error fetching machines: {vmsError.message}</p>}
-          {isLoading && <p className="mb-4 text-gray-400 text-center">Loading...</p>}
-          {!isLoading && !vms?.length && <p className="mb-4 text-gray-400 text-center">No machines available.</p>}
-          {vms && vms.length > 0 && (
-            <MachinesTable vms={vms} auth={auth} queryClient={queryClient} node={NODE} addAlert={addAlert} />
-          )}
+      <div className="flex flex-1">
+        <div className="flex-1 flex flex-col">
+          <Alerts alerts={alerts} dismissAlert={dismissAlert} />
+          <main className="flex-1 p-8 overflow-y-auto">
+            <div className="w-full">
+              {vmsError && <p className="text-red-500 mb-4 text-center">Error fetching machines: {vmsError.message}</p>}
+              {isLoading && <p className="mb-4 text-gray-400 text-center">Loading...</p>}
+              {!isLoading && !vms?.length && <p className="mb-4 text-gray-400 text-center">No machines available.</p>}
+              {vms && vms.length > 0 && (
+                <MachinesTable vms={vms} auth={auth} queryClient={queryClient} node={NODE} addAlert={addAlert} />
+              )}
+            </div>
+          </main>
         </div>
-      </main>
+      </div>
       <Footer />
       <CreateVMModal
         isOpen={isCreateModalOpen}

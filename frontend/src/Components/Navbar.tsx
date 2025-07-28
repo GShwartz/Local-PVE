@@ -1,11 +1,11 @@
-// Navbar.tsx
 import { useState, useRef, useEffect } from 'react';
 import { Alert } from './Alerts';
 
 const Navbar = ({ onCreateClick, alertHistory }: { onCreateClick: () => void; alertHistory: Alert[] }) => {
   const [showHistory, setShowHistory] = useState(false);
+  const [order, setOrder] = useState<'newToOld' | 'oldToNew'>('newToOld');
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const historyRef = useRef<HTMLUListElement>(null);
+  const historyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!showHistory) return;
@@ -25,9 +25,29 @@ const Navbar = ({ onCreateClick, alertHistory }: { onCreateClick: () => void; al
     };
   }, [showHistory]);
 
+  const getTextColor = (type: string) => {
+    switch (type) {
+      case 'success': return 'text-green-400';
+      case 'error': return 'text-red-400';
+      case 'info': return 'text-blue-400';
+      case 'warning': return 'text-yellow-300';
+      default: return 'text-gray-300';
+    }
+  };
+
+  let displayedAlerts = [...alertHistory];
+  if (order === 'newToOld') {
+    displayedAlerts = displayedAlerts.slice().reverse();
+  }
+
+  const handleOrderChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setOrder(e.target.value as 'newToOld' | 'oldToNew');
+    e.target.blur(); // Remove focus after selection
+  };
+
   return (
-    <nav className="bg-gradient-to-r from-gray-900 to-gray-800 p-4 shadow-lg relative">
-      <div className="container mx-auto flex justify-between items-center">
+    <nav className="bg-gradient-to-r from-gray-900 to-gray-800 p-4 shadow-lg relative z-50">
+      <div className="flex justify-between items-center px-4">
         <div className="flex items-center space-x-4">
           <span className="text-2xl font-bold text-white">Local-PVE</span>
           <button onClick={onCreateClick} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md">Create VM</button>
@@ -42,28 +62,38 @@ const Navbar = ({ onCreateClick, alertHistory }: { onCreateClick: () => void; al
           </button>
           <button className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md">Logout</button>
           {showHistory && (
-            <ul
+            <div
               ref={historyRef}
-              className="absolute right-0 mt-2 w-[500px] max-h-40 overflow-y-auto bg-gray-800 rounded-lg shadow-lg p-4 custom-scrollbar z-50 text-surface dark:text-white"
+              className="absolute top-12 right-0 w-[500px] max-h-80 overflow-y-auto bg-gray-900 rounded-lg shadow-2xl p-4 custom-scrollbar z-[100] text-surface dark:text-white"
             >
-              {alertHistory.slice().reverse().map((alert) => (
-                <li
-                  key={alert.id}
-                  className={`w-full border-b-2 border-neutral-100 py-2 dark:border-white/10 last:border-b-0 flex items-center ${
-                    alert.type === 'success' ? 'text-green-400' :
-                    alert.type === 'error' ? 'text-red-400' :
-                    alert.type === 'info' ? 'text-blue-400' :
-                    alert.type === 'warning' ? 'text-yellow-300' :
-                    'text-gray-300'
-                  }`}
-                >
-                  <svg className="shrink-0 w-4 h-4 mr-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5ZM9.5 4a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 15H8a1 1 0 0 1 0-2h1v-3H8a1 1 0 0 1 0-2h2a1 1 0 0 1 1 1v4h1a1 1 0 0 1 0 2Z"/>
-                  </svg>
-                  {alert.message}
-                </li>
-              ))}
-            </ul>
+              <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+                <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                  <tr>
+                    <th scope="col" className="px-4 py-3">
+                      <div className="flex items-center space-x-2">
+                        <select
+                          value={order}
+                          onChange={handleOrderChange}
+                          className="bg-gray-700 text-white rounded p-1 text-sm border-none"
+                        >
+                          <option value="newToOld">Newer</option>
+                          <option value="oldToNew">Older</option>
+                        </select>
+                      </div>
+                    </th>
+                    <th scope="col" className="px-6 py-3">Message</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayedAlerts.map((alert) => (
+                    <tr key={alert.id} className="bg-white border-b dark:bg-gray-800 dark:border-gray-700">
+                      <td className={`px-6 py-4 font-medium ${getTextColor(alert.type)}`}>{alert.type}</td>
+                      <td className="px-6 py-4">{alert.message}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>

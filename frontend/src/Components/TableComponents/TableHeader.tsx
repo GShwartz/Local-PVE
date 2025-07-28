@@ -1,4 +1,4 @@
-import { VM } from '../types';
+import { VM } from '../../types';
 
 interface TableHeaderProps {
   sortConfig: { key: keyof VM; direction: 'asc' | 'desc' };
@@ -19,19 +19,21 @@ const TableHeader = ({ sortConfig, handleSort }: TableHeaderProps) => {
 
   return (
     <thead className="table-header">
-      <tr>
+      <tr style={{ height: '48px' }}>
         {headers.map(({ key, label }) => (
           <th
             key={key}
             scope="col"
-            className={`table-header-th ${key === 'cpus' || key === 'ram' || key === 'hdd_sizes' || key === 'status' ? 'narrow-col' : ''}`}
+            className={`table-header-th px-6 py-4 ${key === 'cpus' || key === 'ram' || key === 'hdd_sizes' ? 'narrow-col' : ''}`}
             onClick={() => handleSort(key)}
+            style={{ height: '48px', verticalAlign: 'middle' }}
           >
             {label} {sortConfig.key === key && (sortConfig.direction === 'asc' ? '↑' : '↓')}
           </th>
         ))}
-        <th scope="col" className="table-header-empty"></th>
-        <th scope="col" className="table-header-action">Actions</th>
+        <th scope="col" className="table-header-apply px-2 py-4 border-r border-gray-700" style={{ height: '48px', verticalAlign: 'middle' }}></th>
+        <th scope="col" className="table-header-empty" style={{ height: '48px', verticalAlign: 'middle' }}></th>
+        <th scope="col" className="table-header-action px-2 py-4" style={{ height: '48px', verticalAlign: 'middle' }}>Actions</th>
       </tr>
     </thead>
   );

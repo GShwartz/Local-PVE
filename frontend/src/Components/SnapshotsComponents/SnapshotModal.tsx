@@ -1,7 +1,7 @@
 import { UseMutationResult } from '@tanstack/react-query';
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
-import { Snapshot } from '../types';
+import { Snapshot } from '../../types';
 import { useState, useEffect } from 'react';
 
 interface SnapshotModalProps {
@@ -98,7 +98,7 @@ const SnapshotModal = ({
         id="take-snapshot-modal"
         tabIndex={-1}
         aria-hidden="true"
-        className="fixed inset-0 z-60 flex justify-center items-center w-full h-[calc(100%-1rem)] max-h-full bg-black/50"
+        className="fixed inset-0 z-[100] flex justify-center items-center w-full h-full bg-black/50"
         onClick={closeModal}
       >
         <div

@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import TableHeader from './TableHeader';
 import TableRow from './TableRow';
-import SnapshotModal from '../Components/SnapshotModal';
-import { Auth, VM } from '../types';
-import { useVMMutation, useSnapshotMutation, useDeleteSnapshotMutation, useCreateSnapshotMutation } from '../Components/vmMutations';
+import SnapshotModal from '../SnapshotsComponents/SnapshotModal';
+import { Auth, VM } from '../../types';
+import { useVMMutation, useSnapshotMutation, useDeleteSnapshotMutation, useCreateSnapshotMutation } from '../vmMutations';
 
 interface MachinesTableProps {
   vms: VM[];
