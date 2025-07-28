@@ -4,8 +4,13 @@ import { Alert } from './Alerts';
 const Navbar = ({ onCreateClick, alertHistory }: { onCreateClick: () => void; alertHistory: Alert[] }) => {
   const [showHistory, setShowHistory] = useState(false);
   const [order, setOrder] = useState<'newToOld' | 'oldToNew'>('newToOld');
+  const [alerts, setAlerts] = useState(alertHistory);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const historyRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setAlerts(alertHistory);
+  }, [alertHistory]);
 
   useEffect(() => {
     if (!showHistory) return;
@@ -35,14 +40,18 @@ const Navbar = ({ onCreateClick, alertHistory }: { onCreateClick: () => void; al
     }
   };
 
-  let displayedAlerts = [...alertHistory];
+  let displayedAlerts = [...alerts];
   if (order === 'newToOld') {
     displayedAlerts = displayedAlerts.slice().reverse();
   }
 
   const handleOrderChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setOrder(e.target.value as 'newToOld' | 'oldToNew');
-    e.target.blur(); // Remove focus after selection
+    e.target.blur();
+  };
+
+  const handleClearHistory = () => {
+    setAlerts([]);
   };
 
   return (
@@ -64,7 +73,7 @@ const Navbar = ({ onCreateClick, alertHistory }: { onCreateClick: () => void; al
           {showHistory && (
             <div
               ref={historyRef}
-              className="absolute top-12 right-0 w-[500px] max-h-80 overflow-y-auto bg-gray-900 rounded-lg shadow-2xl p-4 custom-scrollbar z-[100] text-surface dark:text-white"
+              className="absolute top-12 right-0 w-[500px] max-h-80 overflow-y-auto bg-gray-900/70 rounded-lg shadow-2xl p-4 custom-scrollbar z-[100] text-surface dark:text-white"
             >
               <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
                 <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
@@ -81,7 +90,20 @@ const Navbar = ({ onCreateClick, alertHistory }: { onCreateClick: () => void; al
                         </select>
                       </div>
                     </th>
-                    <th scope="col" className="px-6 py-3">Message</th>
+                    <th scope="col" className="px-6 py-3">
+                      <div className="flex items-center justify-between">
+                        <span>Message</span>
+                        <button
+                          onClick={handleClearHistory}
+                          className="text-red-400 hover:text-red-500"
+                          title="Clear History"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5-4h4M9 7v12m6-12v12M3 3h18" />
+                          </svg>
+                        </button>
+                      </div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
