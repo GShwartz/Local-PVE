@@ -72,7 +72,9 @@ const VMNameCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToAp
             style={{ height: '32px', lineHeight: '1.5' }}
             disabled={editingVmid !== null && editingVmid !== vm.vmid}
           >
-            Rename
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
           </button>
           <button
             type="button"
@@ -84,7 +86,9 @@ const VMNameCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToAp
             style={{ height: '32px', lineHeight: '1.5' }}
             disabled={editingVmid !== null && editingVmid !== vm.vmid}
           >
-            Cancel
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
         </form>
       ) : (
