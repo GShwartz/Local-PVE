@@ -13,3 +13,8 @@ class VMCreateRequest(BaseModel):
     cpus: int
     ram: int
     source: str
+
+class VMUpdateRequest(BaseModel):
+    name: str | None = None
+    cpus: int | None = None
+    ram: int | None = None

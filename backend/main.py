@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 import uvicorn
 from pydantic import BaseModel
-from Modules.models import LoginRequest, AuthResponse, VMCreateRequest
+from Modules.models import LoginRequest, AuthResponse, VMCreateRequest, VMUpdateRequest
 from Modules.proxmox_service import ProxmoxService
 
 class SnapRequest(BaseModel):
@@ -74,6 +74,15 @@ async def revert_snapshot(node: str, vmid: int, snapname: str, csrf_token: str, 
 @app.delete("/vm/{node}/{vmid}/snapshot/{snapname}")
 async def delete_snapshot(node: str, vmid: int, snapname: str, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
     return service.delete_snapshot(node, vmid, snapname, csrf_token, ticket)
+
+@app.post("/vm/{node}/{vmid}/update_config")
+async def update_vm_config(node: str, vmid: int, updates: VMUpdateRequest, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
+    try:
+        return service.update_vm_config(node, vmid, updates, csrf_token, ticket)
+    except HTTPException as e:
+        raise HTTPException(status_code=e.status_code, detail=f"Failed to update VM config: {e.detail}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error updating VM config: {str(e)}")
 
 @app.post("/vm/{node}/{vmid}/{action}")
 async def control_vm(node: str, vmid: int, action: str, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):

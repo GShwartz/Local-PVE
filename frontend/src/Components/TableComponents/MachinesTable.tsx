@@ -15,7 +15,7 @@ interface MachinesTableProps {
 
 const MachinesTable = ({ vms, auth, queryClient, node, addAlert }: MachinesTableProps) => {
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
-  const [snapshotView, setSnapshotView] = useState<number | null>(null);
+  const [snapshotView, setSnapshotView] = useState<Set<number>>(new Set());
   const [sortConfig, setSortConfig] = useState<{ key: keyof VM; direction: 'asc' | 'desc' }>({ key: 'vmid', direction: 'asc' });
   const [pendingActions, setPendingActions] = useState<{ [vmid: number]: string[] }>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -27,31 +27,31 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert }: MachinesTable
     const newExpanded = new Set(expandedRows);
     if (newExpanded.has(vmid)) {
       newExpanded.delete(vmid);
-      if (snapshotView === vmid) setSnapshotView(null);
+      if (snapshotView.has(vmid)) {
+        const newSnapshotView = new Set(snapshotView);
+        newSnapshotView.delete(vmid);
+        setSnapshotView(newSnapshotView);
+      }
     } else {
-      newExpanded.clear();
       newExpanded.add(vmid);
-      if (snapshotView && snapshotView !== vmid) setSnapshotView(null);
     }
     setExpandedRows(newExpanded);
   };
 
-  const showSnapshots = (vmid: number | null): void => {
-    if (vmid === null) {
-      setSnapshotView(null);
-      setExpandedRows(new Set());
-      return;
-    }
-    if (snapshotView === vmid) {
-      setSnapshotView(null);
-      setExpandedRows(new Set());
-    } else {
+  const showSnapshots = (vmid: number): void => {
+    const newSnapshotView = new Set(snapshotView);
+    if (newSnapshotView.has(vmid)) {
+      newSnapshotView.delete(vmid);
       const newExpanded = new Set(expandedRows);
-      newExpanded.clear();
+      newExpanded.delete(vmid);
+      setExpandedRows(newExpanded);
+    } else {
+      newSnapshotView.add(vmid);
+      const newExpanded = new Set(expandedRows);
       newExpanded.add(vmid);
       setExpandedRows(newExpanded);
-      setSnapshotView(vmid);
     }
+    setSnapshotView(newSnapshotView);
   };
 
   const openModal = (vmid: number, _vmName: string): void => {
@@ -113,7 +113,7 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert }: MachinesTable
   };
 
   const cancelEdit = () => {
-    setEditingVmid(null); // Re-enable all pencil buttons
+    setEditingVmid(null);
   };
 
   return (

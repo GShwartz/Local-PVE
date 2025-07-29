@@ -1,5 +1,5 @@
 import { useMutation } from '@tanstack/react-query';
-import { Auth, TaskStatus } from '../types'; // Adjust path as needed
+import { Auth, TaskStatus } from '../types';
 import axios from 'axios';
 
 const API_BASE = 'http://localhost:8000';
@@ -9,6 +9,15 @@ const controlVM = async ({ node, vmid, action, csrf, ticket }: { node: string; v
   const { data } = await axios.post<string>(
     `${API_BASE}/vm/${node}/${vmid}/${action}`,
     {},
+    { headers: { 'CSRFPreventionToken': csrf }, params: { csrf_token: csrf, ticket } }
+  );
+  return data;
+};
+
+const updateVMConfig = async ({ node, vmid, updates, csrf, ticket }: { node: string; vmid: number; updates: { name?: string; cpus?: number; ram?: number }; csrf: string; ticket: string }): Promise<string> => {
+  const { data } = await axios.post<string>(
+    `${API_BASE}/vm/${node}/${vmid}/update_config`,
+    updates,
     { headers: { 'CSRFPreventionToken': csrf }, params: { csrf_token: csrf, ticket } }
   );
   return data;
@@ -69,9 +78,16 @@ export const useVMMutation = (
   addAlert: (message: string, type: string) => void,
   setPendingActions: React.Dispatch<React.SetStateAction<{ [vmid: number]: string[] }>>
 ) => {
-  return useMutation<string, any, { vmid: number; action: string; name?: string }, unknown>({
+  return useMutation<string, any, { vmid: number; action: string; name?: string; cpus?: number; ram?: number }, unknown>({
     mutationFn: async (variables) => {
       const { vmid, action } = variables;
+      if (action === 'update_config') {
+        const updates: { name?: string; cpus?: number; ram?: number } = {};
+        if (variables.name) updates.name = variables.name;
+        if (variables.cpus !== undefined) updates.cpus = variables.cpus;
+        if (variables.ram !== undefined) updates.ram = variables.ram;
+        return await updateVMConfig({ node, vmid, updates, csrf: auth.csrf_token, ticket: auth.ticket });
+      }
       return await controlVM({ node, vmid, action, csrf: auth.csrf_token, ticket: auth.ticket });
     },
     onMutate: (variables) => {
@@ -82,7 +98,7 @@ export const useVMMutation = (
       }));
       return undefined;
     },
-    onSuccess: (upid: string, variables: { vmid: number; action: string; name?: string }) => {
+    onSuccess: (upid: string, variables: { vmid: number; action: string; name?: string; cpus?: number; ram?: number }) => {
       const { action, vmid, name } = variables;
       const pollTask = async () => {
         try {
@@ -96,7 +112,7 @@ export const useVMMutation = (
             } else {
               addAlert(`VM ${name ? `${name} ` : ''}(${vmid}) ${action} completed successfully.`, 'success');
             }
-            const delayIfNeeded = ['start', 'reboot'].includes(action) ? 15000 : 0;
+            const delayIfNeeded = ['start', 'reboot', 'stop', 'shutdown', 'resume', 'hibernate', 'update_config'].includes(action) ? 15000 : 0;
             setTimeout(() => {
               queryClient.invalidateQueries({ queryKey: ['vms'] });
               setPendingActions((prev) => ({
@@ -117,9 +133,10 @@ export const useVMMutation = (
       };
       pollTask();
     },
-    onError: (error: any, variables: { vmid: number; action: string; name?: string }, _context: unknown) => {
+    onError: (error: any, variables: { vmid: number; action: string; name?: string; cpus?: number; ram?: number }, _context: unknown) => {
       const { vmid, action, name } = variables;
       const message = error.response?.data?.detail || error.message || 'Unknown error';
+      console.error(`Mutation failed for VM ${vmid}: ${message}`, error.response?.data);
       addAlert(`VM ${name ? `${name} ` : ''}(${vmid}) ${action} failed: ${message}`, 'error');
       setPendingActions((prev) => ({
         ...prev,
@@ -186,6 +203,7 @@ export const useSnapshotMutation = (
     onError: (error: any, variables: { vmid: number; snapname: string; name?: string }, _context: unknown) => {
       const { vmid, snapname, name } = variables;
       const message = error.response?.data?.detail || error.message || 'Unknown error';
+      console.error(`Snapshot revert failed for VM ${vmid}: ${message}`, error.response?.data);
       addAlert(`VM ${name ? `${name} ` : ''}(${vmid}) revert to snapshot ${snapname} failed: ${message}`, 'error');
       setPendingActions((prev) => ({
         ...prev,
@@ -215,7 +233,7 @@ export const useDeleteSnapshotMutation = (
       }));
       return undefined;
     },
-    onSuccess: (upid: string, variables: { vmid: number; snapname: string; name?: string } ) => {
+    onSuccess: (upid: string, variables: { vmid: number; snapname: string; name?: string }) => {
       const { vmid, snapname, name } = variables;
       const pollTask = async () => {
         try {
@@ -252,6 +270,7 @@ export const useDeleteSnapshotMutation = (
     onError: (error: any, variables: { vmid: number; snapname: string; name?: string }, _context: unknown) => {
       const { vmid, snapname, name } = variables;
       const message = error.response?.data?.detail || error.message || 'Unknown error';
+      console.error(`Snapshot deletion failed for VM ${vmid}: ${message}`, error.response?.data);
       addAlert(`VM ${name ? `${name} ` : ''}(${vmid}) deletion of snapshot ${snapname} failed: ${message}`, 'error');
       setPendingActions((prev) => ({
         ...prev,
@@ -325,7 +344,7 @@ export const useCreateSnapshotMutation = (
     onError: (error: any, variables: { vmid: number; snapname: string; name?: string }, _context: unknown) => {
       const { vmid, snapname, name } = variables;
       const message = error.response?.data?.detail || error.message || 'Unknown error';
-      console.error(`Snapshot creation mutation failed for VM ${vmid} with snapname "${snapname}": ${message}`);
+      console.error(`Snapshot creation failed for VM ${vmid}: ${message}`, error.response?.data);
       addAlert(`VM ${name ? `${name} ` : ''}(${vmid}) snapshot ${snapname} failed: ${message}`, 'error');
       setPendingActions((prev) => ({
         ...prev,

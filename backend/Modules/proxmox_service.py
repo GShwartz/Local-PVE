@@ -6,7 +6,7 @@ import re
 import logging
 from fastapi import HTTPException, status
 import logging.handlers
-from .models import VMCreateRequest
+from .models import VMCreateRequest, VMUpdateRequest
 
 # Configure logging to console and file
 log_file = os.path.join(os.path.dirname(__file__), 'proxmox_service.log')
@@ -158,6 +158,56 @@ class ProxmoxService:
                 "Unexpected error creating snapshot '%s' for vmid %d on node %s: Endpoint: %s, Error: %s",
                 snapname, vmid, node, endpoint, str(e)
             )
+            raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
+    def update_vm_config(self, node: str, vmid: int, updates: VMUpdateRequest, csrf_token: str, ticket: str) -> str:
+        self.set_auth_cookie(ticket)
+        endpoint = f"{PROXMOX_BASE_URL}/nodes/{node}/qemu/{vmid}/config"
+        logger.info(f"Updating VM config for vmid {vmid} on node {node} with updates: {updates}")
+        
+        # Check VM status for CPU and RAM changes
+        if updates.cpus is not None or updates.ram is not None:
+            status = self.get_vm_status(node, vmid, csrf_token, ticket)
+            if status == "running":
+                logger.error("Cannot update CPU or RAM for running VM %d on node %s", vmid, node)
+                raise HTTPException(status_code=400, detail="Cannot update CPU or RAM while VM is running")
+
+        # Prepare data payload with only non-None fields
+        data = {}
+        if updates.name is not None:
+            data["name"] = updates.name
+        if updates.cpus is not None:
+            data["cores"] = updates.cpus
+        if updates.ram is not None:
+            data["memory"] = updates.ram
+
+        if not data:
+            logger.warning("No valid updates provided for VM %d on node %s", vmid, node)
+            raise HTTPException(status_code=400, detail="No valid updates provided")
+
+        try:
+            response = self.session.post(
+                endpoint,
+                data=data,
+                headers={"CSRFPreventionToken": csrf_token}
+            )
+            response.raise_for_status()
+            logger.info(f"VM config updated successfully for vmid {vmid}: Status {response.status_code}, Data: {response.json()['data']}")
+            return response.json()["data"]
+        except requests.exceptions.HTTPError as e:
+            error_message = response.text
+            try:
+                error_json = response.json()
+                error_message = error_json.get('errors', {}).get('data', response.text)
+            except ValueError:
+                pass
+            logger.error(
+                "Failed to update VM config for vmid %d on node %s: Status %d, Response: %s",
+                vmid, node, response.status_code, error_message
+            )
+            raise HTTPException(status_code=response.status_code, detail=f"Failed to update VM config: {error_message}")
+        except Exception as e:
+            logger.error("Unexpected error updating VM config for vmid %d on node %s: %s", vmid, node, str(e))
             raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
     def execute_agent_command(self, node: str, vmid: int, command: str, csrf_token: str, ticket: str) -> Any:

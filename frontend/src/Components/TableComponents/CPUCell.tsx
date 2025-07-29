@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { VM } from '../../types';
-import { UseMutationResult } from '@tanstack/react-query';
 
 interface CPUCellProps {
   vm: VM;
@@ -8,10 +7,9 @@ interface CPUCellProps {
   openEditModal: (vm: VM) => void;
   cancelEdit: () => void;
   setChangesToApply: React.Dispatch<React.SetStateAction<{ vmname: string | null; cpu: number | null; ram: string | null }>>;
-  vmMutation: UseMutationResult<string, any, { vmid: number; action: string; name?: string; cpus?: number }, unknown>;
 }
 
-const CPUCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply, vmMutation }: CPUCellProps) => {
+const CPUCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply }: CPUCellProps) => {
   const [isEditingCPU, setIsEditingCPU] = useState(false);
   const [editCPUs, setEditCPUs] = useState(vm.cpus);
   const [oldCPUs, setOldCPUs] = useState<number | null>(null);
@@ -23,8 +21,8 @@ const CPUCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply
       if (cpuCellRef.current && !cpuCellRef.current.contains(e.target as Node)) {
         setEditCPUs(vm.cpus);
         setIsEditingCPU(false);
+        setOldCPUs(null);
         setChangesToApply((prev) => ({ ...prev, cpu: null }));
-        setOldCPUs(null); // Reset oldCPUs when clicking outside
         cancelEdit();
       }
     };
@@ -38,14 +36,20 @@ const CPUCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply
     };
   }, [isEditingCPU, vm.cpus, cancelEdit, setChangesToApply]);
 
+  useEffect(() => {
+    // Reset oldCPUs when VM data changes (e.g., after successful apply)
+    setEditCPUs(vm.cpus);
+    setOldCPUs(null);
+    setChangesToApply((prev) => ({ ...prev, cpu: null }));
+  }, [vm.cpus, setChangesToApply]);
+
   const handleCPUChange = (value: number) => {
     setEditCPUs(value);
     if (validCPUs.includes(value) && value !== vm.cpus) {
       setOldCPUs(vm.cpus);
       setChangesToApply((prev) => ({ ...prev, cpu: value }));
-      vmMutation.mutate({ vmid: vm.vmid, action: 'update_cpu', name: vm.name, cpus: value });
     } else {
-      setOldCPUs(null); // Reset oldCPUs if the selected value is the same as the original or invalid
+      setOldCPUs(null);
       setChangesToApply((prev) => ({ ...prev, cpu: null }));
     }
     setIsEditingCPU(false);
@@ -57,11 +61,6 @@ const CPUCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply
       className="px-6 py-4 text-center narrow-col"
       ref={cpuCellRef}
       style={{ height: '48px', verticalAlign: 'middle', position: 'relative' }}
-      onClick={(e) => {
-        e.stopPropagation();
-        setIsEditingCPU(true);
-        openEditModal(vm);
-      }}
     >
       <div className="flex flex-col items-center justify-center space-y-1" style={{ height: '48px' }}>
         <div className="flex items-center justify-center" style={{ height: '32px', lineHeight: '1' }}>
@@ -81,7 +80,14 @@ const CPUCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply
               </select>
             </div>
           ) : (
-            <span className="cursor-pointer hover:bg-gray-900 hover:scale-110 transition-all duration-200 px-2 py-1 rounded">
+            <span
+              className="cursor-pointer hover:bg-gray-900 hover:scale-110 transition-all duration-200 px-2 py-1 rounded"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsEditingCPU(true);
+                openEditModal(vm);
+              }}
+            >
               {editCPUs}
             </span>
           )}

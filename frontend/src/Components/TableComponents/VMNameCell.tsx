@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { VM } from '../../types';
-import { UseMutationResult } from '@tanstack/react-query';
 
 interface VMNameCellProps {
   vm: VM;
@@ -8,10 +7,9 @@ interface VMNameCellProps {
   openEditModal: (vm: VM) => void;
   cancelEdit: () => void;
   setChangesToApply: React.Dispatch<React.SetStateAction<{ vmname: string | null; cpu: number | null; ram: string | null }>>;
-  vmMutation: UseMutationResult<string, any, { vmid: number; action: string; name?: string; cpus?: number }, unknown>;
 }
 
-const VMNameCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply, vmMutation }: VMNameCellProps) => {
+const VMNameCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply }: VMNameCellProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editVMName, setEditVMName] = useState(vm.name);
   const [oldVMName, setOldVMName] = useState<string | null>(null);
@@ -24,12 +22,18 @@ const VMNameCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToAp
     }
   }, [isEditing]);
 
+  useEffect(() => {
+    // Reset oldVMName when VM data changes (e.g., after successful apply)
+    setEditVMName(vm.name);
+    setOldVMName(null);
+    setChangesToApply((prev) => ({ ...prev, vmname: null }));
+  }, [vm.name, setChangesToApply]);
+
   const handleEditSubmit = (e: React.FormEvent): void => {
     e.preventDefault();
     if (editVMName !== vm.name) {
       setOldVMName(vm.name);
       setChangesToApply((prev) => ({ ...prev, vmname: editVMName }));
-      vmMutation.mutate({ vmid: vm.vmid, action: 'rename', name: editVMName });
     } else {
       setOldVMName(null);
       setChangesToApply((prev) => ({ ...prev, vmname: null }));
@@ -41,6 +45,7 @@ const VMNameCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToAp
   const handleCancelEdit = () => {
     setIsEditing(false);
     setEditVMName(vm.name);
+    setOldVMName(null);
     setChangesToApply((prev) => ({ ...prev, vmname: null }));
     cancelEdit();
   };

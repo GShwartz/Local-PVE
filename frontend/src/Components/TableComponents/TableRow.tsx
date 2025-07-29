@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { UseMutationResult } from '@tanstack/react-query';
 import { VM, Auth, Snapshot } from '../../types';
 import SnapshotsView from '../SnapshotsComponents/SnapshotsView';
@@ -13,7 +13,7 @@ interface TableRowProps {
   vm: VM;
   expandedRows: Set<number>;
   toggleRow: (vmid: number) => void;
-  snapshotView: number | null;
+  snapshotView: Set<number>;
   showSnapshots: (vmid: number) => void;
   openModal: (vmid: number, vmName: string) => void;
   pendingActions: { [vmid: number]: string[] };
@@ -36,18 +36,27 @@ const getSnapshots = async ({ node, vmid, csrf, ticket }: { node: string; vmid: 
   return data;
 };
 
+const getVMStatus = async ({ node, vmid, csrf, ticket }: { node: string; vmid: number; csrf: string; ticket: string }): Promise<string> => {
+  const { data } = await axios.get<{ status: string }>(
+    `http://localhost:8000/vm/${node}/${vmid}/status`,
+    { params: { csrf_token: csrf, ticket } }
+  );
+  return data.status;
+};
+
+const getVMInfo = async ({ node, vmid, csrf, ticket }: { node: string; vmid: number; csrf: string; ticket: string }): Promise<VM> => {
+  const { data } = await axios.get<VM>(
+    `http://localhost:8000/vm/${node}/${vmid}`,
+    { params: { csrf_token: csrf, ticket } }
+  );
+  return data;
+};
+
 const parseRAMToNumber = (ram: string): number => {
   if (ram.endsWith('GB')) {
     return parseInt(ram.replace('GB', '')) * 1024;
   }
   return parseInt(ram.replace('MB', ''));
-};
-
-const formatRAMToString = (ram: number): string => {
-  if (ram >= 1024 && ram % 1024 === 0) {
-    return `${ram / 1024}GB`;
-  }
-  return `${ram}MB`;
 };
 
 const TableRow = ({
@@ -68,10 +77,11 @@ const TableRow = ({
   cancelEdit,
   hasRowAboveExpanded,
 }: TableRowProps) => {
+  const queryClient = useQueryClient();
   const { data: snapshots, isLoading: snapshotsLoading, error: snapshotsError } = useQuery({
     queryKey: ['snapshots', node, vm.vmid, auth.csrf_token, auth.ticket],
     queryFn: () => getSnapshots({ node, vmid: vm.vmid, csrf: auth.csrf_token, ticket: auth.ticket }),
-    enabled: snapshotView === vm.vmid,
+    enabled: snapshotView.has(vm.vmid),
   });
 
   const [changesToApply, setChangesToApply] = useState<{ vmname: string | null; cpu: number | null; ram: string | null }>({
@@ -80,21 +90,50 @@ const TableRow = ({
     ram: null,
   });
 
-  const handleApplyChanges = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleApplyChanges = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
-    if (changesToApply.vmname) {
-      vmMutation.mutate({ vmid: vm.vmid, action: 'rename', name: changesToApply.vmname });
+    console.log('Applying changes for VM', vm.vmid, ':', changesToApply, 'Cached VM Status:', vm.status);
+
+    // Fetch latest VM status
+    try {
+      const latestStatus = await getVMStatus({ node, vmid: vm.vmid, csrf: auth.csrf_token, ticket: auth.ticket });
+      console.log('Latest VM Status for VM', vm.vmid, ':', latestStatus);
+
+      const updates: { name?: string; cpus?: number; ram?: number } = {};
+      if (changesToApply.vmname) updates.name = changesToApply.vmname;
+      if (changesToApply.cpu !== null) updates.cpus = changesToApply.cpu;
+      if (changesToApply.ram !== null) updates.ram = parseRAMToNumber(changesToApply.ram);
+
+      if (Object.keys(updates).length === 0) {
+        console.warn('No changes to apply for VM', vm.vmid);
+        return;
+      }
+
+      if ((updates.cpus || updates.ram) && latestStatus === 'running') {
+        console.error('Cannot apply CPU or RAM changes for running VM', vm.vmid);
+        return;
+      }
+
+      vmMutation.mutate({ vmid: vm.vmid, action: 'update_config', ...updates }, {
+        onSuccess: async () => {
+          // Fetch updated VM info
+          const updatedVM = await getVMInfo({ node, vmid: vm.vmid, csrf: auth.csrf_token, ticket: auth.ticket });
+          queryClient.setQueryData(['vms'], (oldVms: VM[] | undefined) => {
+            if (!oldVms) return [updatedVM];
+            return oldVms.map((oldVm) => (oldVm.vmid === vm.vmid ? updatedVM : oldVm));
+          });
+          // Clear changes and reset editing state
+          setChangesToApply({ vmname: null, cpu: null, ram: null });
+          cancelEdit();
+        },
+      });
+    } catch (error) {
+      console.error('Failed to fetch VM status for VM', vm.vmid, ':', error);
     }
-    if (changesToApply.cpu !== null) {
-      vmMutation.mutate({ vmid: vm.vmid, action: 'update_cpu', name: vm.name, cpus: changesToApply.cpu });
-    }
-    if (changesToApply.ram !== null) {
-      vmMutation.mutate({ vmid: vm.vmid, action: 'update_ram', name: vm.name, ram: parseRAMToNumber(changesToApply.ram) });
-    }
-    setChangesToApply({ vmname: null, cpu: null, ram: null });
   };
 
   const hasChanges = changesToApply.vmname !== null || changesToApply.cpu !== null || changesToApply.ram !== null;
+  const requiresVMStopped = (changesToApply.cpu !== null || changesToApply.ram !== null) && vm.status === 'running';
 
   const hddList = vm.hdd_sizes.split(',').map(s => s.trim()).sort((a, b) => {
     const numA = parseInt(a.match(/disk-(\d+)/)?.[1] || '0', 10);
@@ -104,6 +143,15 @@ const TableRow = ({
 
   return (
     <>
+      {requiresVMStopped && (
+        <tr>
+          <td colSpan={11} className="bg-yellow-600 text-white text-center py-2">
+            <span className="text-sm font-medium">
+              CPU or RAM changes require the VM to be stopped. Please stop the VM before applying changes.
+            </span>
+          </td>
+        </tr>
+      )}
       <tr
         className="bg-gray-900 border-b border-gray-700 hover:bg-gray-700"
         style={{ height: '48px', position: 'relative', zIndex: 10 }}
@@ -115,7 +163,6 @@ const TableRow = ({
           openEditModal={openEditModal}
           cancelEdit={cancelEdit}
           setChangesToApply={setChangesToApply}
-          vmMutation={vmMutation}
         />
         <td className="px-6 py-4 text-center" style={{ height: '48px', verticalAlign: 'middle', width: '160px' }}>{vm.ip_address}</td>
         <td className="px-6 py-4 text-center" style={{ height: '48px', verticalAlign: 'middle' }}>{vm.os}</td>
@@ -125,7 +172,6 @@ const TableRow = ({
           openEditModal={openEditModal}
           cancelEdit={cancelEdit}
           setChangesToApply={setChangesToApply}
-          vmMutation={vmMutation}
         />
         <RAMCell
           vm={vm}
@@ -133,7 +179,6 @@ const TableRow = ({
           openEditModal={openEditModal}
           cancelEdit={cancelEdit}
           setChangesToApply={setChangesToApply}
-          vmMutation={vmMutation}
         />
         <td className="px-6 py-4 text-center narrow-col" style={{ height: '48px', verticalAlign: 'middle' }}>
           {hddList.length > 1 ? (
@@ -161,9 +206,9 @@ const TableRow = ({
         <td className="px-2 py-2 text-center border-r border-gray-700" style={{ height: '48px', verticalAlign: 'middle' }}>
           <button
             onClick={handleApplyChanges}
-            disabled={!hasChanges}
+            disabled={!hasChanges || requiresVMStopped}
             className={`px-2 py-1 text-sm font-medium rounded-md active:scale-95 transition-transform duration-100 ${
-              hasChanges ? 'bg-orange-600 hover:bg-orange-700 text-white' : 'bg-gray-600 cursor-not-allowed text-white'
+              hasChanges && !requiresVMStopped ? 'bg-orange-600 hover:bg-orange-700 text-white' : 'bg-gray-600 cursor-not-allowed text-white'
             }`}
             style={{ height: '24px', lineHeight: '1' }}
           >
@@ -187,7 +232,7 @@ const TableRow = ({
           style={{ height: '48px', verticalAlign: 'middle' }}
           onClick={() => toggleRow(vm.vmid)}
         >
-          {expandedRows.has(vm.vmid) && snapshotView !== vm.vmid ? '▲' : '▼'}
+          {expandedRows.has(vm.vmid) && !snapshotView.has(vm.vmid) ? '▲' : '▼'}
         </td>
       </tr>
       {expandedRows.has(vm.vmid) && (
@@ -196,8 +241,8 @@ const TableRow = ({
             <div className="expanded-content">
             </div>
           </td>
-          <td className={`px-2 pt-2 pb-2 text-center action-buttons-cell flex-1 justify-center items-center ${hasRowAboveExpanded ? 'border-t border-gray-700' : ''}`} style={{ height: '11rem', verticalAlign: 'middle' }}>
-            {snapshotView === vm.vmid && (
+          <td className={`px-2 pt-2 pb-2 text-center action-buttons-cell flex-1 justify-center items-center ${hasRowAboveExpanded ? 'border-t border-gray-700' : ''}`} style={{ height: '22rem', verticalAlign: 'middle' }}>
+            {snapshotView.has(vm.vmid) && (
               <SnapshotsView
                 vm={vm}
                 snapshots={snapshots}
@@ -210,7 +255,7 @@ const TableRow = ({
               />
             )}
           </td>
-          <td className="px-2 py-4 text-center border-b border-gray-700" style={{ height: '11rem', verticalAlign: 'middle' }}></td>
+          <td className="px-2 py-4 text-center border-b border-gray-700" style={{ height: '22rem', verticalAlign: 'middle' }}></td>
         </tr>
       )}
     </>
