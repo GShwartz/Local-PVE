@@ -7,7 +7,7 @@ const API_BASE = 'http://localhost:8000';
 // API functions
 const controlVM = async ({ node, vmid, action, csrf, ticket }: { node: string; vmid: number; action: string; csrf: string; ticket: string }): Promise<string> => {
   const { data } = await axios.post<string>(
-    `${API_BASE}/vm/${node}/${vmid}/${action}`,
+    `${API_BASE}/vm/${node}/qemu/${vmid}/${action}`,
     {},
     { headers: { 'CSRFPreventionToken': csrf }, params: { csrf_token: csrf, ticket } }
   );
@@ -16,7 +16,7 @@ const controlVM = async ({ node, vmid, action, csrf, ticket }: { node: string; v
 
 const updateVMConfig = async ({ node, vmid, updates, csrf, ticket }: { node: string; vmid: number; updates: { name?: string; cpus?: number; ram?: number }; csrf: string; ticket: string }): Promise<string> => {
   const { data } = await axios.post<string>(
-    `${API_BASE}/vm/${node}/${vmid}/update_config`,
+    `${API_BASE}/vm/${node}/qemu/${vmid}/update_config`,
     updates,
     { headers: { 'CSRFPreventionToken': csrf }, params: { csrf_token: csrf, ticket } }
   );
@@ -25,7 +25,7 @@ const updateVMConfig = async ({ node, vmid, updates, csrf, ticket }: { node: str
 
 const revertSnapshot = async ({ node, vmid, snapname, csrf, ticket }: { node: string; vmid: number; snapname: string; csrf: string; ticket: string }): Promise<string> => {
   const { data } = await axios.post<string>(
-    `${API_BASE}/vm/${node}/${vmid}/snapshot/${snapname}/revert`,
+    `${API_BASE}/vm/${node}/qemu/${vmid}/snapshot/${snapname}/revert`,
     {},
     { headers: { 'CSRFPreventionToken': csrf }, params: { csrf_token: csrf, ticket } }
   );
@@ -34,7 +34,7 @@ const revertSnapshot = async ({ node, vmid, snapname, csrf, ticket }: { node: st
 
 const deleteSnapshot = async ({ node, vmid, snapname, csrf, ticket }: { node: string; vmid: number; snapname: string; csrf: string; ticket: string }): Promise<string> => {
   const { data } = await axios.delete<string>(
-    `${API_BASE}/vm/${node}/${vmid}/snapshot/${snapname}`,
+    `${API_BASE}/vm/${node}/qemu/${vmid}/snapshot/${snapname}`,
     { headers: { 'CSRFPreventionToken': csrf }, params: { csrf_token: csrf, ticket } }
   );
   return data;
@@ -53,7 +53,7 @@ const createSnapshot = async ({ node, vmid, snapname, csrf, ticket }: { node: st
   console.log(`Sending snapshot creation request for VM ${vmid} on node ${node} with payload:`, payload);
   try {
     const { data } = await axios.post<string>(
-      `${API_BASE}/vm/${node}/${vmid}/snapshot`,
+      `${API_BASE}/vm/${node}/qemu/${vmid}/snapshot`,
       payload,
       { headers: { 'CSRFPreventionToken': csrf }, params: { csrf_token: csrf, ticket } }
     );
@@ -112,7 +112,7 @@ export const useVMMutation = (
             } else {
               addAlert(`VM ${name ? `${name} ` : ''}(${vmid}) ${action} completed successfully.`, 'success');
             }
-            const delayIfNeeded = ['start', 'reboot', 'stop', 'shutdown', 'resume', 'hibernate', 'update_config'].includes(action) ? 15000 : 0;
+            const delayIfNeeded = ['start', 'reboot', 'stop', 'shutdown', 'resume', 'hibernate'].includes(action) ? 15000 : 0;
             setTimeout(() => {
               queryClient.invalidateQueries({ queryKey: ['vms'] });
               setPendingActions((prev) => ({

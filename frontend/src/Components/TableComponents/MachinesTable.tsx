@@ -22,6 +22,7 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert }: MachinesTable
   const [snapshotName, setSnapshotName] = useState('');
   const [currentVmid, setCurrentVmid] = useState<number | null>(null);
   const [editingVmid, setEditingVmid] = useState<number | null>(null);
+  const [isApplying, setIsApplying] = useState<boolean>(false);
 
   const toggleRow = (vmid: number): void => {
     const newExpanded = new Set(expandedRows);
@@ -120,7 +121,7 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert }: MachinesTable
     <>
       <div className="overflow-x-auto mb-10">
         <table className="w-full text-sm text-gray-200 border-collapse">
-          <TableHeader sortConfig={sortConfig} handleSort={handleSort} />
+          <TableHeader sortConfig={sortConfig} handleSort={handleSort} isApplying={isApplying} />
           <tbody>
             {sortedVms.map((vm, idx) => {
               const prevVm = sortedVms[idx - 1];
@@ -144,6 +145,8 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert }: MachinesTable
                   editingVmid={editingVmid}
                   cancelEdit={cancelEdit}
                   hasRowAboveExpanded={hasRowAboveExpanded}
+                  addAlert={addAlert}
+                  setTableApplying={setIsApplying}
                 />
               );
             })}

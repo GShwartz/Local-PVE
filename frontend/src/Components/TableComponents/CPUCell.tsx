@@ -7,9 +7,10 @@ interface CPUCellProps {
   openEditModal: (vm: VM) => void;
   cancelEdit: () => void;
   setChangesToApply: React.Dispatch<React.SetStateAction<{ vmname: string | null; cpu: number | null; ram: string | null }>>;
+  isApplying: boolean;
 }
 
-const CPUCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply }: CPUCellProps) => {
+const CPUCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply, isApplying }: CPUCellProps) => {
   const [isEditingCPU, setIsEditingCPU] = useState(false);
   const [editCPUs, setEditCPUs] = useState(vm.cpus);
   const [oldCPUs, setOldCPUs] = useState<number | null>(null);
@@ -71,6 +72,7 @@ const CPUCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply
                 onChange={(e) => handleCPUChange(Number(e.target.value))}
                 className="w-16 bg-gray-800 text-white border border-gray-600 rounded-md text-center"
                 autoFocus
+                disabled={isApplying}
               >
                 {validCPUs.map((cpu) => (
                   <option key={cpu} value={cpu}>
@@ -81,11 +83,13 @@ const CPUCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply
             </div>
           ) : (
             <span
-              className="cursor-pointer hover:bg-gray-900 hover:scale-110 transition-all duration-200 px-2 py-1 rounded"
+              className={`px-2 py-1 rounded ${!isApplying ? 'cursor-pointer hover:bg-gray-900 hover:scale-110 transition-all duration-200' : 'cursor-not-allowed'}`}
               onClick={(e) => {
                 e.stopPropagation();
-                setIsEditingCPU(true);
-                openEditModal(vm);
+                if (!isApplying) {
+                  setIsEditingCPU(true);
+                  openEditModal(vm);
+                }
               }}
             >
               {editCPUs}

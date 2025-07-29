@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-import os
+import re
 import uvicorn
 from pydantic import BaseModel
 from Modules.models import LoginRequest, AuthResponse, VMCreateRequest, VMUpdateRequest
@@ -40,15 +40,43 @@ async def list_vms(node: str, csrf_token: str, ticket: str, service: ProxmoxServ
 async def get_task_status(node: str, upid: str, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
     return service.get_task_status(node, upid, csrf_token, ticket)
 
-@app.get("/vm/{node}/{vmid}/status")
+@app.get("/vm/{node}/qemu/{vmid}/status")
 async def get_vm_status(node: str, vmid: int, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
     return {"status": service.get_vm_status(node, vmid, csrf_token, ticket)}
 
-@app.get("/vm/{node}/{vmid}/snapshots")
+@app.get("/vm/{node}/qemu/{vmid}/config")
+async def get_vm_config(node: str, vmid: int, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
+    try:
+        config = service.get_vm_config(node, vmid, ticket)
+        disks = []
+        disk_prefixes = ["ide", "sata", "scsi", "virtio"]
+        for key, value in config.items():
+            if any(key.startswith(prefix) for prefix in disk_prefixes) and "cdrom" not in value:
+                size_match = re.search(r'size=(\d+[KMGT]?)', value)
+                if size_match:
+                    disks.append(size_match.group(1))
+        return {
+            "vmid": vmid,
+            "name": config.get("name", f"VM {vmid}"),
+            "cores": config.get("cores", 0),
+            "memory": config.get("memory", 0),
+            "ostype": config.get("ostype", "unknown"),
+            "hdd_sizes": ", ".join(disks) if disks else "N/A",
+            "num_hdd": len(disks),
+            "hdd_free": "N/A",
+            "ip_address": "N/A",
+            "status": service.get_vm_status(node, vmid, csrf_token, ticket),
+        }
+    except HTTPException as e:
+        raise HTTPException(status_code=e.status_code, detail=f"Failed to fetch VM config: {e.detail}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error fetching VM config: {str(e)}")
+
+@app.get("/vm/{node}/qemu/{vmid}/snapshots")
 async def list_snapshots(node: str, vmid: int, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
     return service.get_snapshots(node, vmid, csrf_token, ticket)
 
-@app.post("/vm/{node}/{vmid}/snapshot")
+@app.post("/vm/{node}/qemu/{vmid}/snapshot")
 async def create_snapshot(node: str, vmid: int, snap_request: SnapRequest, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
     try:
         if not snap_request.snapname or len(snap_request.snapname.strip()) == 0:
@@ -67,15 +95,15 @@ async def create_snapshot(node: str, vmid: int, snap_request: SnapRequest, csrf_
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unexpected error creating snapshot: {str(e)}")
 
-@app.post("/vm/{node}/{vmid}/snapshot/{snapname}/revert")
+@app.post("/vm/{node}/qemu/{vmid}/snapshot/{snapname}/revert")
 async def revert_snapshot(node: str, vmid: int, snapname: str, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
     return service.revert_snapshot(node, vmid, snapname, csrf_token, ticket)
 
-@app.delete("/vm/{node}/{vmid}/snapshot/{snapname}")
+@app.delete("/vm/{node}/qemu/{vmid}/snapshot/{snapname}")
 async def delete_snapshot(node: str, vmid: int, snapname: str, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
     return service.delete_snapshot(node, vmid, snapname, csrf_token, ticket)
 
-@app.post("/vm/{node}/{vmid}/update_config")
+@app.post("/vm/{node}/qemu/{vmid}/update_config")
 async def update_vm_config(node: str, vmid: int, updates: VMUpdateRequest, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
     try:
         return service.update_vm_config(node, vmid, updates, csrf_token, ticket)
@@ -84,7 +112,7 @@ async def update_vm_config(node: str, vmid: int, updates: VMUpdateRequest, csrf_
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unexpected error updating VM config: {str(e)}")
 
-@app.post("/vm/{node}/{vmid}/{action}")
+@app.post("/vm/{node}/qemu/{vmid}/{action}")
 async def control_vm(node: str, vmid: int, action: str, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
     if action not in ["start", "stop", "shutdown", "reboot", "hibernate", "resume"]:
         raise HTTPException(status_code=400, detail="Invalid action")

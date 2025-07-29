@@ -7,9 +7,10 @@ interface VMNameCellProps {
   openEditModal: (vm: VM) => void;
   cancelEdit: () => void;
   setChangesToApply: React.Dispatch<React.SetStateAction<{ vmname: string | null; cpu: number | null; ram: string | null }>>;
+  isApplying: boolean;
 }
 
-const VMNameCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply }: VMNameCellProps) => {
+const VMNameCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply, isApplying }: VMNameCellProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editVMName, setEditVMName] = useState(vm.name);
   const [oldVMName, setOldVMName] = useState<string | null>(null);
@@ -68,14 +69,14 @@ const VMNameCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToAp
             className="w-32 p-1 bg-gray-900 text-white rounded-md text-sm"
             placeholder="New VM Name"
             style={{ height: '32px', lineHeight: '1.5' }}
-            disabled={editingVmid !== null && editingVmid !== vm.vmid}
+            disabled={editingVmid !== null && editingVmid !== vm.vmid || isApplying}
           />
           <button
             type="submit"
             onClick={(e) => e.stopPropagation()}
             className="px-2 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50"
             style={{ height: '32px', lineHeight: '1.5' }}
-            disabled={editingVmid !== null && editingVmid !== vm.vmid}
+            disabled={editingVmid !== null && editingVmid !== vm.vmid || isApplying}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -89,7 +90,7 @@ const VMNameCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToAp
             }}
             className="px-2 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
             style={{ height: '32px', lineHeight: '1.5' }}
-            disabled={editingVmid !== null && editingVmid !== vm.vmid}
+            disabled={editingVmid !== null && editingVmid !== vm.vmid || isApplying}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -103,11 +104,13 @@ const VMNameCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToAp
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                setIsEditing(true);
-                openEditModal(vm);
+                if (!isApplying) {
+                  setIsEditing(true);
+                  openEditModal(vm);
+                }
               }}
-              disabled={editingVmid !== null && editingVmid !== vm.vmid}
-              className={`ml-2 text-gray-400 hover:text-white ${editingVmid !== null && editingVmid !== vm.vmid ? 'opacity-50 cursor-not-allowed' : ''}`}
+              disabled={editingVmid !== null && editingVmid !== vm.vmid || isApplying}
+              className={`ml-2 text-gray-400 hover:text-white ${editingVmid !== null && editingVmid !== vm.vmid || isApplying ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />

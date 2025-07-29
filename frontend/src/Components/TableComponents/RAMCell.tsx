@@ -7,9 +7,10 @@ interface RAMCellProps {
   openEditModal: (vm: VM) => void;
   cancelEdit: () => void;
   setChangesToApply: React.Dispatch<React.SetStateAction<{ vmname: string | null; cpu: number | null; ram: string | null }>>;
+  isApplying: boolean;
 }
 
-const RAMCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply }: RAMCellProps) => {
+const RAMCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply, isApplying }: RAMCellProps) => {
   const formatRAMToString = (ram: number): string => {
     if (ram >= 1024 && ram % 1024 === 0) {
       return `${ram / 1024}GB`;
@@ -86,6 +87,7 @@ const RAMCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply
                 onChange={(e) => handleRAMChange(e.target.value)}
                 className="w-16 bg-gray-800 text-white border border-gray-600 rounded-md text-center"
                 autoFocus
+                disabled={isApplying}
               >
                 {validRAMs.map((ram) => (
                   <option key={ram} value={ram}>
@@ -96,11 +98,13 @@ const RAMCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply
             </div>
           ) : (
             <span
-              className="cursor-pointer hover:bg-gray-900 hover:scale-110 transition-all duration-200 px-2 py-1 rounded"
+              className={`px-2 py-1 rounded ${!isApplying ? 'cursor-pointer hover:bg-gray-900 hover:scale-110 transition-all duration-200' : 'cursor-not-allowed'}`}
               onClick={(e) => {
                 e.stopPropagation();
-                setIsEditingRAM(true);
-                openEditModal(vm);
+                if (!isApplying) {
+                  setIsEditingRAM(true);
+                  openEditModal(vm);
+                }
               }}
             >
               {editRAM}

@@ -13,6 +13,7 @@ export interface VM {
   num_hdd: number;
   hdd_sizes: string;
   ip_address: string;
+  hdd_free: string;
 }
 
 export interface Snapshot {
@@ -32,6 +33,7 @@ export interface VMCreate {
   ram: number;
   source: string;
 }
+
 export interface VMUpdate {
   vmid: number;
   name?: string;

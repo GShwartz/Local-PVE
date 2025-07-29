@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { UseMutationResult } from '@tanstack/react-query';
-import { VM, Auth, Snapshot } from '../../types';
+import { VM, Auth, Snapshot, TaskStatus } from '../../types';
 import SnapshotsView from '../SnapshotsComponents/SnapshotsView';
 import axios from 'axios';
 import { useState } from 'react';
@@ -8,6 +8,19 @@ import VMNameCell from './VMNameCell';
 import CPUCell from './CPUCell';
 import RAMCell from './RAMCell';
 import ActionButtons from './ActionButtons';
+
+// Define the expected response type from the backend
+interface VMConfigResponse {
+  name?: string;
+  cores?: number;
+  memory?: number;
+  ostype?: string;
+  ip_address?: string;
+  hdd_sizes?: string;
+  num_hdd?: number;
+  hdd_free?: string;
+  status?: string;
+}
 
 interface TableRowProps {
   vm: VM;
@@ -26,11 +39,13 @@ interface TableRowProps {
   editingVmid: number | null;
   cancelEdit: () => void;
   hasRowAboveExpanded: boolean;
+  addAlert: (message: string, type: string) => void;
+  setTableApplying: (isApplying: boolean) => void;
 }
 
 const getSnapshots = async ({ node, vmid, csrf, ticket }: { node: string; vmid: number; csrf: string; ticket: string }): Promise<Snapshot[]> => {
   const { data } = await axios.get<Snapshot[]>(
-    `http://localhost:8000/vm/${node}/${vmid}/snapshots`,
+    `http://localhost:8000/vm/${node}/qemu/${vmid}/snapshots`,
     { params: { csrf_token: csrf, ticket } }
   );
   return data;
@@ -38,18 +53,34 @@ const getSnapshots = async ({ node, vmid, csrf, ticket }: { node: string; vmid: 
 
 const getVMStatus = async ({ node, vmid, csrf, ticket }: { node: string; vmid: number; csrf: string; ticket: string }): Promise<string> => {
   const { data } = await axios.get<{ status: string }>(
-    `http://localhost:8000/vm/${node}/${vmid}/status`,
+    `http://localhost:8000/vm/${node}/qemu/${vmid}/status`,
     { params: { csrf_token: csrf, ticket } }
   );
   return data.status;
 };
 
 const getVMInfo = async ({ node, vmid, csrf, ticket }: { node: string; vmid: number; csrf: string; ticket: string }): Promise<VM> => {
-  const { data } = await axios.get<VM>(
-    `http://localhost:8000/vm/${node}/${vmid}`,
-    { params: { csrf_token: csrf, ticket } }
-  );
-  return data;
+  try {
+    const { data } = await axios.get<VMConfigResponse>(
+      `http://localhost:8000/vm/${node}/qemu/${vmid}/config`,
+      { params: { csrf_token: csrf, ticket } }
+    );
+    return {
+      vmid,
+      name: data.name || `VM ${vmid}`,
+      cpus: data.cores || 0,
+      ram: data.memory || 0,
+      status: data.status || 'stopped',
+      os: data.ostype && data.ostype.toLowerCase().includes('win') ? 'Windows' : 'Linux',
+      ip_address: data.ip_address || 'N/A',
+      hdd_sizes: data.hdd_sizes || 'N/A',
+      num_hdd: data.num_hdd || 0,
+      hdd_free: data.hdd_free || 'N/A',
+    };
+  } catch (error) {
+    console.error(`Failed to fetch VM info for VM ${vmid}:`, error);
+    throw new Error('Unable to fetch VM information');
+  }
 };
 
 const parseRAMToNumber = (ram: string): number => {
@@ -76,6 +107,8 @@ const TableRow = ({
   editingVmid,
   cancelEdit,
   hasRowAboveExpanded,
+  addAlert,
+  setTableApplying,
 }: TableRowProps) => {
   const queryClient = useQueryClient();
   const { data: snapshots, isLoading: snapshotsLoading, error: snapshotsError } = useQuery({
@@ -89,10 +122,15 @@ const TableRow = ({
     cpu: null,
     ram: null,
   });
+  const [isApplying, setIsApplying] = useState(false);
 
   const handleApplyChanges = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
     console.log('Applying changes for VM', vm.vmid, ':', changesToApply, 'Cached VM Status:', vm.status);
+
+    // Set loader to visible immediately and notify table
+    setIsApplying(true);
+    setTableApplying(true);
 
     // Fetch latest VM status
     try {
@@ -106,29 +144,73 @@ const TableRow = ({
 
       if (Object.keys(updates).length === 0) {
         console.warn('No changes to apply for VM', vm.vmid);
+        setIsApplying(false);
+        setTableApplying(false);
         return;
       }
 
       if ((updates.cpus || updates.ram) && latestStatus === 'running') {
         console.error('Cannot apply CPU or RAM changes for running VM', vm.vmid);
+        setIsApplying(false);
+        setTableApplying(false);
+        addAlert(`Cannot apply CPU or RAM changes for running VM ${vm.vmid}`, 'error');
         return;
       }
 
       vmMutation.mutate({ vmid: vm.vmid, action: 'update_config', ...updates }, {
-        onSuccess: async () => {
-          // Fetch updated VM info
-          const updatedVM = await getVMInfo({ node, vmid: vm.vmid, csrf: auth.csrf_token, ticket: auth.ticket });
-          queryClient.setQueryData(['vms'], (oldVms: VM[] | undefined) => {
-            if (!oldVms) return [updatedVM];
-            return oldVms.map((oldVm) => (oldVm.vmid === vm.vmid ? updatedVM : oldVm));
-          });
-          // Clear changes and reset editing state
-          setChangesToApply({ vmname: null, cpu: null, ram: null });
-          cancelEdit();
+        onSuccess: async (upid: string) => {
+          try {
+            // Poll task status to ensure completion
+            let taskStatus;
+            do {
+              const { data } = await axios.get<TaskStatus>(
+                `http://localhost:8000/task/${node}/${upid}`,
+                { params: { csrf_token: auth.csrf_token, ticket: auth.ticket } }
+              );
+              taskStatus = data;
+              if (taskStatus.status !== 'stopped') {
+                await new Promise(resolve => setTimeout(resolve, 500));
+              }
+            } while (taskStatus.status !== 'stopped');
+
+            if (taskStatus.exitstatus !== 'OK') {
+              throw new Error(`Task failed: ${taskStatus.exitstatus}`);
+            }
+
+            // Delay to allow backend to settle
+            await new Promise(resolve => setTimeout(resolve, 15000));
+
+            // Fetch updated VM info after task completion and delay
+            const updatedVM = await getVMInfo({ node, vmid: vm.vmid, csrf: auth.csrf_token, ticket: auth.ticket });
+            queryClient.setQueryData(['vms'], (oldVms: VM[] | undefined) => {
+              if (!oldVms) return [updatedVM];
+              return oldVms.map((oldVm) => (oldVm.vmid === vm.vmid ? updatedVM : oldVm));
+            });
+
+            // Clear changes and reset editing state only after data is updated
+            setChangesToApply({ vmname: null, cpu: null, ram: null });
+            cancelEdit();
+            addAlert(`VM ${vm.vmid} updated successfully`, 'success');
+            setIsApplying(false);
+            setTableApplying(false);
+          } catch (error) {
+            console.error('Failed to update VM info in cache:', error);
+            addAlert(`Failed to fetch updated VM info for VM ${vm.vmid}`, 'error');
+            setIsApplying(false);
+            setTableApplying(false);
+          }
+        },
+        onError: (error: any) => {
+          addAlert(`Failed to update VM ${vm.vmid}: ${error.message || 'Unknown error'}`, 'error');
+          setIsApplying(false);
+          setTableApplying(false);
         },
       });
     } catch (error) {
       console.error('Failed to fetch VM status for VM', vm.vmid, ':', error);
+      addAlert(`Failed to fetch VM status for VM ${vm.vmid}`, 'error');
+      setIsApplying(false);
+      setTableApplying(false);
     }
   };
 
@@ -163,6 +245,7 @@ const TableRow = ({
           openEditModal={openEditModal}
           cancelEdit={cancelEdit}
           setChangesToApply={setChangesToApply}
+          isApplying={isApplying}
         />
         <td className="px-6 py-4 text-center" style={{ height: '48px', verticalAlign: 'middle', width: '160px' }}>{vm.ip_address}</td>
         <td className="px-6 py-4 text-center" style={{ height: '48px', verticalAlign: 'middle' }}>{vm.os}</td>
@@ -172,6 +255,7 @@ const TableRow = ({
           openEditModal={openEditModal}
           cancelEdit={cancelEdit}
           setChangesToApply={setChangesToApply}
+          isApplying={isApplying}
         />
         <RAMCell
           vm={vm}
@@ -179,6 +263,7 @@ const TableRow = ({
           openEditModal={openEditModal}
           cancelEdit={cancelEdit}
           setChangesToApply={setChangesToApply}
+          isApplying={isApplying}
         />
         <td className="px-6 py-4 text-center narrow-col" style={{ height: '48px', verticalAlign: 'middle' }}>
           {hddList.length > 1 ? (
@@ -206,13 +291,15 @@ const TableRow = ({
         <td className="px-2 py-2 text-center border-r border-gray-700" style={{ height: '48px', verticalAlign: 'middle' }}>
           <button
             onClick={handleApplyChanges}
-            disabled={!hasChanges || requiresVMStopped}
-            className={`px-2 py-1 text-sm font-medium rounded-md active:scale-95 transition-transform duration-100 ${
-              hasChanges && !requiresVMStopped ? 'bg-orange-600 hover:bg-orange-700 text-white' : 'bg-gray-600 cursor-not-allowed text-white'
+            disabled={!hasChanges || requiresVMStopped || isApplying}
+            className={`px-2 py-1 text-sm font-medium rounded-md transition-transform duration-100 text-white ${
+              hasChanges && !requiresVMStopped 
+                ? 'bg-orange-600 ' + (!isApplying ? 'hover:bg-orange-700 active:scale-95 cursor-pointer' : 'cursor-not-allowed') 
+                : 'bg-gray-600 cursor-not-allowed'
             }`}
             style={{ height: '24px', lineHeight: '1' }}
           >
-            Apply
+            {isApplying ? 'Apply' : 'Apply'}
           </button>
         </td>
         <td
