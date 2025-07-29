@@ -5,22 +5,26 @@ const Navbar = ({ onCreateClick, alertHistory }: { onCreateClick: () => void; al
   const [showHistory, setShowHistory] = useState(false);
   const [order, setOrder] = useState<'newToOld' | 'oldToNew'>('newToOld');
   const [alerts, setAlerts] = useState(alertHistory);
+  const [showPopconfirm, setShowPopconfirm] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const historyRef = useRef<HTMLDivElement>(null);
+  const popconfirmRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setAlerts(alertHistory);
   }, [alertHistory]);
 
   useEffect(() => {
-    if (!showHistory) return;
+    if (!showHistory && !showPopconfirm) return;
 
     const handleClickOutside = (event: MouseEvent) => {
       if (
         historyRef.current && !historyRef.current.contains(event.target as Node) &&
-        buttonRef.current && !buttonRef.current.contains(event.target as Node)
+        buttonRef.current && !buttonRef.current.contains(event.target as Node) &&
+        popconfirmRef.current && !popconfirmRef.current.contains(event.target as Node)
       ) {
         setShowHistory(false);
+        setShowPopconfirm(false);
       }
     };
 
@@ -28,7 +32,7 @@ const Navbar = ({ onCreateClick, alertHistory }: { onCreateClick: () => void; al
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showHistory]);
+  }, [showHistory, showPopconfirm]);
 
   const getTextColor = (type: string) => {
     switch (type) {
@@ -52,6 +56,7 @@ const Navbar = ({ onCreateClick, alertHistory }: { onCreateClick: () => void; al
 
   const handleClearHistory = () => {
     setAlerts([]);
+    setShowPopconfirm(false);
   };
 
   return (
@@ -93,15 +98,39 @@ const Navbar = ({ onCreateClick, alertHistory }: { onCreateClick: () => void; al
                     <th scope="col" className="px-6 py-3">
                       <div className="flex items-center justify-between">
                         <span>Message</span>
-                        <button
-                          onClick={handleClearHistory}
-                          className="text-red-400 hover:text-red-500"
-                          title="Clear History"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5-4h4M9 7v12m6-12v12M3 3h18" />
-                          </svg>
-                        </button>
+                        <div className="relative">
+                          <button
+                            onClick={() => setShowPopconfirm(true)}
+                            className="text-red-400 hover:text-red-500"
+                            title="Clear History"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5-4h4M9 7v12m6-12v12M3 3h18" />
+                            </svg>
+                          </button>
+                          {showPopconfirm && (
+                            <div
+                              ref={popconfirmRef}
+                              className="absolute top-6 right-0 bg-gray-800 text-white rounded-lg shadow-lg p-4 z-[200] border border-gray-600"
+                            >
+                              <p className="text-sm mb-3">Are you sure you want to clear the history?</p>
+                              <div className="flex justify-end space-x-2">
+                                <button
+                                  onClick={() => setShowPopconfirm(false)}
+                                  className="px-3 py-1 bg-gray-600 hover:bg-gray-700 text-white rounded-md text-sm"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  onClick={handleClearHistory}
+                                  className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-md text-sm"
+                                >
+                                  Confirm
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </th>
                   </tr>

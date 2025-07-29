@@ -6,6 +6,7 @@ import axios from 'axios';
 import { useState } from 'react';
 import VMNameCell from './VMNameCell';
 import CPUCell from './CPUCell';
+import RAMCell from './RAMCell';
 import ActionButtons from './ActionButtons';
 
 interface TableRowProps {
@@ -16,7 +17,7 @@ interface TableRowProps {
   showSnapshots: (vmid: number) => void;
   openModal: (vmid: number, vmName: string) => void;
   pendingActions: { [vmid: number]: string[] };
-  vmMutation: UseMutationResult<string, any, { vmid: number; action: string; name?: string; cpus?: number }, unknown>;
+  vmMutation: UseMutationResult<string, any, { vmid: number; action: string; name?: string; cpus?: number; ram?: number }, unknown>;
   snapshotMutation: UseMutationResult<string, any, { vmid: number; snapname: string; name?: string }, unknown>;
   deleteSnapshotMutation: UseMutationResult<string, any, { vmid: number; snapname: string; name?: string }, unknown>;
   auth: Auth;
@@ -33,6 +34,20 @@ const getSnapshots = async ({ node, vmid, csrf, ticket }: { node: string; vmid: 
     { params: { csrf_token: csrf, ticket } }
   );
   return data;
+};
+
+const parseRAMToNumber = (ram: string): number => {
+  if (ram.endsWith('GB')) {
+    return parseInt(ram.replace('GB', '')) * 1024;
+  }
+  return parseInt(ram.replace('MB', ''));
+};
+
+const formatRAMToString = (ram: number): string => {
+  if (ram >= 1024 && ram % 1024 === 0) {
+    return `${ram / 1024}GB`;
+  }
+  return `${ram}MB`;
 };
 
 const TableRow = ({
@@ -73,6 +88,9 @@ const TableRow = ({
     if (changesToApply.cpu !== null) {
       vmMutation.mutate({ vmid: vm.vmid, action: 'update_cpu', name: vm.name, cpus: changesToApply.cpu });
     }
+    if (changesToApply.ram !== null) {
+      vmMutation.mutate({ vmid: vm.vmid, action: 'update_ram', name: vm.name, ram: parseRAMToNumber(changesToApply.ram) });
+    }
     setChangesToApply({ vmname: null, cpu: null, ram: null });
   };
 
@@ -109,7 +127,14 @@ const TableRow = ({
           setChangesToApply={setChangesToApply}
           vmMutation={vmMutation}
         />
-        <td className="px-6 py-4 text-center narrow-col" style={{ height: '48px', verticalAlign: 'middle' }}>{vm.ram}</td>
+        <RAMCell
+          vm={vm}
+          editingVmid={editingVmid}
+          openEditModal={openEditModal}
+          cancelEdit={cancelEdit}
+          setChangesToApply={setChangesToApply}
+          vmMutation={vmMutation}
+        />
         <td className="px-6 py-4 text-center narrow-col" style={{ height: '48px', verticalAlign: 'middle' }}>
           {hddList.length > 1 ? (
             <div className="flex flex-col items-center">
