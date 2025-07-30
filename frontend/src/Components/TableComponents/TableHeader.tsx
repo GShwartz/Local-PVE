@@ -12,9 +12,9 @@ const TableHeader = ({ sortConfig, handleSort, isApplying }: TableHeaderProps) =
     { key: 'name', label: 'Name' },
     { key: 'ip_address', label: 'IP Address' },
     { key: 'os', label: 'OS' },
-    { key: 'cpus', label: 'CPU (Cores)' },
-    { key: 'ram', label: 'RAM (MB)' },
-    { key: 'hdd_sizes', label: 'HDD Sizes' },
+    { key: 'cpus', label: 'Cores' },
+    { key: 'ram', label: 'RAM' },
+    { key: 'hdd_sizes', label: 'HDD' },
     { key: 'status', label: 'Status' },
   ];
 
@@ -144,7 +144,6 @@ const TableHeader = ({ sortConfig, handleSort, isApplying }: TableHeaderProps) =
             )}
           </th>
           <th scope="col" className="table-header-action px-2 py-4" style={{ height: '48px', verticalAlign: 'middle' }}>Actions</th>
-          <th scope="col" className="table-header-toggle px-2 py-4" style={{ height: '48px', verticalAlign: 'middle' }}></th>
         </tr>
       </thead>
     </>

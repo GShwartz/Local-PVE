@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Alert } from '../Alerts';
+import styles from '../../CSS/Navbar.module.css';
 
 const Navbar = ({ onCreateClick, alertHistory }: { onCreateClick: () => void; alertHistory: Alert[] }) => {
   const [showHistory, setShowHistory] = useState(false);
@@ -10,19 +11,30 @@ const Navbar = ({ onCreateClick, alertHistory }: { onCreateClick: () => void; al
   const historyRef = useRef<HTMLDivElement>(null);
   const popconfirmRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    setAlerts(alertHistory);
-  }, [alertHistory]);
+  // Track if history was cleared to prevent prop updates
+  const [isHistoryCleared, setIsHistoryCleared] = useState(false);
+  const lastAlertCount = useRef(alertHistory.length);
 
   useEffect(() => {
-    if (!showHistory && !showPopconfirm) return;
+    if (!isHistoryCleared) {
+      setAlerts(alertHistory);
+      lastAlertCount.current = alertHistory.length;
+    } else if (alertHistory.length > lastAlertCount.current) {
+      setAlerts(prev => [...prev, ...alertHistory.slice(lastAlertCount.current)]);
+      lastAlertCount.current = alertHistory.length;
+    }
+  }, [alertHistory, isHistoryCleared]);
+
+  useEffect(() => {
+    if (!showHistory) return;
 
     const handleClickOutside = (event: MouseEvent) => {
-      if (
-        historyRef.current && !historyRef.current.contains(event.target as Node) &&
-        buttonRef.current && !buttonRef.current.contains(event.target as Node) &&
-        popconfirmRef.current && !popconfirmRef.current.contains(event.target as Node)
-      ) {
+      const target = event.target as Node;
+      const clickedOutsideHistory = historyRef.current && !historyRef.current.contains(target);
+      const clickedOutsideButton = buttonRef.current && !buttonRef.current.contains(target);
+      const clickedOutsidePopconfirm = popconfirmRef.current && !popconfirmRef.current.contains(target);
+
+      if (clickedOutsideHistory && clickedOutsideButton && (!showPopconfirm || clickedOutsidePopconfirm)) {
         setShowHistory(false);
         setShowPopconfirm(false);
       }
@@ -57,89 +69,93 @@ const Navbar = ({ onCreateClick, alertHistory }: { onCreateClick: () => void; al
   const handleClearHistory = () => {
     setAlerts([]);
     setShowPopconfirm(false);
+    lastAlertCount.current = alertHistory.length;
+    setIsHistoryCleared(true);
   };
 
   return (
-    <nav className="bg-gradient-to-r from-gray-900 to-gray-800 p-4 shadow-lg relative z-50">
-      <div className="flex justify-between items-center px-4">
-        <div className="flex items-center space-x-4">
-          <span className="text-2xl font-bold text-white">Local-PVE</span>
-          <button onClick={onCreateClick} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md">Create VM</button>
+    <nav className={styles.navbar}>
+      <div className={styles['navbar-container']}>
+        <div className={styles['navbar-left']}>
+          <span className={styles['navbar-title']}>Local-PVE</span>
+          <button onClick={onCreateClick} className={styles['create-vm-button']}>Create VM</button>
         </div>
-        <div className="space-x-6 relative">
+        <div className={styles['navbar-right']}>
           <button
             ref={buttonRef}
             onClick={() => setShowHistory((prev) => !prev)}
-            className="inline-block rounded bg-blue-600 px-6 pb-2 pt-2.5 text-xs font-medium uppercase leading-normal text-white shadow-md transition duration-150 ease-in-out hover:bg-blue-700 hover:shadow-lg focus:bg-blue-700 focus:shadow-lg focus:outline-none focus:ring-0 active:bg-blue-800 active:shadow-lg dark:shadow-md dark:hover:shadow-lg dark:focus:shadow-lg dark:active:shadow-lg"
+            className={styles['notifications-button']}
           >
             Notifications
           </button>
-          <button className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md">Logout</button>
+          <button className={styles['logout-button']}>Logout</button>
           {showHistory && (
             <div
               ref={historyRef}
-              className="absolute top-12 right-0 w-[500px] max-h-80 overflow-y-auto bg-gray-900/70 rounded-lg shadow-2xl p-4 custom-scrollbar z-[100] text-surface dark:text-white"
+              className={styles['history-container']}
             >
-              <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-                <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+              <table className={styles['history-table']}>
+                <thead>
                   <tr>
-                    <th scope="col" className="px-4 py-3">
-                      <div className="flex items-center space-x-2">
+                    <th scope="col" className={`${styles['history-table-th']} w-1/4`}>
+                      <div className={styles['filter-container']}>
                         <select
                           value={order}
                           onChange={handleOrderChange}
-                          className="bg-gray-700 text-white rounded p-1 text-sm border-none"
+                          className={`${styles['filter-select']} ${alerts.length === 0 ? styles['filter-select:disabled'] : ''}`}
+                          disabled={alerts.length === 0}
                         >
                           <option value="newToOld">Newer</option>
                           <option value="oldToNew">Older</option>
                         </select>
                       </div>
                     </th>
-                    <th scope="col" className="px-6 py-3">
-                      <div className="flex items-center justify-between">
-                        <span>Message</span>
-                        <div className="relative">
+                    <th scope="col" className={`${styles['history-table-th']} w-3/4`}>
+                      <div className={styles['message-header-container']}>
+                        <span className={styles['message-header']}>Message</span>
+                        <div className={styles['clear-button-container']}>
                           <button
                             onClick={() => setShowPopconfirm(true)}
-                            className="text-red-400 hover:text-red-500"
+                            className={`${styles['clear-button']} ${alerts.length === 0 ? styles['clear-button:disabled'] : ''}`}
                             title="Clear History"
+                            disabled={alerts.length === 0}
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5-4h4M9 7v12m6-12v12M3 3h18" />
                             </svg>
                           </button>
-                          {showPopconfirm && (
-                            <div
-                              ref={popconfirmRef}
-                              className="absolute top-6 right-0 bg-gray-800 text-white rounded-lg shadow-lg p-4 z-[200] border border-gray-600"
-                            >
-                              <p className="text-sm mb-3">Are you sure you want to clear the history?</p>
-                              <div className="flex justify-end space-x-2">
-                                <button
-                                  onClick={() => setShowPopconfirm(false)}
-                                  className="px-3 py-1 bg-gray-600 hover:bg-gray-700 text-white rounded-md text-sm"
-                                >
-                                  Cancel
-                                </button>
-                                <button
-                                  onClick={handleClearHistory}
-                                  className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-md text-sm"
-                                >
-                                  Confirm
-                                </button>
-                              </div>
-                            </div>
-                          )}
                         </div>
+                        {showPopconfirm && (
+                          <div
+                            ref={popconfirmRef}
+                            className={styles.popconfirm}
+                          >
+                            <p className={styles['popconfirm-text']}>Are you sure you want to clear the history?</p>
+                            <div className={styles['popconfirm-buttons']}>
+                              <button
+                                onClick={() => setShowPopconfirm(false)}
+                                className={styles['popconfirm-cancel']}
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={handleClearHistory}
+                                className={styles['popconfirm-confirm']}
+                              >
+                                Confirm
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {displayedAlerts.map((alert) => (
-                    <tr key={alert.id} className="bg-white border-b dark:bg-gray-800 dark:border-gray-700">
-                      <td className={`px-6 py-4 font-medium ${getTextColor(alert.type)}`}>{alert.type}</td>
-                      <td className="px-6 py-4">{alert.message}</td>
+                    <tr key={alert.id} className={styles['history-table-tr']}>
+                      <td className={`${styles['history-table-td']} font-medium ${getTextColor(alert.type)} text-center!`}>{alert.type}</td>
+                      <td className={styles['history-table-td']}>{alert.message}</td>
                     </tr>
                   ))}
                 </tbody>
