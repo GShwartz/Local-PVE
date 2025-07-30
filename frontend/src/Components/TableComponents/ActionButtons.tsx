@@ -30,9 +30,9 @@ async function openProxmoxConsole(node: string, vmid: number, csrf_token: string
       throw new Error(`Failed to get VNC proxy data: ${errorText}`);
     }
 
-    const { port, ticket: vncTicket, host, node: responseNode, vmid: responseVmid } = await response.json();
+    const { ticket: vncTicket, node: responseNode, vmid: responseVmid } = await response.json();
 
-    const consoleUrl = `https://novnc.com/noVNC/vnc.html?host=127.0.0.1&port=8000&path=ws/console/${responseNode}/${responseVmid}?csrf_token=${encodeURIComponent(csrf_token)}&ticket=${encodeURIComponent(ticket)}&password=${encodeURIComponent(vncTicket)}&autoconnect=1`;
+    const consoleUrl = `https://novnc.com/noVNC/vnc.html?host=10.0.0.7&port=8000&path=ws/console/${responseNode}/${responseVmid}?csrf_token=${encodeURIComponent(csrf_token)}&ticket=${encodeURIComponent(ticket)}&password=${encodeURIComponent(vncTicket)}&autoconnect=1`;
 
     window.open(consoleUrl, '_blank', 'noopener,noreferrer');
   } catch (error: any) {
