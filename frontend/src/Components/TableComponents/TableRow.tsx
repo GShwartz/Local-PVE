@@ -1,3 +1,4 @@
+// TableRow.tsx
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { UseMutationResult } from '@tanstack/react-query';
 import { VM, Auth, Snapshot, TaskStatus } from '../../types';
@@ -41,6 +42,7 @@ interface TableRowProps {
   hasRowAboveExpanded: boolean;
   addAlert: (message: string, type: string) => void;
   setTableApplying: (isApplying: boolean) => void;
+  openConsole: (vmid: number) => void;
 }
 
 const getSnapshots = async ({ node, vmid, csrf, ticket }: { node: string; vmid: number; csrf: string; ticket: string }): Promise<Snapshot[]> => {
@@ -312,6 +314,7 @@ const TableRow = ({
             vmMutation={vmMutation}
             showSnapshots={showSnapshots}
             onToggleRow={() => {}}
+            auth={auth}
           />
         </td>
         <td

@@ -11,9 +11,10 @@ interface MachinesTableProps {
   queryClient: any;
   node: string;
   addAlert: (message: string, type: string) => void;
+  openConsole: (vmid: number) => void;
 }
 
-const MachinesTable = ({ vms, auth, queryClient, node, addAlert }: MachinesTableProps) => {
+const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: MachinesTableProps) => {
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [snapshotView, setSnapshotView] = useState<Set<number>>(new Set());
   const [sortConfig, setSortConfig] = useState<{ key: keyof VM; direction: 'asc' | 'desc' }>({ key: 'vmid', direction: 'asc' });
@@ -147,6 +148,7 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert }: MachinesTable
                   hasRowAboveExpanded={hasRowAboveExpanded}
                   addAlert={addAlert}
                   setTableApplying={setIsApplying}
+                  openConsole={openConsole}
                 />
               );
             })}

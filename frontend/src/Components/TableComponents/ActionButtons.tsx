@@ -1,6 +1,8 @@
+// ActionButtons.tsx
 import { useState, useEffect } from 'react';
-import { VM } from '../../types';
+import { VM, Auth } from '../../types';
 import { UseMutationResult } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 
 interface ActionButtonsProps {
   vm: VM;
@@ -8,9 +10,38 @@ interface ActionButtonsProps {
   vmMutation: UseMutationResult<string, any, { vmid: number; action: string; name?: string; cpus?: number }, unknown>;
   showSnapshots: (vmid: number) => void;
   onToggleRow: () => void;
+  auth: Auth;
 }
 
-const ActionButtons = ({ vm, pendingActions, vmMutation, showSnapshots, onToggleRow }: ActionButtonsProps) => {
+const API_BASE_URL = 'http://localhost:8000'; // Match FastAPI server address
+const PROXMOX_NODE = 'pve'; // Match PROXMOX_NODE from main.py, adjust if dynamic
+
+async function openProxmoxConsole(node: string, vmid: number, csrf_token: string, ticket: string) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/vm/${node}/qemu/${vmid}/vncproxy?csrf_token=${encodeURIComponent(csrf_token)}&ticket=${encodeURIComponent(ticket)}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to get VNC proxy data: ${errorText}`);
+    }
+
+    const { port, ticket: vncTicket, host, node: responseNode, vmid: responseVmid } = await response.json();
+
+    const consoleUrl = `https://novnc.com/noVNC/vnc.html?host=127.0.0.1&port=8000&path=ws/console/${responseNode}/${responseVmid}?csrf_token=${encodeURIComponent(csrf_token)}&ticket=${encodeURIComponent(ticket)}&password=${encodeURIComponent(vncTicket)}&autoconnect=1`;
+
+    window.open(consoleUrl, '_blank', 'noopener,noreferrer');
+  } catch (error: any) {
+    console.error('Error opening Proxmox console:', error);
+    toast.error(error.message || 'Failed to open console. Please try again.');
+  }
+}
+
+const ActionButtons = ({ vm, pendingActions, vmMutation, showSnapshots, onToggleRow, auth }: ActionButtonsProps) => {
   const [isStarting, setIsStarting] = useState(false);
   const [isHalting, setIsHalting] = useState(false);
   const hasPendingActions = pendingActions[vm.vmid]?.length > 0;
@@ -118,6 +149,21 @@ const ActionButtons = ({ vm, pendingActions, vmMutation, showSnapshots, onToggle
           style={{ height: '34px', lineHeight: '1.5' }}
         >
           Snapshots
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            openProxmoxConsole(PROXMOX_NODE, vm.vmid, auth.csrf_token, auth.ticket);
+          }}
+          disabled={vm.status !== 'running' || hasPendingActions || isCreatingSnapshot}
+          className={`px-2 py-1 text-sm font-medium rounded-md active:scale-95 transition-transform duration-100 ${
+            vm.status !== 'running' || hasPendingActions || isCreatingSnapshot
+              ? 'bg-gray-600 cursor-not-allowed'
+              : 'bg-teal-600 hover:bg-teal-700'
+          } text-white`}
+          style={{ height: '34px', lineHeight: '1.5' }}
+        >
+          Console
         </button>
       </div>
     </td>

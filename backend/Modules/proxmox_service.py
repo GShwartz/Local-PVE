@@ -1,3 +1,4 @@
+# proxmox_service.py
 import requests
 import os
 from typing import Dict, Any, List
@@ -352,3 +353,33 @@ class ProxmoxService:
             raise HTTPException(status_code=response.status_code, detail=f"Failed to create VM: {response.text}")
         logger.info(f"VM creation response: {response.json()['data']}")
         return response.json()["data"]
+
+    def get_vnc_proxy(self, node: str, vmid: int, csrf_token: str, ticket: str) -> Dict[str, Any]:
+        self.set_auth_cookie(ticket)
+        endpoint = f"{PROXMOX_BASE_URL}/nodes/{node}/qemu/{vmid}/vncproxy"
+        logger.info(f"Getting VNC proxy for vmid {vmid} on node {node} at {endpoint}")
+        try:
+            response = self.session.post(
+                endpoint,
+                data={"websocket": 1},
+                headers={"CSRFPreventionToken": csrf_token}
+            )
+            response.raise_for_status()
+            data = response.json()["data"]
+            logger.info(f"VNC proxy response: Status {response.status_code}, Data: {data}")
+            return data
+        except requests.exceptions.HTTPError as e:
+            error_message = response.text
+            try:
+                error_json = response.json()
+                error_message = error_json.get('errors', {}).get('data', response.text)
+            except ValueError:
+                pass
+            logger.error(
+                "Failed to get VNC proxy for vmid %d on node %s: Status %d, Response: %s",
+                vmid, node, response.status_code, error_message
+            )
+            raise HTTPException(status_code=response.status_code, detail=f"Failed to get VNC proxy: {error_message}")
+        except Exception as e:
+            logger.error("Unexpected error getting VNC proxy for vmid %d on node %s: %s", vmid, node, str(e))
+            raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")

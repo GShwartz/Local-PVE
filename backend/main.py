@@ -1,10 +1,16 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+# main.py
+from fastapi import FastAPI, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 import re
+import os
 import uvicorn
 from pydantic import BaseModel
 from Modules.models import LoginRequest, AuthResponse, VMCreateRequest, VMUpdateRequest
 from Modules.proxmox_service import ProxmoxService
+import asyncio
+import websockets
+from urllib.parse import quote_plus
+import ssl
 
 class SnapRequest(BaseModel):
     snapname: str
@@ -12,6 +18,13 @@ class SnapRequest(BaseModel):
     vmstate: int = 0
 
 app = FastAPI(title="Proxmox Controller API")
+
+PROXMOX_HOST = os.getenv("PROXMOX_HOST")
+PROXMOX_PORT = 8006  # Default Proxmox port
+PROXMOX_USER = os.getenv("PROXMOX_USER")
+PROXMOX_PASSWORD = os.getenv("PROXMOX_PASSWORD")
+PROXMOX_NODE = os.getenv("PROXMOX_NODE")
+VERIFY_SSL = False
 
 app.add_middleware(
     CORSMiddleware,
@@ -112,6 +125,22 @@ async def update_vm_config(node: str, vmid: int, updates: VMUpdateRequest, csrf_
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unexpected error updating VM config: {str(e)}")
 
+@app.post("/vm/{node}/qemu/{vmid}/vncproxy")
+async def get_vnc_proxy(node: str, vmid: int, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
+    try:
+        vnc_info = service.get_vnc_proxy(node, vmid, csrf_token, ticket)
+        return {
+            "port": vnc_info["port"],
+            "ticket": vnc_info["ticket"],
+            "host": PROXMOX_HOST,
+            "node": node,
+            "vmid": vmid
+        }
+    except HTTPException as e:
+        raise HTTPException(status_code=e.status_code, detail=f"Failed to get VNC proxy: {e.detail}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error getting VNC proxy: {str(e)}")
+
 @app.post("/vm/{node}/qemu/{vmid}/{action}")
 async def control_vm(node: str, vmid: int, action: str, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
     if action not in ["start", "stop", "shutdown", "reboot", "hibernate", "resume"]:
@@ -124,6 +153,43 @@ async def create_vm(node: str, vm_create: VMCreateRequest, csrf_token: str, tick
         return service.create_vm(node, vm_create, csrf_token, ticket)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to create VM: {str(e)}")
+
+@app.websocket("/ws/console/{node}/{vmid}")
+async def websocket_console(websocket: WebSocket, node: str, vmid: int, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
+    await websocket.accept()
+    try:
+        vnc_info = service.get_vnc_proxy(node, vmid, csrf_token, ticket)
+        port = vnc_info['port']
+        vncticket = vnc_info['ticket']
+        remote_uri = f"wss://{PROXMOX_HOST}/api2/json/nodes/{node}/qemu/{vmid}/vncwebsocket?port={port}&vncticket={quote_plus(vncticket)}"
+        headers = {"Cookie": f"PVEAuthCookie={ticket}"}
+        ssl_context = None
+        if not VERIFY_SSL:
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+        async with websockets.connect(remote_uri, extra_headers=headers, ssl=ssl_context) as remote_ws:
+            async def client_to_remote():
+                try:
+                    while True:
+                        data = await websocket.receive_bytes()
+                        await remote_ws.send(data)
+                except WebSocketDisconnect:
+                    pass
+
+            async def remote_to_client():
+                try:
+                    while True:
+                        data = await remote_ws.recv()
+                        if isinstance(data, str):
+                            data = data.encode('utf-8')
+                        await websocket.send_bytes(data)
+                except websockets.exceptions.ConnectionClosed:
+                    pass
+
+            await asyncio.gather(client_to_remote(), remote_to_client())
+    except Exception as e:
+        await websocket.close(code=1011, reason=str(e))
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

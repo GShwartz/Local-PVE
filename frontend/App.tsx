@@ -7,29 +7,14 @@ import MachinesTable from './src/Components/TableComponents/MachinesTable';
 import LoginError from './src/Components/LoginError';
 import Loading from './src/Components/Loading';
 import CreateVMModal from './src/Components/Layout/CreateVMModal';
+import ConsoleModal from './src/Components/Layout/ConsoleModal';
 import Alerts, { Alert } from './src/Components/Alerts';
+import { Auth, VM } from './src/types';
 
 // Define types for API responses and state
 interface Credentials {
   username: string;
   password: string;
-}
-
-interface Auth {
-  ticket: string;
-  csrf_token: string;
-}
-
-interface VM {
-  vmid: number;
-  name: string;
-  status: string;
-  os: string;
-  cpus: number;
-  ram: number;
-  num_hdd: number;
-  hdd_sizes: string;
-  ip_address: string;
 }
 
 const API_BASE = 'http://localhost:8000'; // Backend URL (env var in prod)
@@ -48,6 +33,8 @@ function App() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [alertHistory, setAlertHistory] = useState<Alert[]>([]);
+  const [isConsoleModalOpen, setIsConsoleModalOpen] = useState(false);
+  const [selectedVMId, setSelectedVMId] = useState<number | null>(null);
 
   const addAlert = (message: string, type: string): void => {
     const id: string = `${Date.now()}-${Math.random()}`;
@@ -61,6 +48,12 @@ function App() {
 
   const dismissAlert = (id: string): void => {
     setAlerts((prevState) => prevState.filter((alert) => alert.id !== id));
+  };
+
+  const openConsole = (vmid: number) => {
+    setSelectedVMId(vmid);
+    setIsConsoleModalOpen(true);
+    addAlert(`Opening console for VM ${vmid}`, 'info');
   };
 
   const loginMutation = useMutation({
@@ -118,7 +111,14 @@ function App() {
               {isLoading && <p className="mb-4 text-gray-400 text-center">Loading...</p>}
               {!isLoading && !vms?.length && <p className="mb-4 text-gray-400 text-center">No machines available.</p>}
               {vms && vms.length > 0 && (
-                <MachinesTable vms={vms} auth={auth} queryClient={queryClient} node={NODE} addAlert={addAlert} />
+                <MachinesTable 
+                  vms={vms} 
+                  auth={auth} 
+                  queryClient={queryClient} 
+                  node={NODE} 
+                  addAlert={addAlert} 
+                  openConsole={openConsole}
+                />
               )}
             </div>
           </main>
@@ -131,6 +131,18 @@ function App() {
         auth={auth}
         node={NODE}
         queryClient={queryClient}
+        addAlert={addAlert}
+      />
+      <ConsoleModal
+        isOpen={isConsoleModalOpen}
+        closeModal={() => {
+          setIsConsoleModalOpen(false);
+          setSelectedVMId(null);
+        }}
+        node={NODE}
+        vmid={selectedVMId || 0}
+        backendUrl={API_BASE}
+        auth={auth}
         addAlert={addAlert}
       />
     </>
