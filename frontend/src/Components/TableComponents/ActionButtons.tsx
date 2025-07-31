@@ -15,7 +15,7 @@ interface ActionButtonsProps {
 const API_BASE_URL = 'http://localhost:8000';
 const PROXMOX_NODE = 'pve';
 // Proxmox host (IP or domain) and port for console
-const PROXMOX_HOST = '10.0.0.7';
+const PROXMOX_HOST = 'pve.home.lab';
 const PROXMOX_PORT = '8006';
 
 async function openProxmoxConsole(
