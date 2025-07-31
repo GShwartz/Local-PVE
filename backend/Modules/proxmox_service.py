@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-PROXMOX_HOST = os.getenv("PROXMOX_HOST", "10.0.0.7:8006")
+PROXMOX_HOST = os.getenv("PROXMOX_HOST", "pve.home.lab:8006")
 PROXMOX_BASE_URL = f"https://{PROXMOX_HOST}/api2/json"
 
 class ProxmoxService:

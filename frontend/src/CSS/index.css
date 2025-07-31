@@ -30,8 +30,8 @@ table {
   max-height: 70rem; /* Fixed max height for table */
 }
 
-.action-buttons-cell > .flex {
-  margin-top: 8px;
+.action-buttons-cell {
+  margin-top: 5px;
 }
 
 thead {
