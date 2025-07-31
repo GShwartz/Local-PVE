@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from typing import Literal, Optional
 
 class LoginRequest(BaseModel):
     username: str
@@ -12,9 +13,22 @@ class VMCreateRequest(BaseModel):
     name: str
     cpus: int
     ram: int
-    source: str
+    source: Literal["ISO", "template", "disk"]  # restrict to known sources if you like
 
 class VMUpdateRequest(BaseModel):
-    name: str | None = None
-    cpus: int | None = None
-    ram: int | None = None
+    name: Optional[str] = None
+    cpus: Optional[int] = None
+    ram: Optional[int] = None
+
+class VMCloneRequest(BaseModel):
+    """
+    Request body for cloning a VM.
+    - name: name of the new VM
+    - full: whether to perform a full clone (True) or a linked clone (False)
+    - target: node to create the clone on
+    - storage: (optional) custom storage ID for the clone
+    """
+    name: str
+    full: bool = False
+    target: str
+    storage: Optional[str] = None

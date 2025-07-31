@@ -11,6 +11,8 @@ import asyncio
 import websockets
 from urllib.parse import quote_plus
 import ssl
+from Modules.models import VMCloneRequest
+
 
 class SnapRequest(BaseModel):
     snapname: str
@@ -89,6 +91,22 @@ async def get_vm_config(node: str, vmid: int, csrf_token: str, ticket: str, serv
 async def list_snapshots(node: str, vmid: int, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
     return service.get_snapshots(node, vmid, csrf_token, ticket)
 
+@app.post("/vm/{node}/qemu/{vmid}/clone")
+async def clone_vm(
+    node: str,
+    vmid: int,
+    clone_req: VMCloneRequest,
+    csrf_token: str,
+    ticket: str,
+    service: ProxmoxService = Depends(get_proxmox_service)
+):
+    try:
+        return service.clone_vm(node, vmid, clone_req, csrf_token, ticket)
+    except HTTPException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
 @app.post("/vm/{node}/qemu/{vmid}/snapshot")
 async def create_snapshot(node: str, vmid: int, snap_request: SnapRequest, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
     try:

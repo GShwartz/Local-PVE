@@ -1,76 +1,108 @@
+// vmMutations.tsx
 import { useMutation } from '@tanstack/react-query';
-import { Auth, TaskStatus } from '../types';
+import { Auth, TaskStatus, VMCloneRequest } from '../types';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
 const API_BASE = 'http://localhost:8000';
 
-// API functions
-const controlVM = async ({ node, vmid, action, csrf, ticket }: { node: string; vmid: number; action: string; csrf: string; ticket: string }): Promise<string> => {
+interface ControlParams {
+  node: string;
+  vmid: number;
+  action: string;
+  csrf: string;
+  ticket: string;
+}
+
+interface UpdateConfigParams {
+  node: string;
+  vmid: number;
+  updates: { name?: string; cpus?: number; ram?: number };
+  csrf: string;
+  ticket: string;
+}
+
+interface SnapshotParams {
+  node: string;
+  vmid: number;
+  snapname: string;
+  csrf: string;
+  ticket: string;
+}
+
+// Basic API calls
+const controlVM = async ({ node, vmid, action, csrf, ticket }: ControlParams): Promise<string> => {
   const { data } = await axios.post<string>(
     `${API_BASE}/vm/${node}/qemu/${vmid}/${action}`,
     {},
-    { headers: { 'CSRFPreventionToken': csrf }, params: { csrf_token: csrf, ticket } }
+    {
+      headers: { CSRFPreventionToken: csrf },
+      params: { csrf_token: csrf, ticket },
+      withCredentials: true,
+    }
   );
   return data;
 };
 
-const updateVMConfig = async ({ node, vmid, updates, csrf, ticket }: { node: string; vmid: number; updates: { name?: string; cpus?: number; ram?: number }; csrf: string; ticket: string }): Promise<string> => {
+const updateVMConfig = async ({ node, vmid, updates, csrf, ticket }: UpdateConfigParams): Promise<string> => {
   const { data } = await axios.post<string>(
     `${API_BASE}/vm/${node}/qemu/${vmid}/update_config`,
     updates,
-    { headers: { 'CSRFPreventionToken': csrf }, params: { csrf_token: csrf, ticket } }
+    {
+      headers: { CSRFPreventionToken: csrf },
+      params: { csrf_token: csrf, ticket },
+      withCredentials: true,
+    }
   );
   return data;
 };
 
-const revertSnapshot = async ({ node, vmid, snapname, csrf, ticket }: { node: string; vmid: number; snapname: string; csrf: string; ticket: string }): Promise<string> => {
+const revertSnapshot = async ({ node, vmid, snapname, csrf, ticket }: SnapshotParams): Promise<string> => {
   const { data } = await axios.post<string>(
     `${API_BASE}/vm/${node}/qemu/${vmid}/snapshot/${snapname}/revert`,
     {},
-    { headers: { 'CSRFPreventionToken': csrf }, params: { csrf_token: csrf, ticket } }
+    {
+      headers: { CSRFPreventionToken: csrf },
+      params: { csrf_token: csrf, ticket },
+      withCredentials: true,
+    }
   );
   return data;
 };
 
-const deleteSnapshot = async ({ node, vmid, snapname, csrf, ticket }: { node: string; vmid: number; snapname: string; csrf: string; ticket: string }): Promise<string> => {
+const deleteSnapshot = async ({ node, vmid, snapname, csrf, ticket }: SnapshotParams): Promise<string> => {
   const { data } = await axios.delete<string>(
     `${API_BASE}/vm/${node}/qemu/${vmid}/snapshot/${snapname}`,
-    { headers: { 'CSRFPreventionToken': csrf }, params: { csrf_token: csrf, ticket } }
+    {
+      headers: { CSRFPreventionToken: csrf },
+      params: { csrf_token: csrf, ticket },
+      withCredentials: true,
+    }
   );
   return data;
 };
 
-const createSnapshot = async ({ node, vmid, snapname, csrf, ticket }: { node: string; vmid: number; snapname: string; csrf: string; ticket: string }): Promise<string> => {
-  if (!snapname || !isValidSnapshotName(snapname)) {
-    console.error(`Invalid snapshot name: "${snapname}" for VM ${vmid} on node ${node}`);
-    throw new Error('Snapshot name must be 1-40 characters and contain only letters, numbers, underscores, hyphens, dots, or plus signs');
-  }
-  const payload = {
-    snapname,
-    description: '',
-    vmstate: 0,
-  };
-  console.log(`Sending snapshot creation request for VM ${vmid} on node ${node} with payload:`, payload);
-  try {
-    const { data } = await axios.post<string>(
-      `${API_BASE}/vm/${node}/qemu/${vmid}/snapshot`,
-      payload,
-      { headers: { 'CSRFPreventionToken': csrf }, params: { csrf_token: csrf, ticket } }
-    );
-    console.log(`Snapshot creation request successful for VM ${vmid}, response: ${data}`);
-    return data;
-  } catch (error) {
-    console.error(`Snapshot creation failed for VM ${vmid}:`, error);
-    throw error;
-  }
+const createSnapshot = async ({ node, vmid, snapname, csrf, ticket }: SnapshotParams): Promise<string> => {
+  const payload = { snapname, description: '', vmstate: 0 };
+  const { data } = await axios.post<string>(
+    `${API_BASE}/vm/${node}/qemu/${vmid}/snapshot`,
+    payload,
+    {
+      headers: { CSRFPreventionToken: csrf },
+      params: { csrf_token: csrf, ticket },
+      withCredentials: true,
+    }
+  );
+  return data;
 };
 
 // Validate snapshot name
 const isValidSnapshotName = (name: string): boolean => {
-  const regex = /^[a-zA-Z0-9_+.-]{1,40}$/;
+  const regex = /^[a-zA-Z0-9_+.\-]{1,40}$/;
   return regex.test(name);
 };
 
+// useVMMutation: handles start/stop/shutdown/reboot/clone/update_config
 export const useVMMutation = (
   auth: Auth,
   node: string,
@@ -79,73 +111,95 @@ export const useVMMutation = (
   setPendingActions: React.Dispatch<React.SetStateAction<{ [vmid: number]: string[] }>>
 ) => {
   return useMutation<string, any, { vmid: number; action: string; name?: string; cpus?: number; ram?: number }, unknown>({
-    mutationFn: async (variables) => {
-      const { vmid, action } = variables;
+    mutationFn: async (vars) => {
+      const { vmid, action, name, cpus, ram } = vars;
+
+      // CLONE
+      if (action === 'clone') {
+        const payload: VMCloneRequest = {
+          name: name || 'test',
+          full: true,
+          target: node,
+        };
+        const { data } = await axios.post<string>(
+          `${API_BASE}/vm/${node}/qemu/${vmid}/clone`,
+          payload,
+          {
+            headers: { CSRFPreventionToken: auth.csrf_token },
+            params: { csrf_token: auth.csrf_token, ticket: auth.ticket },
+            withCredentials: true,
+          }
+        );
+        return data;
+      }
+
+      // UPDATE CONFIG
       if (action === 'update_config') {
         const updates: { name?: string; cpus?: number; ram?: number } = {};
-        if (variables.name) updates.name = variables.name;
-        if (variables.cpus !== undefined) updates.cpus = variables.cpus;
-        if (variables.ram !== undefined) updates.ram = variables.ram;
+        if (name) updates.name = name;
+        if (cpus !== undefined) updates.cpus = cpus;
+        if (ram !== undefined) updates.ram = ram;
         return await updateVMConfig({ node, vmid, updates, csrf: auth.csrf_token, ticket: auth.ticket });
       }
+
+      // DEFAULT CONTROL
       return await controlVM({ node, vmid, action, csrf: auth.csrf_token, ticket: auth.ticket });
     },
-    onMutate: (variables) => {
-      const { vmid, action } = variables;
-      setPendingActions((prev) => ({
+    onMutate: (vars) => {
+      const { vmid, action } = vars;
+      setPendingActions(prev => ({
         ...prev,
         [vmid]: [...(prev[vmid] || []), action],
       }));
-      return undefined;
     },
-    onSuccess: (upid: string, variables: { vmid: number; action: string; name?: string; cpus?: number; ram?: number }) => {
-      const { action, vmid, name } = variables;
+    onSuccess: (upid, vars) => {
+      const { vmid, action, name } = vars;
       const pollTask = async () => {
         try {
-          const { data: taskStatus } = await axios.get<TaskStatus>(
+          const { data: status } = await axios.get<TaskStatus>(
             `${API_BASE}/task/${node}/${upid}`,
             { params: { csrf_token: auth.csrf_token, ticket: auth.ticket } }
           );
-          if (taskStatus.status === 'stopped') {
-            if (taskStatus.exitstatus !== 'OK') {
-              addAlert(`VM ${name ? `${name} ` : ''}(${vmid}) ${action} failed: ${taskStatus.exitstatus}`, 'error');
+          if (status.status === 'stopped') {
+            if (status.exitstatus !== 'OK') {
+              addAlert(`VM ${name || ''} (${vmid}) ${action} failed: ${status.exitstatus}`, 'error');
             } else {
-              addAlert(`VM ${name ? `${name} ` : ''}(${vmid}) ${action} completed successfully.`, 'success');
+              addAlert(`VM ${name || ''} (${vmid}) ${action} succeeded`, 'success');
             }
-            const delayIfNeeded = ['start', 'reboot', 'stop', 'shutdown', 'resume', 'hibernate'].includes(action) ? 15000 : 0;
+            const delay = ['start','stop','shutdown','reboot','resume','hibernate','clone'].includes(action) ? 15000 : 0;
             setTimeout(() => {
-              queryClient.invalidateQueries({ queryKey: ['vms'] });
-              setPendingActions((prev) => ({
+              queryClient.invalidateQueries(['vms']);
+              setPendingActions(prev => ({
                 ...prev,
-                [vmid]: (prev[vmid] || []).filter((act) => act !== action),
+                [vmid]: (prev[vmid] || []).filter(a => a !== action),
               }));
-            }, delayIfNeeded);
-            return;
+            }, delay);
+          } else {
+            setTimeout(pollTask, 1000);
           }
-          setTimeout(pollTask, 1000);
-        } catch (error) {
-          addAlert(`Polling for VM ${name ? `${name} ` : ''}(${vmid}) ${action} failed.`, 'error');
-          setPendingActions((prev) => ({
+        } catch {
+          addAlert(`Polling task for VM ${vmid} ${action} failed`, 'error');
+          setPendingActions(prev => ({
             ...prev,
-            [vmid]: (prev[vmid] || []).filter((act) => act !== action),
+            [vmid]: (prev[vmid] || []).filter(a => a !== action),
           }));
         }
       };
       pollTask();
     },
-    onError: (error: any, variables: { vmid: number; action: string; name?: string; cpus?: number; ram?: number }, _context: unknown) => {
-      const { vmid, action, name } = variables;
-      const message = error.response?.data?.detail || error.message || 'Unknown error';
-      console.error(`Mutation failed for VM ${vmid}: ${message}`, error.response?.data);
-      addAlert(`VM ${name ? `${name} ` : ''}(${vmid}) ${action} failed: ${message}`, 'error');
-      setPendingActions((prev) => ({
+    onError: (error, vars) => {
+      const { vmid, action, name } = vars;
+      const msg = error.response?.data?.detail || error.message;
+      addAlert(`VM ${name || ''} (${vmid}) ${action} error: ${msg}`, 'error');
+      setPendingActions(prev => ({
         ...prev,
-        [vmid]: (prev[vmid] || []).filter((act) => act !== action),
+        [vmid]: (prev[vmid] || []).filter(a => a !== action),
       }));
     },
   });
 };
 
+// useSnapshotMutation: revert
 export const useSnapshotMutation = (
   auth: Auth,
   node: string,
@@ -154,65 +208,59 @@ export const useSnapshotMutation = (
   setPendingActions: React.Dispatch<React.SetStateAction<{ [vmid: number]: string[] }>>
 ) => {
   return useMutation<string, any, { vmid: number; snapname: string; name?: string }, unknown>({
-    mutationFn: (variables) => {
-      const { vmid, snapname } = variables;
-      return revertSnapshot({ node, vmid, snapname, csrf: auth.csrf_token, ticket: auth.ticket });
-    },
-    onMutate: (variables) => {
-      const { vmid, snapname } = variables;
-      setPendingActions((prev) => ({
+    mutationFn: ({ vmid, snapname }) =>
+      revertSnapshot({ node, vmid, snapname, csrf: auth.csrf_token, ticket: auth.ticket }),
+    onMutate: ({ vmid, snapname }) => {
+      setPendingActions(prev => ({
         ...prev,
         [vmid]: [...(prev[vmid] || []), `revert-${snapname}`],
       }));
-      return undefined;
     },
-    onSuccess: (upid: string, variables: { vmid: number; snapname: string; name?: string }) => {
-      const { vmid, snapname, name } = variables;
-      const pollTask = async () => {
+    onSuccess: (upid, { vmid, snapname, name }) => {
+      const poll = async () => {
         try {
-          const { data: taskStatus } = await axios.get<TaskStatus>(
+          const { data: status } = await axios.get<TaskStatus>(
             `${API_BASE}/task/${node}/${upid}`,
             { params: { csrf_token: auth.csrf_token, ticket: auth.ticket } }
           );
-          if (taskStatus.status === 'stopped') {
-            if (taskStatus.exitstatus !== 'OK') {
-              addAlert(`VM ${name ? `${name} ` : ''}(${vmid}) revert to snapshot ${snapname} failed: ${taskStatus.exitstatus}`, 'error');
+          if (status.status === 'stopped') {
+            if (status.exitstatus !== 'OK') {
+              addAlert(`VM ${name || ''} (${vmid}) revert ${snapname} failed: ${status.exitstatus}`, 'error');
             } else {
-              addAlert(`VM ${name ? `${name} ` : ''}(${vmid}) revert to snapshot ${snapname} completed successfully.`, 'success');
+              addAlert(`VM ${name || ''} (${vmid}) revert ${snapname} succeeded`, 'success');
             }
             setTimeout(() => {
-              queryClient.invalidateQueries({ queryKey: ['vms'] });
-              setPendingActions((prev) => ({
+              queryClient.invalidateQueries(['vms']);
+              setPendingActions(prev => ({
                 ...prev,
-                [vmid]: (prev[vmid] || []).filter((act) => act !== `revert-${snapname}`),
+                [vmid]: (prev[vmid] || []).filter(a => a !== `revert-${snapname}`),
               }));
             }, 15000);
-            return;
+          } else {
+            setTimeout(poll, 1000);
           }
-          setTimeout(pollTask, 1000);
-        } catch (error) {
-          addAlert(`Polling for VM ${name ? `${name} ` : ''}(${vmid}) revert to snapshot ${snapname} failed.`, 'error');
-          setPendingActions((prev) => ({
+        } catch {
+          addAlert(`Polling revert for VM ${vmid} failed`, 'error');
+          setPendingActions(prev => ({
             ...prev,
-            [vmid]: (prev[vmid] || []).filter((act) => act !== `revert-${snapname}`),
+            [vmid]: (prev[vmid] || []).filter(a => a !== `revert-${snapname}`),
           }));
         }
       };
-      pollTask();
+      poll();
     },
-    onError: (error: any, variables: { vmid: number; snapname: string; name?: string }, _context: unknown) => {
-      const { vmid, snapname, name } = variables;
-      const message = error.response?.data?.detail || error.message || 'Unknown error';
-      console.error(`Snapshot revert failed for VM ${vmid}: ${message}`, error.response?.data);
-      addAlert(`VM ${name ? `${name} ` : ''}(${vmid}) revert to snapshot ${snapname} failed: ${message}`, 'error');
-      setPendingActions((prev) => ({
+    onError: (error, { vmid, snapname, name }) => {
+      const msg = error.response?.data?.detail || error.message;
+      addAlert(`VM ${name || ''} (${vmid}) revert ${snapname} error: ${msg}`, 'error');
+      setPendingActions(prev => ({
         ...prev,
-        [vmid]: (prev[vmid] || []).filter((act) => act !== `revert-${snapname}`),
+        [vmid]: (prev[vmid] || []).filter(a => a !== `revert-${snapname}`),
       }));
     },
   });
 };
 
+// useDeleteSnapshotMutation
 export const useDeleteSnapshotMutation = (
   auth: Auth,
   node: string,
@@ -221,65 +269,59 @@ export const useDeleteSnapshotMutation = (
   setPendingActions: React.Dispatch<React.SetStateAction<{ [vmid: number]: string[] }>>
 ) => {
   return useMutation<string, any, { vmid: number; snapname: string; name?: string }, unknown>({
-    mutationFn: (variables) => {
-      const { vmid, snapname } = variables;
-      return deleteSnapshot({ node, vmid, snapname, csrf: auth.csrf_token, ticket: auth.ticket });
-    },
-    onMutate: (variables) => {
-      const { vmid, snapname } = variables;
-      setPendingActions((prev) => ({
+    mutationFn: ({ vmid, snapname }) =>
+      deleteSnapshot({ node, vmid, snapname, csrf: auth.csrf_token, ticket: auth.ticket }),
+    onMutate: ({ vmid, snapname }) => {
+      setPendingActions(prev => ({
         ...prev,
         [vmid]: [...(prev[vmid] || []), `delete-${snapname}`],
       }));
-      return undefined;
     },
-    onSuccess: (upid: string, variables: { vmid: number; snapname: string; name?: string }) => {
-      const { vmid, snapname, name } = variables;
-      const pollTask = async () => {
+    onSuccess: (upid, { vmid, snapname, name }) => {
+      const poll = async () => {
         try {
-          const { data: taskStatus } = await axios.get<TaskStatus>(
+          const { data: status } = await axios.get<TaskStatus>(
             `${API_BASE}/task/${node}/${upid}`,
             { params: { csrf_token: auth.csrf_token, ticket: auth.ticket } }
           );
-          if (taskStatus.status === 'stopped') {
-            if (taskStatus.exitstatus !== 'OK') {
-              addAlert(`VM ${name ? `${name} ` : ''}(${vmid}) deletion of snapshot ${snapname} failed: ${taskStatus.exitstatus}`, 'error');
+          if (status.status === 'stopped') {
+            if (status.exitstatus !== 'OK') {
+              addAlert(`VM ${name || ''} (${vmid}) delete ${snapname} failed: ${status.exitstatus}`, 'error');
             } else {
-              addAlert(`VM ${name ? `${name} ` : ''}(${vmid}) deletion of snapshot ${snapname} completed successfully.`, 'success');
+              addAlert(`VM ${name || ''} (${vmid}) delete ${snapname} succeeded`, 'success');
             }
             setTimeout(() => {
-              queryClient.invalidateQueries({ queryKey: ['snapshots', node, vmid] });
-              setPendingActions((prev) => ({
+              queryClient.invalidateQueries(['snapshots', node, vmid]);
+              setPendingActions(prev => ({
                 ...prev,
-                [vmid]: (prev[vmid] || []).filter((act) => act !== `delete-${snapname}`),
+                [vmid]: (prev[vmid] || []).filter(a => a !== `delete-${snapname}`),
               }));
             }, 5000);
-            return;
+          } else {
+            setTimeout(poll, 1000);
           }
-          setTimeout(pollTask, 1000);
-        } catch (error) {
-          addAlert(`Polling for VM ${name ? `${name} ` : ''}(${vmid}) deletion of snapshot ${snapname} failed.`, 'error');
-          setPendingActions((prev) => ({
+        } catch {
+          addAlert(`Polling delete for VM ${vmid} failed`, 'error');
+          setPendingActions(prev => ({
             ...prev,
-            [vmid]: (prev[vmid] || []).filter((act) => act !== `delete-${snapname}`),
+            [vmid]: (prev[vmid] || []).filter(a => a !== `delete-${snapname}`),
           }));
         }
       };
-      pollTask();
+      poll();
     },
-    onError: (error: any, variables: { vmid: number; snapname: string; name?: string }, _context: unknown) => {
-      const { vmid, snapname, name } = variables;
-      const message = error.response?.data?.detail || error.message || 'Unknown error';
-      console.error(`Snapshot deletion failed for VM ${vmid}: ${message}`, error.response?.data);
-      addAlert(`VM ${name ? `${name} ` : ''}(${vmid}) deletion of snapshot ${snapname} failed: ${message}`, 'error');
-      setPendingActions((prev) => ({
+    onError: (error, { vmid, snapname, name }) => {
+      const msg = error.response?.data?.detail || error.message;
+      addAlert(`VM ${name || ''} (${vmid}) delete ${snapname} error: ${msg}`, 'error');
+      setPendingActions(prev => ({
         ...prev,
-        [vmid]: (prev[vmid] || []).filter((act) => act !== `delete-${snapname}`),
+        [vmid]: (prev[vmid] || []).filter(a => a !== `delete-${snapname}`),
       }));
     },
   });
 };
 
+// useCreateSnapshotMutation
 export const useCreateSnapshotMutation = (
   auth: Auth,
   node: string,
@@ -289,68 +331,60 @@ export const useCreateSnapshotMutation = (
   closeModal: () => void
 ) => {
   return useMutation<string, any, { vmid: number; snapname: string; name?: string }, unknown>({
-    mutationFn: (variables) => {
-      const { vmid, snapname } = variables;
-      if (!snapname || !isValidSnapshotName(snapname)) {
-        console.error(`Mutation rejected: Invalid snapname: "${snapname}" for VM ${vmid}`);
-        throw new Error('Snapshot name must be 1-40 characters and contain only letters, numbers, underscores, hyphens, dots, or plus signs');
+    mutationFn: ({ vmid, snapname }) => {
+      if (!isValidSnapshotName(snapname)) {
+        throw new Error('Invalid snapshot name');
       }
-      console.log(`Initiating snapshot creation mutation for VM ${vmid} with snapname: "${snapname}"`);
       return createSnapshot({ node, vmid, snapname, csrf: auth.csrf_token, ticket: auth.ticket });
     },
-    onMutate: (variables) => {
-      const { vmid, snapname } = variables;
-      setPendingActions((prev) => ({
+    onMutate: ({ vmid, snapname }) => {
+      setPendingActions(prev => ({
         ...prev,
         [vmid]: [...(prev[vmid] || []), `create-${snapname}`],
       }));
-      return undefined;
     },
-    onSuccess: (upid: string, variables: { vmid: number; snapname: string; name?: string }) => {
-      const { vmid, snapname, name } = variables;
-      const pollTask = async () => {
+    onSuccess: (upid, { vmid, snapname, name }) => {
+      closeModal();
+      const poll = async () => {
         try {
-          const { data: taskStatus } = await axios.get<TaskStatus>(
+          const { data: status } = await axios.get<TaskStatus>(
             `${API_BASE}/task/${node}/${upid}`,
             { params: { csrf_token: auth.csrf_token, ticket: auth.ticket } }
           );
-          if (taskStatus.status === 'stopped') {
-            if (taskStatus.exitstatus !== 'OK') {
-              addAlert(`VM ${name ? `${name} ` : ''}(${vmid}) snapshot ${snapname} failed: ${taskStatus.exitstatus}`, 'error');
+          if (status.status === 'stopped') {
+            if (status.exitstatus !== 'OK') {
+              addAlert(`VM ${name || ''} (${vmid}) create ${snapname} failed: ${status.exitstatus}`, 'error');
             } else {
-              addAlert(`VM ${name ? `${name} ` : ''}(${vmid}) snapshot ${snapname} completed successfully.`, 'success');
+              addAlert(`VM ${name || ''} (${vmid}) create ${snapname} succeeded`, 'success');
             }
             setTimeout(() => {
-              queryClient.invalidateQueries({ queryKey: ['snapshots', node, vmid] });
-              setPendingActions((prev) => ({
+              queryClient.invalidateQueries(['snapshots', node, vmid]);
+              setPendingActions(prev => ({
                 ...prev,
-                [vmid]: (prev[vmid] || []).filter((act) => act !== `create-${snapname}`),
+                [vmid]: (prev[vmid] || []).filter(a => a !== `create-${snapname}`),
               }));
             }, 5000);
-            return;
+          } else {
+            setTimeout(poll, 1000);
           }
-          setTimeout(pollTask, 1000);
-        } catch (error) {
-          addAlert(`Polling for VM ${name ? `${name} ` : ''}(${vmid}) snapshot ${snapname} failed.`, 'error');
-          setPendingActions((prev) => ({
+        } catch {
+          addAlert(`Polling create for VM ${vmid} failed`, 'error');
+          setPendingActions(prev => ({
             ...prev,
-            [vmid]: (prev[vmid] || []).filter((act) => act !== `create-${snapname}`),
+            [vmid]: (prev[vmid] || []).filter(a => a !== `create-${snapname}`),
           }));
         }
       };
-      pollTask();
-      closeModal();
+      poll();
     },
-    onError: (error: any, variables: { vmid: number; snapname: string; name?: string }, _context: unknown) => {
-      const { vmid, snapname, name } = variables;
-      const message = error.response?.data?.detail || error.message || 'Unknown error';
-      console.error(`Snapshot creation failed for VM ${vmid}: ${message}`, error.response?.data);
-      addAlert(`VM ${name ? `${name} ` : ''}(${vmid}) snapshot ${snapname} failed: ${message}`, 'error');
-      setPendingActions((prev) => ({
-        ...prev,
-        [vmid]: (prev[vmid] || []).filter((act) => act !== `create-${snapname}`),
-      }));
+    onError: (error, { vmid, snapname, name }) => {
       closeModal();
+      const msg = error.response?.data?.detail || error.message;
+      addAlert(`VM ${name || ''} (${vmid}) create ${snapname} error: ${msg}`, 'error');
+      setPendingActions(prev => ({
+        ...prev,
+        [vmid]: (prev[vmid] || []).filter(a => a !== `create-${snapname}`),
+      }));
     },
   });
 };
