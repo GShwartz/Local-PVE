@@ -65,6 +65,9 @@ const ActionButtons = ({
 }: ActionButtonsProps) => {
   const [isStarting, setIsStarting] = useState(false);
   const [isHalting, setIsHalting] = useState(false);
+  const [isCloning, setIsCloning] = useState(false);
+  const [cloneName, setCloneName] = useState(vm.name);
+
   const hasPendingActions = pendingActions[vm.vmid]?.length > 0;
   const isCreatingSnapshot = pendingActions[vm.vmid]?.some((a) =>
     a.startsWith('create-')
@@ -78,14 +81,24 @@ const ActionButtons = ({
     if (isHalting && vm.status !== 'running') setIsHalting(false);
   }, [vm.status, isHalting]);
 
+  const handleConfirmClone = () => {
+    vmMutation.mutate({ vmid: vm.vmid, action: 'clone', name: cloneName });
+    setIsCloning(false);
+  };
+
+  const handleCancelClone = () => {
+    setIsCloning(false);
+    setCloneName(vm.name);
+  };
+
   return (
     <td
       className="px-2 py-2 text-center action-buttons-cell"
-      style={{ height: '48px', verticalAlign: 'middle' }}
+      style={{ height: '48px', verticalAlign: 'middle', position: 'relative' }}
       onClick={onToggleRow}
     >
       <div
-        className="flex space-x-2.5 justify-center items-center"
+        className="relative flex space-x-2.5 justify-center items-center"
         style={{ height: '48px' }}
       >
         {/* Start */}
@@ -240,21 +253,55 @@ const ActionButtons = ({
         </button>
 
         {/* Clone */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            vmMutation.mutate({ vmid: vm.vmid, action: 'clone', name: 'test' });
-          }}
-          disabled={hasPendingActions}
-          className={`px-2 py-1 text-sm font-medium rounded-md active:scale-95 transition-transform duration-100 ${
-            hasPendingActions
-              ? 'bg-gray-600 cursor-not-allowed'
-              : 'bg-blue-600 hover:bg-blue-700'
-          } text-white`}
-          style={{ height: '34px', lineHeight: '1.5' }}
-        >
-          Clone
-        </button>
+        <div className="relative">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsCloning((prev) => {
+                const next = !prev;
+                if (next) setCloneName(vm.name);
+                return next;
+              });
+            }}
+            disabled={hasPendingActions}
+            className={`px-2 py-1 text-sm font-medium rounded-md active:scale-95 transition-transform duration-100 ${
+              hasPendingActions
+                ? 'bg-gray-600 cursor-not-allowed'
+                : 'bg-blue-600 hover:bg-blue-700'
+            } text-white`}
+            style={{ height: '34px', lineHeight: '1.5' }}
+          >
+            Clone
+          </button>
+
+          {isCloning && (
+            <span
+              className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-gray-800 border border-gray-600 rounded-md p-3 flex items-center space-x-2 z-50"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <input
+                type="text"
+                value={cloneName}
+                onChange={(e) => setCloneName(e.target.value)}
+                className="w-40 p-1 bg-gray-900 text-white rounded-md text-sm"
+                placeholder={vm.name}
+              />
+              <button
+                onClick={handleConfirmClone}
+                className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none"
+              >
+                Confirm
+              </button>
+              <button
+                onClick={handleCancelClone}
+                className="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none"
+              >
+                Cancel
+              </button>
+            </span>
+          )}
+        </div>
+
       </div>
     </td>
   );
