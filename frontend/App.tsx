@@ -7,7 +7,6 @@ import MachinesTable from './src/Components/TableComponents/MachinesTable';
 import LoginError from './src/Components/LoginError';
 import Loading from './src/Components/Loading';
 import CreateVMModal from './src/Components/Layout/CreateVMModal';
-import ConsoleModal from './src/Components/Layout/ConsoleModal';
 import Alerts, { Alert } from './src/Components/Alerts';
 import { Auth, VM } from './src/types';
 
@@ -33,7 +32,6 @@ function App() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [alertHistory, setAlertHistory] = useState<Alert[]>([]);
-  const [isConsoleModalOpen, setIsConsoleModalOpen] = useState(false);
   const [selectedVMId, setSelectedVMId] = useState<number | null>(null);
 
   const addAlert = (message: string, type: string): void => {
@@ -52,7 +50,6 @@ function App() {
 
   const openConsole = (vmid: number) => {
     setSelectedVMId(vmid);
-    setIsConsoleModalOpen(true);
     addAlert(`Opening console for VM ${vmid}`, 'info');
   };
 
@@ -131,18 +128,6 @@ function App() {
         auth={auth}
         node={NODE}
         queryClient={queryClient}
-        addAlert={addAlert}
-      />
-      <ConsoleModal
-        isOpen={isConsoleModalOpen}
-        closeModal={() => {
-          setIsConsoleModalOpen(false);
-          setSelectedVMId(null);
-        }}
-        node={NODE}
-        vmid={selectedVMId || 0}
-        backendUrl={API_BASE}
-        auth={auth}
         addAlert={addAlert}
       />
     </>

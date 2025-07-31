@@ -30,6 +30,10 @@ table {
   max-height: 70rem; /* Fixed max height for table */
 }
 
+.action-buttons-cell > .flex {
+  margin-top: 8px;
+}
+
 thead {
   border-bottom: 1px solid #4b5563; /* Match row border style (less bold) */
 }
