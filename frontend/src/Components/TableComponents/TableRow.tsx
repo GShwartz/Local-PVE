@@ -1,14 +1,16 @@
-// TableRow.tsx
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { UseMutationResult } from '@tanstack/react-query';
-import { VM, Auth, Snapshot, TaskStatus } from '../../types';
-import SnapshotsView from '../SnapshotsComponents/SnapshotsView';
-import axios from 'axios';
+import { useQuery, useQueryClient, UseMutationResult } from '@tanstack/react-query';
 import { useState } from 'react';
+import axios from 'axios';
+import { VM, Auth, Snapshot, TaskStatus } from '../../types';
+
 import VMNameCell from './VMNameCell';
 import CPUCell from './CPUCell';
 import RAMCell from './RAMCell';
 import ActionButtons from './ActionButtons';
+import ApplyButton from './ApplyButton';
+import HDDCell from './HDDCell';
+import StatusBadge from './StatusBadge';
+import ExpandedRow from './ExpandedRow';
 
 interface VMConfigResponse {
   name?: string;
@@ -38,11 +40,9 @@ interface TableRowProps {
   openEditModal: (vm: VM) => void;
   editingVmid: number | null;
   cancelEdit: () => void;
-  hasRowAboveExpanded: boolean;
   addAlert: (message: string, type: string) => void;
   setTableApplying: (isApplying: boolean) => void;
-  openConsole: (vmid: number) => void;
-  refreshVMs: () => void; // ✅ added
+  refreshVMs: () => void;
 }
 
 const getSnapshots = async ({ node, vmid, csrf, ticket }: { node: string; vmid: number; csrf: string; ticket: string }): Promise<Snapshot[]> => {
@@ -101,10 +101,9 @@ const TableRow = ({
   openEditModal,
   editingVmid,
   cancelEdit,
-  hasRowAboveExpanded,
   addAlert,
   setTableApplying,
-  refreshVMs, // ✅ added
+  refreshVMs,
 }: TableRowProps) => {
   const queryClient = useQueryClient();
 
@@ -121,6 +120,8 @@ const TableRow = ({
   });
 
   const [isApplying, setIsApplying] = useState(false);
+  const hasChanges = changesToApply.vmname !== null || changesToApply.cpu !== null || changesToApply.ram !== null;
+  const requiresVMStopped = (changesToApply.cpu !== null || changesToApply.ram !== null) && vm.status === 'running';
 
   const handleApplyChanges = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
@@ -192,15 +193,6 @@ const TableRow = ({
     }
   };
 
-  const hasChanges = changesToApply.vmname !== null || changesToApply.cpu !== null || changesToApply.ram !== null;
-  const requiresVMStopped = (changesToApply.cpu !== null || changesToApply.ram !== null) && vm.status === 'running';
-
-  const hddList = vm.hdd_sizes.split(',').map(s => s.trim()).sort((a, b) => {
-    const numA = parseInt(a.match(/disk-(\d+)/)?.[1] || '0', 10);
-    const numB = parseInt(b.match(/disk-(\d+)/)?.[1] || '0', 10);
-    return numA - numB;
-  });
-
   return (
     <>
       {requiresVMStopped && (
@@ -219,28 +211,12 @@ const TableRow = ({
         <td className="px-6 py-4 text-center">{vm.os}</td>
         <CPUCell {...{ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply, isApplying }} />
         <RAMCell {...{ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply, isApplying }} />
+        <HDDCell hdd_sizes={vm.hdd_sizes} />
         <td className="px-6 py-4 text-center narrow-col">
-          {hddList.length > 1 ? hddList.map((disk, i) => <div key={i}>{disk}</div>) : vm.hdd_sizes}
-        </td>
-        <td className="px-6 py-4 text-center narrow-col">
-          <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-            vm.status === 'running' ? 'bg-green-600' :
-            vm.status === 'suspended' ? 'bg-yellow-600' :
-            'bg-red-600'
-          } text-white`}>
-            {vm.status}
-          </span>
+          <StatusBadge status={vm.status} />
         </td>
         <td className="px-2 py-2 text-center border-r border-gray-700">
-          <button
-            onClick={handleApplyChanges}
-            disabled={!hasChanges || requiresVMStopped || isApplying}
-            className={`px-2 py-1 text-sm font-medium rounded-md text-white ${
-              hasChanges && !requiresVMStopped ? 'bg-orange-600 hover:bg-orange-700 active:scale-95' : 'bg-gray-600 cursor-not-allowed'
-            }`}
-          >
-            {isApplying ? 'Apply' : 'Apply'}
-          </button>
+          <ApplyButton onClick={handleApplyChanges} hasChanges={hasChanges} requiresVMStopped={requiresVMStopped} isApplying={isApplying} />
         </td>
         <td className="px-2 py-2 text-center">
           <ActionButtons
@@ -248,38 +224,29 @@ const TableRow = ({
             pendingActions={pendingActions}
             vmMutation={vmMutation}
             showSnapshots={showSnapshots}
-            onToggleRow={() => {}}
+            onToggleRow={() => toggleRow(vm.vmid)}
             auth={auth}
             addAlert={addAlert}
-            refreshVMs={refreshVMs} // ✅ passed
+            refreshVMs={refreshVMs}
+            queryClient={queryClient}
           />
         </td>
         <td className="px-2 py-4 text-center cursor-pointer" onClick={() => toggleRow(vm.vmid)}>
           {expandedRows.has(vm.vmid) && !snapshotView.has(vm.vmid) ? '▲' : '▼'}
         </td>
       </tr>
-      {expandedRows.has(vm.vmid) && (
-        <tr className="border-b border-gray-700">
-          <td colSpan={9} className="px-6 py-4 bg-gray-800 text-center border-r border-gray-700">
-            <div className="expanded-content"></div>
-          </td>
-          <td className="px-2 pt-2 pb-2 text-center">
-            {snapshotView.has(vm.vmid) && (
-              <SnapshotsView
-                vm={vm}
-                snapshots={snapshots}
-                snapshotsLoading={snapshotsLoading}
-                snapshotsError={snapshotsError}
-                openModal={(vmid) => openModal(vmid, vm.name)}
-                snapshotMutation={snapshotMutation}
-                deleteSnapshotMutation={deleteSnapshotMutation}
-                pendingActions={pendingActions}
-              />
-            )}
-          </td>
-          <td className="px-2 py-4 text-center"></td>
-        </tr>
-      )}
+      <ExpandedRow
+        vm={vm}
+        snapshotView={snapshotView}
+        expandedRows={expandedRows}
+        openModal={openModal}
+        snapshotMutation={snapshotMutation}
+        deleteSnapshotMutation={deleteSnapshotMutation}
+        pendingActions={pendingActions}
+        snapshots={snapshots}
+        snapshotsLoading={snapshotsLoading}
+        snapshotsError={snapshotsError}
+      />
     </>
   );
 };
