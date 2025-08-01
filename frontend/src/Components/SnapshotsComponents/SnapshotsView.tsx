@@ -120,138 +120,40 @@ const SnapshotsView = ({
               linear-gradient(#D1D5DB 20px, transparent 0), 
               linear-gradient(#D1D5DB 20px, transparent 0);
           }
-          @keyframes pgfill {
-            0% {
-              background-image: 
-                linear-gradient(#4B5563 20px, transparent 0), 
-                linear-gradient(#4B5563 20px, transparent 0), 
-                linear-gradient(#4B5563 20px, transparent 0), 
-                linear-gradient(#4B5563 20px, transparent 0);
-            }
-            25% {
-              background-image: 
-                linear-gradient(#FF3D00 20px, transparent 0), 
-                linear-gradient(#4B5563 20px, transparent 0), 
-                linear-gradient(#4B5563 20px, transparent 0), 
-                linear-gradient(#4B5563 20px, transparent 0);
-            }
-            50% {
-              background-image: 
-                linear-gradient(#4B5563 20px, transparent 0), 
-                linear-gradient(#FF3D00 20px, transparent 0), 
-                linear-gradient(#4B5563 20px, transparent 0), 
-                linear-gradient(#4B5563 20px, transparent 0);
-            }
-            75% {
-              background-image: 
-                linear-gradient(#4B5563 20px, transparent 0), 
-                linear-gradient(#4B5563 20px, transparent 0), 
-                linear-gradient(#FF3D00 20px, transparent 0), 
-                linear-gradient(#4B5563 20px, transparent 0);
-            }
-            100% {
-              background-image: 
-                linear-gradient(#4B5563 20px, transparent 0), 
-                linear-gradient(#4B5563 20px, transparent 0), 
-                linear-gradient(#4B5563 20px, transparent 0), 
-                linear-gradient(#FF3D00 20px, transparent 0);
-            }
-          }
-          .dark .loader {
-            animation: pgfill-dark 1s linear infinite;
-          }
-          @keyframes pgfill-dark {
-            0% {
-              background-image: 
-                linear-gradient(#D1D5DB 20px, transparent 0), 
-                linear-gradient(#D1D5DB 20px, transparent 0), 
-                linear-gradient(#D1D5DB 20px, transparent 0), 
-                linear-gradient(#D1D5DB 20px, transparent 0);
-            }
-            25% {
-              background-image: 
-                linear-gradient(#FF3D00 20px, transparent 0), 
-                linear-gradient(#D1D5DB 20px, transparent 0), 
-                linear-gradient(#D1D5DB 20px, transparent 0), 
-                linear-gradient(#D1D5DB 20px, transparent 0);
-            }
-            50% {
-              background-image: 
-                linear-gradient(#D1D5DB 20px, transparent 0), 
-                linear-gradient(#FF3D00 20px, transparent 0), 
-                linear-gradient(#D1D5DB 20px, transparent 0), 
-                linear-gradient(#D1D5DB 20px, transparent 0);
-            }
-            75% {
-              background-image: 
-                linear-gradient(#D1D5DB 20px, transparent 0), 
-                linear-gradient(#D1D5DB 20px, transparent 0), 
-                linear-gradient(#FF3D00 20px, transparent 0), 
-                linear-gradient(#D1D5DB 20px, transparent 0);
-            }
-            100% {
-              background-image: 
-                linear-gradient(#D1D5DB 20px, transparent 0), 
-                linear-gradient(#D1D5DB 20px, transparent 0), 
-                linear-gradient(#D1D5DB 20px, transparent 0), 
-                linear-gradient(#FF3D00 20px, transparent 0);
-            }
-          }
         `}
       </style>
+
       {snapshotsLoading && <p className="sr-only">Loading snapshots...</p>}
       {snapshotsError && <p className="text-red-500">Error loading snapshots: {snapshotsError.message}</p>}
-      {snapshots && snapshots.length === 0 && (
-        <div className="flex justify-center">
-          <div className="w-full max-w-lg p-4 bg-white border border-gray-200 rounded-lg shadow-sm sm:p-6 dark:bg-gray-800 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-3">
-              <h5 className="text-base font-semibold text-gray-900 md:text-xl dark:text-white">
-                Snapshots
-              </h5>
-              {(isCreatingSnapshot || isRevertingSnapshot) && (
-                <span className="loader" aria-label="Snapshot action in progress"></span>
-              )}
-              <button
-                onClick={() => openModal(vm.vmid)}
-                disabled={isCreatingSnapshot || isRevertingSnapshot}
-                className={`text-white font-medium rounded-lg text-sm px-3 py-1 text-center ${
-                  isCreatingSnapshot || isRevertingSnapshot
-                    ? 'bg-gray-600 cursor-not-allowed'
-                    : 'bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800'
-                }`}
-              >
-                Take Snapshot
-              </button>
-            </div>
-            <p>No snapshots available.</p>
+
+      <div className="flex justify-center mt-4">
+        <div className="w-full sm:w-[400px] md:w-[460px] min-h-[256px] p-4 bg-white border border-gray-200 rounded-lg shadow-sm sm:p-6 dark:bg-gray-800 dark:border-gray-700">
+          <div className="flex items-center justify-between mb-3">
+            <h5 className="text-base font-semibold text-gray-900 md:text-xl dark:text-white">
+              Snapshots
+            </h5>
+            {(isCreatingSnapshot || isRevertingSnapshot) && (
+              <span className="loader" aria-label="Snapshot action in progress"></span>
+            )}
+            <button
+              onClick={() => openModal(vm.vmid)}
+              disabled={isCreatingSnapshot || isRevertingSnapshot}
+              className={`text-white font-medium rounded-lg text-sm px-3 py-1 text-center ${
+                isCreatingSnapshot || isRevertingSnapshot
+                  ? 'bg-gray-600 cursor-not-allowed'
+                  : 'bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800'
+              }`}
+            >
+              Take Snapshot
+            </button>
           </div>
-        </div>
-      )}
-      {snapshots && snapshots.length > 0 && (
-        <div className="flex justify-center">
-          <div className="w-full max-w-lg p-4 bg-white border border-gray-200 rounded-lg shadow-sm sm:p-6 dark:bg-gray-800 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-3">
-              <h5 className="text-base font-semibold text-gray-900 md:text-xl dark:text-white">
-                Snapshots
-              </h5>
-              {(isCreatingSnapshot || isRevertingSnapshot) && (
-                <span className="loader" aria-label="Snapshot action in progress"></span>
-              )}
-              <button
-                onClick={() => openModal(vm.vmid)}
-                disabled={isCreatingSnapshot || isRevertingSnapshot}
-                className={`text-white font-medium rounded-lg text-sm px-3 py-1 text-center ${
-                  isCreatingSnapshot || isRevertingSnapshot
-                    ? 'bg-gray-600 cursor-not-allowed'
-                    : 'bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800'
-                }`}
-              >
-                Take Snapshot
-              </button>
-            </div>
-            <div className="max-h-40 overflow-y-auto">
+
+          {snapshots && snapshots.length === 0 ? (
+            <p>No snapshots available.</p>
+          ) : (
+            <div className="max-h-52 overflow-y-auto">
               <ul className="my-4 space-y-3">
-                {snapshots.map((snapshot) => (
+                {snapshots?.map((snapshot) => (
                   <li key={snapshot.name}>
                     <div className="flex items-center p-3 text-base font-bold text-gray-900 rounded-lg bg-gray-700 hover:bg-gray-600 group hover:shadow dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-white">
                       <span className="flex-1 text-left whitespace-nowrap">
@@ -309,9 +211,10 @@ const SnapshotsView = ({
                 ))}
               </ul>
             </div>
-          </div>
+          )}
         </div>
-      )}
+      </div>
+
       <Popconfirm
         isOpen={popconfirm.isOpen}
         onConfirm={handleConfirm}

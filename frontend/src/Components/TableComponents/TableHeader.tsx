@@ -80,72 +80,25 @@ const TableHeader = ({ sortConfig, handleSort, isApplying }: TableHeaderProps) =
                 linear-gradient(#FF3D00 5px, transparent 0);
             }
           }
-          .dark .header-loader {
-            animation: pgfill-dark 1s linear infinite;
-          }
-          @keyframes pgfill-dark {
-            0% {
-              background-image: 
-                linear-gradient(#D1D5DB 5px, transparent 0), 
-                linear-gradient(#D1D5DB 5px, transparent 0), 
-                linear-gradient(#D1D5DB 5px, transparent 0), 
-                linear-gradient(#D1D5DB 5px, transparent 0);
-            }
-            25% {
-              background-image: 
-                linear-gradient(#FF3D00 5px, transparent 0), 
-                linear-gradient(#D1D5DB 5px, transparent 0), 
-                linear-gradient(#D1D5DB 5px, transparent 0), 
-                linear-gradient(#D1D5DB 5px, transparent 0);
-            }
-            50% {
-              background-image: 
-                linear-gradient(#D1D5DB 5px, transparent 0), 
-                linear-gradient(#FF3D00 5px, transparent 0), 
-                linear-gradient(#D1D5DB 5px, transparent 0), 
-                linear-gradient(#D1D5DB 5px, transparent 0);
-            }
-            75% {
-              background-image: 
-                linear-gradient(#D1D5DB 5px, transparent 0), 
-                linear-gradient(#D1D5DB 5px, transparent 0), 
-                linear-gradient(#FF3D00 5px, transparent 0), 
-                linear-gradient(#D1D5DB 5px, transparent 0);
-            }
-            100% {
-              background-image: 
-                linear-gradient(#D1D5DB 5px, transparent 0), 
-                linear-gradient(#D1D5DB 5px, transparent 0), 
-                linear-gradient(#D1D5DB 5px, transparent 0), 
-                linear-gradient(#FF3D00 5px, transparent 0);
-            }
-          }
         `}
       </style>
       <thead className="table-header">
-        <tr style={{ height: '48px' }}>
+        <tr className="h-12 text-xs sm:text-sm">
           {headers.map(({ key, label }) => (
             <th
               key={key}
               scope="col"
-              className={`table-header-th px-6 py-4 ${key === 'cpus' || key === 'ram' || key === 'hdd_sizes' ? 'narrow-col' : ''}`}
+              className={`table-header-th px-2 sm:px-6 py-3 ${key === 'cpus' || key === 'ram' || key === 'hdd_sizes' ? 'narrow-col' : ''} cursor-pointer`}
               onClick={() => handleSort(key)}
-              style={{ height: '48px', verticalAlign: 'middle' }}
             >
               {label} {sortConfig.key === key && (sortConfig.direction === 'asc' ? '↑' : '↓')}
             </th>
           ))}
-          <th scope="col" className="table-header-apply px-2 py-4 border-r border-gray-700" style={{ height: '48px', verticalAlign: 'middle' }}>
-            {isApplying ? (
-              <div className="header-loader"></div>
-            ) : (
-              ''
-            )}
+          <th scope="col" className="px-2 py-3 border-r border-gray-700">
+            {isApplying ? <div className="header-loader"></div> : ''}
           </th>
-          <th scope="col" className="table-header-th px-6 py-4 narrow-col border-r border-gray-700" style={{ height: '48px', verticalAlign: 'middle' }}>
-            Status
-          </th>
-          <th scope="col" className="table-header-action px-2 py-4" style={{ height: '48px', verticalAlign: 'middle' }}>Actions</th>
+          <th scope="col" className="px-2 sm:px-6 py-3 narrow-col border-r border-gray-700">Status</th>
+          <th scope="col" className="px-2 py-3">Actions</th>
         </tr>
       </thead>
     </>

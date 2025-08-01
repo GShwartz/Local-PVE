@@ -32,9 +32,9 @@ interface TableRowProps {
   showSnapshots: (vmid: number) => void;
   openModal: (vmid: number, vmName: string) => void;
   pendingActions: { [vmid: number]: string[] };
-  vmMutation: UseMutationResult<string, any, { vmid: number; action: string; name?: string; cpus?: number; ram?: number }, unknown>;
-  snapshotMutation: UseMutationResult<string, any, { vmid: number; snapname: string; name?: string }, unknown>;
-  deleteSnapshotMutation: UseMutationResult<string, any, { vmid: number; snapname: string; name?: string }, unknown>;
+  vmMutation: UseMutationResult<string, any, any, unknown>;
+  snapshotMutation: UseMutationResult<string, any, any, unknown>;
+  deleteSnapshotMutation: UseMutationResult<string, any, any, unknown>;
   auth: Auth;
   node: string;
   openEditModal: (vm: VM) => void;
@@ -43,29 +43,28 @@ interface TableRowProps {
   addAlert: (message: string, type: string) => void;
   setTableApplying: (isApplying: boolean) => void;
   refreshVMs: () => void;
+  openConsole: (vmid: number) => void;
+  hasRowAboveExpanded: boolean;
 }
 
 const getSnapshots = async ({ node, vmid, csrf, ticket }: { node: string; vmid: number; csrf: string; ticket: string }): Promise<Snapshot[]> => {
-  const { data } = await axios.get<Snapshot[]>(
-    `http://localhost:8000/vm/${node}/qemu/${vmid}/snapshots`,
-    { params: { csrf_token: csrf, ticket } }
-  );
+  const { data } = await axios.get<Snapshot[]>(`http://localhost:8000/vm/${node}/qemu/${vmid}/snapshots`, {
+    params: { csrf_token: csrf, ticket },
+  });
   return data;
 };
 
 const getVMStatus = async ({ node, vmid, csrf, ticket }: { node: string; vmid: number; csrf: string; ticket: string }): Promise<string> => {
-  const { data } = await axios.get<{ status: string }>(
-    `http://localhost:8000/vm/${node}/qemu/${vmid}/status`,
-    { params: { csrf_token: csrf, ticket } }
-  );
+  const { data } = await axios.get<{ status: string }>(`http://localhost:8000/vm/${node}/qemu/${vmid}/status`, {
+    params: { csrf_token: csrf, ticket },
+  });
   return data.status;
 };
 
 const getVMInfo = async ({ node, vmid, csrf, ticket }: { node: string; vmid: number; csrf: string; ticket: string }): Promise<VM> => {
-  const { data } = await axios.get<VMConfigResponse>(
-    `http://localhost:8000/vm/${node}/qemu/${vmid}/config`,
-    { params: { csrf_token: csrf, ticket } }
-  );
+  const { data } = await axios.get<VMConfigResponse>(`http://localhost:8000/vm/${node}/qemu/${vmid}/config`, {
+    params: { csrf_token: csrf, ticket },
+  });
   return {
     vmid,
     name: data.name || `VM ${vmid}`,
@@ -135,39 +134,28 @@ const TableRow = ({
       if (changesToApply.cpu !== null) updates.cpus = changesToApply.cpu;
       if (changesToApply.ram !== null) updates.ram = parseRAMToNumber(changesToApply.ram);
 
-      if (Object.keys(updates).length === 0) {
-        setIsApplying(false);
-        setTableApplying(false);
-        return;
-      }
+      if (Object.keys(updates).length === 0) return;
 
       if ((updates.cpus || updates.ram) && latestStatus === 'running') {
         addAlert(`Cannot apply CPU or RAM changes for running VM ${vm.vmid}`, 'error');
-        setIsApplying(false);
-        setTableApplying(false);
         return;
       }
 
-      vmMutation.mutate({ vmid: vm.vmid, action: 'update_config', ...updates }, {
-        onSuccess: async (upid: string) => {
-          try {
+      vmMutation.mutate(
+        { vmid: vm.vmid, action: 'update_config', ...updates },
+        {
+          onSuccess: async (upid: string) => {
             let taskStatus;
             do {
-              const { data } = await axios.get<TaskStatus>(
-                `http://localhost:8000/task/${node}/${upid}`,
-                { params: { csrf_token: auth.csrf_token, ticket: auth.ticket } }
-              );
+              const { data } = await axios.get<TaskStatus>(`http://localhost:8000/task/${node}/${upid}`, {
+                params: { csrf_token: auth.csrf_token, ticket: auth.ticket },
+              });
               taskStatus = data;
-              if (taskStatus.status !== 'stopped') {
-                await new Promise(resolve => setTimeout(resolve, 500));
-              }
+              if (taskStatus.status !== 'stopped') await new Promise((resolve) => setTimeout(resolve, 500));
             } while (taskStatus.status !== 'stopped');
 
-            if (taskStatus.exitstatus !== 'OK') {
-              throw new Error(`Task failed: ${taskStatus.exitstatus}`);
-            }
+            if (taskStatus.exitstatus !== 'OK') throw new Error(`Task failed: ${taskStatus.exitstatus}`);
 
-            // 🔄 Poll VM config until PVE reflects expected changes
             const maxRetries = 10;
             const delay = 1000;
             let updatedVM: VM | null = null;
@@ -180,45 +168,20 @@ const TableRow = ({
               const expectedCPU = changesToApply.cpu ?? vm.cpus;
               const expectedRAM = changesToApply.ram ? parseRAMToNumber(changesToApply.ram) : vm.ram;
 
-              const nameOk = result.name === expectedName;
-              const cpuOk = result.cpus === expectedCPU;
-              const ramOk = result.ram === expectedRAM;
-
-              if (nameOk && cpuOk && ramOk) {
+              if (result.name === expectedName && result.cpus === expectedCPU && result.ram === expectedRAM) {
                 updatedVM = result;
                 validated = true;
                 break;
               }
 
-              await new Promise(res => setTimeout(res, delay));
+              await new Promise((res) => setTimeout(res, delay));
             }
 
-            if (!validated) {
-              const result = await getVMInfo({ node, vmid: vm.vmid, csrf: auth.csrf_token, ticket: auth.ticket });
-              const msgs = [];
+            if (!validated) throw new Error(`Validation failed after retries.`);
 
-              if ((changesToApply.cpu !== null) && result.cpus !== changesToApply.cpu) {
-                msgs.push(`CPU=${result.cpus} (expected ${changesToApply.cpu})`);
-              }
-              if ((changesToApply.ram !== null) && result.ram !== parseRAMToNumber(changesToApply.ram)) {
-                msgs.push(`RAM=${result.ram} (expected ${parseRAMToNumber(changesToApply.ram)})`);
-              }
-              if (changesToApply.vmname && result.name !== changesToApply.vmname) {
-                msgs.push(`Name='${result.name}' (expected '${changesToApply.vmname}')`);
-              }
-
-              if (msgs.length > 0) {
-                throw new Error(`Config mismatch after update: ${msgs.join(', ')}`);
-              }
-
-              // Allow name mismatch silently if CPU and RAM are OK
-              updatedVM = result;
-            }
-
-            queryClient.setQueryData(['vms'], (oldVms: VM[] | undefined) => {
-              if (!oldVms) return [updatedVM!];
-              return oldVms.map((oldVm) => (oldVm.vmid === vm.vmid ? updatedVM! : oldVm));
-            });
+            queryClient.setQueryData(['vms'], (oldVms: VM[] | undefined) =>
+              !oldVms ? [updatedVM!] : oldVms.map((oldVm) => (oldVm.vmid === vm.vmid ? updatedVM! : oldVm)),
+            );
 
             const changes: string[] = [];
             if (changesToApply.vmname) changes.push(`name changed to '${changesToApply.vmname}'`);
@@ -228,24 +191,17 @@ const TableRow = ({
             setChangesToApply({ vmname: null, cpu: null, ram: null });
             cancelEdit();
 
-            if (changes.length > 0) {
-              addAlert(`VM ${vm.vmid} updated: ${changes.join(', ')}`, 'success');
-            }
-
-          } catch (err: any) {
-            addAlert(`Failed to validate VM update: ${err.message ?? err}`, 'error');
-          } finally {
+            if (changes.length > 0) addAlert(`VM ${vm.vmid} updated: ${changes.join(', ')}`, 'success');
+          },
+          onError: (error: any) => {
+            addAlert(`Failed to update VM ${vm.vmid}: ${error.message}`, 'error');
+          },
+          onSettled: () => {
             setIsApplying(false);
             setTableApplying(false);
-          }
+          },
         },
-        onError: (error: any) => {
-          addAlert(`Failed to update VM ${vm.vmid}: ${error.message}`, 'error');
-          setIsApplying(false);
-          setTableApplying(false);
-        }
-      });
-
+      );
     } catch (error) {
       addAlert(`Failed to fetch VM status for ${vm.vmid}`, 'error');
       setIsApplying(false);
@@ -257,26 +213,26 @@ const TableRow = ({
     <>
       {requiresVMStopped && (
         <tr>
-          <td colSpan={11} className="bg-yellow-600 text-white text-center py-2">
-            <span className="text-sm font-medium">
+          <td colSpan={11} className="bg-yellow-600 text-white text-center py-2 text-xs sm:text-sm">
+            <span className="font-medium">
               CPU or RAM changes require the VM to be stopped. Please stop the VM before applying changes.
             </span>
           </td>
         </tr>
       )}
 
-      <tr className="bg-gray-900 border-b border-gray-700 hover:bg-gray-700" style={{ height: '48px' }}>
-        <td className="px-6 py-4 text-center">{vm.vmid}</td>
+      <tr className="bg-gray-900 border-b border-gray-700 hover:bg-gray-700 text-xs sm:text-sm">
+        <td className="px-2 sm:px-6 py-2 sm:py-4 text-center">{vm.vmid}</td>
         <VMNameCell {...{ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply, isApplying }} />
-        <td className="px-6 py-4 text-center">{vm.ip_address}</td>
-        <td className="px-6 py-4 text-center">{vm.os}</td>
+        <td className="px-2 sm:px-6 py-2 sm:py-4 text-center">{vm.ip_address}</td>
+        <td className="px-2 sm:px-6 py-2 sm:py-4 text-center">{vm.os}</td>
         <CPUCell {...{ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply, isApplying }} />
         <RAMCell {...{ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply, isApplying }} />
         <HDDCell hdd_sizes={vm.hdd_sizes} />
         <td className="px-2 py-2 text-center border-r border-gray-700">
           <ApplyButton onClick={handleApplyChanges} hasChanges={hasChanges} requiresVMStopped={requiresVMStopped} isApplying={isApplying} />
         </td>
-        <td className="px-6 py-4 text-center narrow-col border-r border-gray-700">
+        <td className="px-2 sm:px-6 py-2 sm:py-4 text-center narrow-col border-r border-gray-700">
           <StatusBadge status={vm.status} />
         </td>
         <td className="px-2 py-2 text-center">
@@ -290,7 +246,7 @@ const TableRow = ({
             addAlert={addAlert}
             refreshVMs={refreshVMs}
             queryClient={queryClient}
-            isApplying={isApplying} // ✅ passed here
+            isApplying={isApplying}
           />
         </td>
         <td className="px-2 py-4 text-center cursor-pointer" onClick={() => toggleRow(vm.vmid)}>

@@ -3,7 +3,12 @@ import TableHeader from './TableHeader';
 import TableRow from './TableRow';
 import SnapshotModal from '../SnapshotsComponents/SnapshotModal';
 import { Auth, VM } from '../../types';
-import { useVMMutation, useSnapshotMutation, useDeleteSnapshotMutation, useCreateSnapshotMutation } from '../vmMutations';
+import {
+  useVMMutation,
+  useSnapshotMutation,
+  useDeleteSnapshotMutation,
+  useCreateSnapshotMutation,
+} from '../vmMutations';
 
 interface MachinesTableProps {
   vms: VM[];
@@ -27,36 +32,35 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: 
 
   const toggleRow = (vmid: number): void => {
     const newExpanded = new Set(expandedRows);
+    const newSnapshotView = new Set(snapshotView);
+
     if (newExpanded.has(vmid)) {
       newExpanded.delete(vmid);
-      if (snapshotView.has(vmid)) {
-        const newSnapshotView = new Set(snapshotView);
-        newSnapshotView.delete(vmid);
-        setSnapshotView(newSnapshotView);
-      }
+      newSnapshotView.delete(vmid);
     } else {
       newExpanded.add(vmid);
+      newSnapshotView.add(vmid); // ✅ Show snapshots when expanding
     }
+
     setExpandedRows(newExpanded);
+    setSnapshotView(newSnapshotView);
   };
 
   const showSnapshots = (vmid: number): void => {
     const newSnapshotView = new Set(snapshotView);
+    const newExpanded = new Set(expandedRows);
     if (newSnapshotView.has(vmid)) {
       newSnapshotView.delete(vmid);
-      const newExpanded = new Set(expandedRows);
       newExpanded.delete(vmid);
-      setExpandedRows(newExpanded);
     } else {
       newSnapshotView.add(vmid);
-      const newExpanded = new Set(expandedRows);
       newExpanded.add(vmid);
-      setExpandedRows(newExpanded);
     }
+    setExpandedRows(newExpanded);
     setSnapshotView(newSnapshotView);
   };
 
-  const openModal = (vmid: number, _vmName: string): void => {
+  const openModal = (vmid: number): void => {
     setCurrentVmid(vmid);
     setSnapshotName('');
     setIsModalOpen(true);
@@ -84,17 +88,14 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: 
   });
 
   const sortedVms: VM[] = [...filteredVms].sort((a: VM, b: VM) => {
-    const aValue: VM[keyof VM] = a[sortConfig.key];
-    const bValue: VM[keyof VM] = b[sortConfig.key];
-
+    const aValue = a[sortConfig.key];
+    const bValue = b[sortConfig.key];
     if (aValue == null || bValue == null) return 0;
-
     if (typeof aValue === 'number' && typeof bValue === 'number') {
       return sortConfig.direction === 'asc' ? aValue - bValue : bValue - aValue;
     }
-
-    const aStr: string = aValue.toString().toLowerCase();
-    const bStr: string = bValue.toString().toLowerCase();
+    const aStr = aValue.toString().toLowerCase();
+    const bStr = bValue.toString().toLowerCase();
     return sortConfig.direction === 'asc' ? aStr.localeCompare(bStr) : -aStr.localeCompare(bStr);
   });
 
@@ -103,62 +104,55 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: 
   const deleteSnapshotMutation = useDeleteSnapshotMutation(auth, node, queryClient, addAlert, setPendingActions);
   const createSnapshotMutation = useCreateSnapshotMutation(auth, node, queryClient, addAlert, setPendingActions, closeModal);
 
-  const isValidSnapshotName = (name: string): boolean => {
-    const regex = /^[a-zA-Z0-9_+.-]{1,40}$/;
-    return regex.test(name);
-  };
+  const isValidSnapshotName = (name: string): boolean => /^[a-zA-Z0-9_+.-]{1,40}$/.test(name);
 
   const openEditModal = (vm: VM) => {
-    if (editingVmid === null || editingVmid === vm.vmid) {
-      setEditingVmid(vm.vmid);
-    }
+    if (editingVmid === null || editingVmid === vm.vmid) setEditingVmid(vm.vmid);
   };
 
-  const cancelEdit = () => {
-    setEditingVmid(null);
-  };
+  const cancelEdit = () => setEditingVmid(null);
 
-  const refreshVMs = () => {
-    queryClient.invalidateQueries(['vms']);
-  };
+  const refreshVMs = () => queryClient.invalidateQueries(['vms']);
 
   return (
     <>
       <div className="overflow-x-auto mb-10">
-        <table className="w-full text-sm text-gray-200 border-collapse">
-          <TableHeader sortConfig={sortConfig} handleSort={handleSort} isApplying={isApplying} />
-          <tbody>
-            {sortedVms.map((vm, idx) => {
-              const prevVm = sortedVms[idx - 1];
-              const hasRowAboveExpanded = prevVm ? expandedRows.has(prevVm.vmid) : false;
-              return (
-                <TableRow
-                  key={vm.vmid}
-                  vm={vm}
-                  expandedRows={expandedRows}
-                  toggleRow={toggleRow}
-                  snapshotView={snapshotView}
-                  showSnapshots={showSnapshots}
-                  openModal={openModal}
-                  pendingActions={pendingActions}
-                  vmMutation={vmMutation}
-                  snapshotMutation={snapshotMutation}
-                  deleteSnapshotMutation={deleteSnapshotMutation}
-                  auth={auth}
-                  node={node}
-                  openEditModal={openEditModal}
-                  editingVmid={editingVmid}
-                  cancelEdit={cancelEdit}
-                  hasRowAboveExpanded={hasRowAboveExpanded}
-                  addAlert={addAlert}
-                  setTableApplying={setIsApplying}
-                  openConsole={openConsole}
-                  refreshVMs={refreshVMs} // ✅ passed to TableRow
-                />
-              );
-            })}
-          </tbody>
-        </table>
+        <div className="min-w-[640px] sm:min-w-full">
+          <table className="w-full text-xs sm:text-sm text-gray-200 border-collapse">
+            <TableHeader sortConfig={sortConfig} handleSort={handleSort} isApplying={isApplying} />
+            <tbody>
+              {sortedVms.map((vm, idx) => {
+                const prevVm = sortedVms[idx - 1];
+                const hasRowAboveExpanded = prevVm ? expandedRows.has(prevVm.vmid) : false;
+                return (
+                  <TableRow
+                    key={vm.vmid}
+                    vm={vm}
+                    expandedRows={expandedRows}
+                    toggleRow={toggleRow}
+                    snapshotView={snapshotView}
+                    showSnapshots={showSnapshots}
+                    openModal={openModal}
+                    pendingActions={pendingActions}
+                    vmMutation={vmMutation}
+                    snapshotMutation={snapshotMutation}
+                    deleteSnapshotMutation={deleteSnapshotMutation}
+                    auth={auth}
+                    node={node}
+                    openEditModal={openEditModal}
+                    editingVmid={editingVmid}
+                    cancelEdit={cancelEdit}
+                    hasRowAboveExpanded={hasRowAboveExpanded}
+                    addAlert={addAlert}
+                    setTableApplying={setIsApplying}
+                    openConsole={openConsole}
+                    refreshVMs={refreshVMs}
+                  />
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
       <SnapshotModal
         isOpen={isModalOpen}
