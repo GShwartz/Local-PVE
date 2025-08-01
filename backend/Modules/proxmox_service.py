@@ -354,3 +354,27 @@ class ProxmoxService:
         except Exception:
             # return None on failure
             return None
+    
+    def delete_vm(self, node: str, vmid: int, csrf_token: str, ticket: str) -> str:
+        self.set_auth_cookie(ticket)
+        logger.info(f"Deleting VM {vmid} on node {node} with purge=1 and destroy-unreferenced-disks=1")
+
+        response = self.session.delete(
+            f"{PROXMOX_BASE_URL}/nodes/{node}/qemu/{vmid}",
+            params={
+                "purge": 1,
+                "destroy-unreferenced-disks": 1
+            },
+            headers={"CSRFPreventionToken": csrf_token}
+        )
+
+        if response.status_code != 200:
+            logger.error("Failed to delete VM %d: Status %d, Response: %s",
+                        vmid, response.status_code, response.text)
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"Failed to delete VM {vmid}: {response.text}"
+            )
+
+        return response.json().get("data")
+

@@ -1,0 +1,48 @@
+import ActionButton from './ActionButton';
+import ClonePopover from './ClonePopover';
+
+interface CloneButtonProps {
+  disabled: boolean;
+  showCloningLabel: boolean;
+  isCloning: boolean;
+  cloneName: string;
+  onToggle: () => void;
+  onChange: (name: string) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+const CloneButton = ({
+  disabled,
+  showCloningLabel,
+  isCloning,
+  cloneName,
+  onToggle,
+  onChange,
+  onConfirm,
+  onCancel,
+}: CloneButtonProps) => (
+  <div className="relative">
+    <ActionButton
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle();
+      }}
+      disabled={disabled}
+      className={disabled ? 'bg-gray-600 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}
+    >
+      {showCloningLabel ? 'Cloning...' : 'Clone'}
+    </ActionButton>
+
+    {isCloning && (
+      <ClonePopover
+        cloneName={cloneName}
+        onChange={onChange}
+        onConfirm={onConfirm}
+        onCancel={onCancel}
+      />
+    )}
+  </div>
+);
+
+export default CloneButton;

@@ -3,6 +3,10 @@ import { VM, Auth } from '../../types';
 import { UseMutationResult } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 
+import ActionButton from './ActionButton';
+import CloneButton from './CloneButton';
+import ConsoleButton from './ConsoleButton';
+
 interface ActionButtonsProps {
   vm: VM;
   pendingActions: { [vmid: number]: string[] };
@@ -15,6 +19,8 @@ interface ActionButtonsProps {
   showSnapshots: (vmid: number) => void;
   onToggleRow: () => void;
   auth: Auth;
+  addAlert: (message: string, type: string) => void;
+  refreshVMs: () => void; // ✅ Added
 }
 
 const API_BASE_URL = 'http://localhost:8000';
@@ -46,8 +52,7 @@ async function openProxmoxConsole(
     const consoleUrl =
       `https://${PROXMOX_HOST}:${PROXMOX_PORT}/?console=kvm&novnc=1&node=${encodeURIComponent(
         respNode
-      )}` +
-      `&vmid=${encodeURIComponent(respVmid)}`;
+      )}&vmid=${encodeURIComponent(respVmid)}`;
     window.open(consoleUrl, '_blank', 'noopener,noreferrer');
   } catch (error: any) {
     console.error('Error opening Proxmox console:', error);
@@ -62,16 +67,30 @@ const ActionButtons = ({
   showSnapshots,
   onToggleRow,
   auth,
+  addAlert,
+  refreshVMs,
 }: ActionButtonsProps) => {
   const [isStarting, setIsStarting] = useState(false);
   const [isHalting, setIsHalting] = useState(false);
+  const [isRebooting, setIsRebooting] = useState(false);
   const [isCloning, setIsCloning] = useState(false);
+  const [isCloningInProgress, setIsCloningInProgress] = useState(false);
   const [cloneName, setCloneName] = useState(vm.name);
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
 
   const hasPendingActions = pendingActions[vm.vmid]?.length > 0;
-  const isCreatingSnapshot = pendingActions[vm.vmid]?.some((a) =>
-    a.startsWith('create-')
-  );
+  const isCreatingSnapshot = pendingActions[vm.vmid]?.some((a) => a.startsWith('create-'));
+  const isClonePending = pendingActions[vm.vmid]?.includes('clone');
+  const showCloningLabel = isCloningInProgress || isClonePending;
+
+  const disableAll =
+    hasPendingActions || isStarting || isHalting || isCreatingSnapshot || isCloningInProgress;
+
+  const disableConsole =
+    !isRebooting && !isStarting && (
+      isCreatingSnapshot || isHalting || hasPendingActions
+    );
 
   useEffect(() => {
     if (isStarting && vm.status === 'running') setIsStarting(false);
@@ -82,8 +101,21 @@ const ActionButtons = ({
   }, [vm.status, isHalting]);
 
   const handleConfirmClone = () => {
-    vmMutation.mutate({ vmid: vm.vmid, action: 'clone', name: cloneName });
     setIsCloning(false);
+    setIsCloningInProgress(true);
+    vmMutation.mutate(
+      { vmid: vm.vmid, action: 'clone', name: cloneName },
+      {
+        onSuccess: () => {
+          setIsCloningInProgress(false);
+          addAlert(`Cloning of VM ${vm.name} started`, 'success');
+        },
+        onError: () => {
+          setIsCloningInProgress(false);
+          toast.error('Cloning failed.');
+        },
+      }
+    );
   };
 
   const handleCancelClone = () => {
@@ -91,18 +123,52 @@ const ActionButtons = ({
     setCloneName(vm.name);
   };
 
+  const handleConfirmRemove = () => {
+    setIsRemoving(true);
+    setShowRemoveConfirm(false);
+    fetch(
+      `${API_BASE_URL}/vm/${PROXMOX_NODE}/qemu/${vm.vmid}?csrf_token=${encodeURIComponent(
+        auth.csrf_token
+      )}&ticket=${encodeURIComponent(auth.ticket)}`,
+      { method: 'DELETE' }
+    )
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to delete VM');
+        return res.json();
+      })
+      .then(() => {
+        setIsRemoving(false);
+        addAlert(`VM ${vm.name} was removed`, 'success');
+        refreshVMs(); // ✅ Refresh table
+      })
+      .catch((err) => {
+        setIsRemoving(false);
+        toast.error(err.message || 'Failed to delete VM');
+        addAlert(`Failed to remove VM ${vm.name}: ${err.message}`, 'error');
+      });
+  };
+
+  const handleCancelRemove = () => {
+    setShowRemoveConfirm(false);
+  };
+
+  const removeDisabled = isCloningInProgress || vm.status === 'running';
+
   return (
     <td
-      className="px-2 py-2 text-center action-buttons-cell"
-      style={{ height: '48px', verticalAlign: 'middle', position: 'relative' }}
+      className="px-2 py-1 text-center action-buttons-cell"
+      style={{
+        height: '48px',
+        verticalAlign: 'middle',
+        position: 'relative',
+        display: 'flex', // ✅ Added
+        justifyContent: 'center',
+        alignItems: 'center',
+      }}
       onClick={onToggleRow}
     >
-      <div
-        className="relative flex space-x-2.5 justify-center items-center"
-        style={{ height: '48px' }}
-      >
-        {/* Start */}
-        <button
+      <div className="flex space-x-2.5 justify-center items-center" style={{ height: '48px' }}>
+        <ActionButton
           onClick={(e) => {
             e.stopPropagation();
             setIsStarting(true);
@@ -111,29 +177,13 @@ const ActionButtons = ({
               { onError: () => setIsStarting(false) }
             );
           }}
-          disabled={
-            vm.status === 'running' ||
-            vm.status === 'suspended' ||
-            hasPendingActions ||
-            isStarting ||
-            isCreatingSnapshot
-          }
-          className={`px-2 py-1 text-sm font-medium rounded-md active:scale-95 transition-transform duration-100 ${
-            vm.status === 'running' ||
-            vm.status === 'suspended' ||
-            hasPendingActions ||
-            isStarting ||
-            isCreatingSnapshot
-              ? 'bg-gray-600 cursor-not-allowed'
-              : 'bg-green-600 hover:bg-green-700'
-          } text-white`}
-          style={{ height: '34px', lineHeight: '1.5' }}
+          disabled={vm.status === 'running' || vm.status === 'suspended' || disableAll}
+          className={vm.status === 'running' || vm.status === 'suspended' || disableAll ? 'bg-gray-600 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}
         >
           Start
-        </button>
+        </ActionButton>
 
-        {/* Stop */}
-        <button
+        <ActionButton
           onClick={(e) => {
             e.stopPropagation();
             setIsHalting(true);
@@ -142,29 +192,13 @@ const ActionButtons = ({
               { onError: () => setIsHalting(false) }
             );
           }}
-          disabled={
-            vm.status !== 'running' ||
-            pendingActions[vm.vmid]?.includes('stop') ||
-            pendingActions[vm.vmid]?.includes('shutdown') ||
-            isHalting ||
-            isCreatingSnapshot
-          }
-          className={`px-2 py-1 text-sm font-medium rounded-md active:scale-95 transition-transform duration-100 ${
-            vm.status !== 'running' ||
-            pendingActions[vm.vmid]?.includes('stop') ||
-            pendingActions[vm.vmid]?.includes('shutdown') ||
-            isHalting ||
-            isCreatingSnapshot
-              ? 'bg-gray-600 cursor-not-allowed'
-              : 'bg-red-600 hover:bg-red-700'
-          } text-white`}
-          style={{ height: '34px', lineHeight: '1.5' }}
+          disabled={vm.status !== 'running' || disableAll}
+          className={vm.status !== 'running' || disableAll ? 'bg-gray-600 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'}
         >
           Stop
-        </button>
+        </ActionButton>
 
-        {/* Shutdown */}
-        <button
+        <ActionButton
           onClick={(e) => {
             e.stopPropagation();
             setIsHalting(true);
@@ -173,135 +207,99 @@ const ActionButtons = ({
               { onError: () => setIsHalting(false) }
             );
           }}
-          disabled={
-            vm.status !== 'running' ||
-            pendingActions[vm.vmid]?.includes('shutdown') ||
-            pendingActions[vm.vmid]?.includes('stop') ||
-            isHalting ||
-            isCreatingSnapshot
-          }
-          className={`px-2 py-1 text-sm font-medium rounded-md active:scale-95 transition-transform duration-100 ${
-            vm.status !== 'running' ||
-            pendingActions[vm.vmid]?.includes('shutdown') ||
-            pendingActions[vm.vmid]?.includes('stop') ||
-            isHalting ||
-            isCreatingSnapshot
-              ? 'bg-gray-600 cursor-not-allowed'
-              : 'bg-yellow-600 hover:bg-yellow-700'
-          } text-white`}
-          style={{ height: '34px', lineHeight: '1.5' }}
+          disabled={vm.status !== 'running' || disableAll}
+          className={vm.status !== 'running' || disableAll ? 'bg-gray-600 cursor-not-allowed' : 'bg-yellow-600 hover:bg-yellow-700'}
         >
           Shutdown
-        </button>
+        </ActionButton>
 
-        {/* Reboot */}
-        <button
+        <ActionButton
           onClick={(e) => {
             e.stopPropagation();
-            vmMutation.mutate({ vmid: vm.vmid, action: 'reboot', name: vm.name });
+            setIsRebooting(true);
+            vmMutation.mutate(
+              { vmid: vm.vmid, action: 'reboot', name: vm.name },
+              { onError: () => setIsRebooting(false) }
+            );
           }}
-          disabled={
-            vm.status !== 'running' ||
-            pendingActions[vm.vmid]?.includes('reboot') ||
-            pendingActions[vm.vmid]?.includes('stop') ||
-            pendingActions[vm.vmid]?.includes('shutdown') ||
-            isHalting ||
-            isCreatingSnapshot
-          }
-          className={`px-2 py-1 text-sm font-medium rounded-md active:scale-95 transition-transform duration-100 ${
-            vm.status !== 'running' ||
-            pendingActions[vm.vmid]?.includes('reboot') ||
-            pendingActions[vm.vmid]?.includes('stop') ||
-            pendingActions[vm.vmid]?.includes('shutdown') ||
-            isHalting ||
-            isCreatingSnapshot
-              ? 'bg-gray-600 cursor-not-allowed'
-              : 'bg-indigo-600 hover:bg-indigo-700'
-          } text-white`}
-          style={{ height: '34px', lineHeight: '1.5' }}
+          disabled={vm.status !== 'running' || disableAll}
+          className={vm.status !== 'running' || disableAll ? 'bg-gray-600 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}
         >
           Reboot
-        </button>
+        </ActionButton>
 
-        {/* Snapshots */}
-        <button
+        <ActionButton
           onClick={(e) => {
             e.stopPropagation();
             showSnapshots(vm.vmid);
           }}
-          disabled={pendingActions[vm.vmid]?.includes('snapshots')}
-          className={`px-2 py-1 text-md font-medium rounded-md active:scale-95 transition-transform duration-100 ${
-            pendingActions[vm.vmid]?.includes('snapshots')
-              ? 'bg-gray-600 cursor-not-allowed'
-              : 'bg-purple-600 hover:bg-purple-700'
-          } text-white`}
-          style={{ height: '34px', lineHeight: '1.5' }}
+          disabled={disableAll}
+          className={disableAll ? 'bg-gray-600 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700'}
         >
           Snapshots
-        </button>
+        </ActionButton>
 
-        {/* Console */}
-        <button
+        <ConsoleButton
           onClick={(e) => {
             e.stopPropagation();
             openProxmoxConsole(PROXMOX_NODE, vm.vmid, auth.csrf_token, auth.ticket);
           }}
-          className="px-2 py-1 text-sm font-medium rounded-md active:scale-95 transition-transform duration-100 bg-teal-600 hover:bg-teal-700 text-white"
-          style={{ height: '34px', lineHeight: '1.5' }}
-        >
-          Console
-        </button>
+          disabled={disableConsole}
+        />
 
-        {/* Clone */}
-        <div className="relative">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
+        <CloneButton
+          disabled={disableAll}
+          showCloningLabel={showCloningLabel}
+          isCloning={isCloning}
+          cloneName={cloneName}
+          onToggle={() => {
+            if (!isCloningInProgress) {
               setIsCloning((prev) => {
                 const next = !prev;
                 if (next) setCloneName(vm.name);
                 return next;
               });
-            }}
-            disabled={hasPendingActions}
-            className={`px-2 py-1 text-sm font-medium rounded-md active:scale-95 transition-transform duration-100 ${
-              hasPendingActions
-                ? 'bg-gray-600 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700'
-            } text-white`}
-            style={{ height: '34px', lineHeight: '1.5' }}
-          >
-            Clone
-          </button>
+            }
+          }}
+          onChange={setCloneName}
+          onConfirm={handleConfirmClone}
+          onCancel={handleCancelClone}
+        />
 
-          {isCloning && (
+        <div className="relative">
+          <ActionButton
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowRemoveConfirm((v) => !v);
+            }}
+            disabled={removeDisabled}
+            className={removeDisabled ? 'bg-gray-600 cursor-not-allowed' : 'bg-pink-700 hover:bg-pink-800'}
+          >
+            Remove
+          </ActionButton>
+
+          {showRemoveConfirm && (
             <span
               className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-gray-800 border border-gray-600 rounded-md p-3 flex items-center space-x-2 z-50"
               onClick={(e) => e.stopPropagation()}
             >
-              <input
-                type="text"
-                value={cloneName}
-                onChange={(e) => setCloneName(e.target.value)}
-                className="w-40 p-1 bg-gray-900 text-white rounded-md text-sm"
-                placeholder={vm.name}
-              />
               <button
-                onClick={handleConfirmClone}
-                className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none"
+                onClick={handleConfirmRemove}
+                className="text-white bg-green-600 hover:bg-green-500 rounded-md px-3 py-1"
+                style={{ fontSize: '1.25rem', fontFamily: 'Arial, sans-serif', lineHeight: '1' }}
               >
-                Confirm
+                ✔
               </button>
               <button
-                onClick={handleCancelClone}
-                className="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none"
+                onClick={handleCancelRemove}
+                className="text-white bg-red-600 hover:bg-red-500 rounded-md px-3 py-1"
+                style={{ fontSize: '1.25rem', fontFamily: 'Arial, sans-serif', lineHeight: '1' }}
               >
-                Cancel
+                ✖
               </button>
             </span>
           )}
         </div>
-
       </div>
     </td>
   );
