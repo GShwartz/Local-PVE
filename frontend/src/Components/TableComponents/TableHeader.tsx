@@ -15,7 +15,6 @@ const TableHeader = ({ sortConfig, handleSort, isApplying }: TableHeaderProps) =
     { key: 'cpus', label: 'Cores' },
     { key: 'ram', label: 'RAM' },
     { key: 'hdd_sizes', label: 'HDD' },
-    { key: 'status', label: 'Status' },
   ];
 
   return (
@@ -142,6 +141,9 @@ const TableHeader = ({ sortConfig, handleSort, isApplying }: TableHeaderProps) =
             ) : (
               ''
             )}
+          </th>
+          <th scope="col" className="table-header-th px-6 py-4 narrow-col border-r border-gray-700" style={{ height: '48px', verticalAlign: 'middle' }}>
+            Status
           </th>
           <th scope="col" className="table-header-action px-2 py-4" style={{ height: '48px', verticalAlign: 'middle' }}>Actions</th>
         </tr>

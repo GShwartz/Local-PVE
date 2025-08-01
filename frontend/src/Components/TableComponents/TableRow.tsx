@@ -204,6 +204,7 @@ const TableRow = ({
           </td>
         </tr>
       )}
+
       <tr className="bg-gray-900 border-b border-gray-700 hover:bg-gray-700" style={{ height: '48px' }}>
         <td className="px-6 py-4 text-center">{vm.vmid}</td>
         <VMNameCell {...{ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply, isApplying }} />
@@ -212,11 +213,11 @@ const TableRow = ({
         <CPUCell {...{ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply, isApplying }} />
         <RAMCell {...{ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply, isApplying }} />
         <HDDCell hdd_sizes={vm.hdd_sizes} />
-        <td className="px-6 py-4 text-center narrow-col">
-          <StatusBadge status={vm.status} />
-        </td>
         <td className="px-2 py-2 text-center border-r border-gray-700">
           <ApplyButton onClick={handleApplyChanges} hasChanges={hasChanges} requiresVMStopped={requiresVMStopped} isApplying={isApplying} />
+        </td>
+        <td className="px-6 py-4 text-center narrow-col border-r border-gray-700">
+          <StatusBadge status={vm.status} />
         </td>
         <td className="px-2 py-2 text-center">
           <ActionButtons
@@ -235,6 +236,7 @@ const TableRow = ({
           {expandedRows.has(vm.vmid) && !snapshotView.has(vm.vmid) ? '▲' : '▼'}
         </td>
       </tr>
+
       <ExpandedRow
         vm={vm}
         snapshotView={snapshotView}
