@@ -118,6 +118,10 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: 
     setEditingVmid(null);
   };
 
+  const refreshVMs = () => {
+    queryClient.invalidateQueries(['vms']);
+  };
+
   return (
     <>
       <div className="overflow-x-auto mb-10">
@@ -149,6 +153,7 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: 
                   addAlert={addAlert}
                   setTableApplying={setIsApplying}
                   openConsole={openConsole}
+                  refreshVMs={refreshVMs} // ✅ passed to TableRow
                 />
               );
             })}

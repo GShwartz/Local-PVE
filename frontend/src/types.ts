@@ -1,9 +1,12 @@
 // types.ts
+
+// Authentication
 export interface Auth {
   ticket: string;
   csrf_token: string;
 }
 
+// Virtual Machine
 export interface VM {
   vmid: number;
   name: string;
@@ -17,17 +20,20 @@ export interface VM {
   hdd_free: string;
 }
 
+// Snapshot
 export interface Snapshot {
   name: string;
   description?: string;
   snaptime?: number;
 }
 
+// Task Status
 export interface TaskStatus {
   status: string;
   exitstatus?: string;
 }
 
+// Create / Update VM
 export interface VMCreate {
   name: string;
   cpus: number;
@@ -41,6 +47,18 @@ export interface VMUpdate {
   cpus?: number;
   ram?: string;
   source?: string;
+}
+
+// **New**: Clone VM request (matches backend VMCloneRequest)
+export interface VMCloneRequest {
+  /** Name for the new cloned VM */
+  name: string;
+  /** Full clone (true) or linked clone (false) */
+  full: boolean;
+  /** Target node on which to create the clone */
+  target: string;
+  /** Optional storage identifier for the clone */
+  storage?: string;
 }
 
 // Additional types you might need for a Proxmox frontend:
@@ -152,18 +170,31 @@ export interface LoginForm {
 }
 
 export interface VMCloneForm {
+  /** The newly allocated VMID: usually fetched from /cluster/nextid */
   newid: number;
+  /** Name for the clone */
   name?: string;
+  /** Optional description */
   description?: string;
+  /** Target node (same as VMCloneRequest.target) */
   target?: string;
+  /** Full clone? */
   full?: boolean;
 }
 
 // Utility types
 export type VMStatus = 'running' | 'stopped' | 'suspended' | 'paused';
-export type TaskType = 'start' | 'stop' | 'restart' | 'shutdown' | 'suspend' | 'resume' | 'clone' | 'migrate';
+export type TaskType =
+  | 'start'
+  | 'stop'
+  | 'restart'
+  | 'shutdown'
+  | 'suspend'
+  | 'resume'
+  | 'clone'
+  | 'migrate';
 
-// Query keys for React Query
+// React Query keys
 export const QueryKeys = {
   VMS: 'vms',
   VM_DETAIL: 'vm-detail',

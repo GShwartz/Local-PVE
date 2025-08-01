@@ -209,5 +209,22 @@ async def websocket_console(websocket: WebSocket, node: str, vmid: int, csrf_tok
     except Exception as e:
         await websocket.close(code=1011, reason=str(e))
 
+@app.delete("/vm/{node}/qemu/{vmid}")
+async def delete_vm(
+    node: str,
+    vmid: int,
+    csrf_token: str,
+    ticket: str,
+    service: ProxmoxService = Depends(get_proxmox_service)
+):
+    try:
+        return service.delete_vm(node, vmid, csrf_token, ticket)
+    except HTTPException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error deleting VM: {str(e)}")
+
+
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
