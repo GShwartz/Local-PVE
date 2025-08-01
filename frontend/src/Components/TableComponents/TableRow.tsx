@@ -158,23 +158,82 @@ const TableRow = ({
                 { params: { csrf_token: auth.csrf_token, ticket: auth.ticket } }
               );
               taskStatus = data;
-              if (taskStatus.status !== 'stopped') await new Promise(resolve => setTimeout(resolve, 500));
+              if (taskStatus.status !== 'stopped') {
+                await new Promise(resolve => setTimeout(resolve, 500));
+              }
             } while (taskStatus.status !== 'stopped');
 
-            if (taskStatus.exitstatus !== 'OK') throw new Error(`Task failed: ${taskStatus.exitstatus}`);
-            await new Promise(resolve => setTimeout(resolve, 15000));
+            if (taskStatus.exitstatus !== 'OK') {
+              throw new Error(`Task failed: ${taskStatus.exitstatus}`);
+            }
 
-            const updatedVM = await getVMInfo({ node, vmid: vm.vmid, csrf: auth.csrf_token, ticket: auth.ticket });
+            // 🔄 Poll VM config until PVE reflects expected changes
+            const maxRetries = 10;
+            const delay = 1000;
+            let updatedVM: VM | null = null;
+            let validated = false;
+
+            for (let attempt = 0; attempt < maxRetries; attempt++) {
+              const result = await getVMInfo({ node, vmid: vm.vmid, csrf: auth.csrf_token, ticket: auth.ticket });
+
+              const expectedName = changesToApply.vmname ?? vm.name;
+              const expectedCPU = changesToApply.cpu ?? vm.cpus;
+              const expectedRAM = changesToApply.ram ? parseRAMToNumber(changesToApply.ram) : vm.ram;
+
+              const nameOk = result.name === expectedName;
+              const cpuOk = result.cpus === expectedCPU;
+              const ramOk = result.ram === expectedRAM;
+
+              if (nameOk && cpuOk && ramOk) {
+                updatedVM = result;
+                validated = true;
+                break;
+              }
+
+              await new Promise(res => setTimeout(res, delay));
+            }
+
+            if (!validated) {
+              const result = await getVMInfo({ node, vmid: vm.vmid, csrf: auth.csrf_token, ticket: auth.ticket });
+              const msgs = [];
+
+              if ((changesToApply.cpu !== null) && result.cpus !== changesToApply.cpu) {
+                msgs.push(`CPU=${result.cpus} (expected ${changesToApply.cpu})`);
+              }
+              if ((changesToApply.ram !== null) && result.ram !== parseRAMToNumber(changesToApply.ram)) {
+                msgs.push(`RAM=${result.ram} (expected ${parseRAMToNumber(changesToApply.ram)})`);
+              }
+              if (changesToApply.vmname && result.name !== changesToApply.vmname) {
+                msgs.push(`Name='${result.name}' (expected '${changesToApply.vmname}')`);
+              }
+
+              if (msgs.length > 0) {
+                throw new Error(`Config mismatch after update: ${msgs.join(', ')}`);
+              }
+
+              // Allow name mismatch silently if CPU and RAM are OK
+              updatedVM = result;
+            }
+
             queryClient.setQueryData(['vms'], (oldVms: VM[] | undefined) => {
-              if (!oldVms) return [updatedVM];
-              return oldVms.map((oldVm) => (oldVm.vmid === vm.vmid ? updatedVM : oldVm));
+              if (!oldVms) return [updatedVM!];
+              return oldVms.map((oldVm) => (oldVm.vmid === vm.vmid ? updatedVM! : oldVm));
             });
+
+            const changes: string[] = [];
+            if (changesToApply.vmname) changes.push(`name changed to '${changesToApply.vmname}'`);
+            if (changesToApply.cpu !== null) changes.push(`CPU updated to ${changesToApply.cpu}`);
+            if (changesToApply.ram !== null) changes.push(`RAM set to ${changesToApply.ram}`);
 
             setChangesToApply({ vmname: null, cpu: null, ram: null });
             cancelEdit();
-            addAlert(`VM ${vm.vmid} updated successfully`, 'success');
-          } catch {
-            addAlert(`Failed to update VM info for ${vm.vmid}`, 'error');
+
+            if (changes.length > 0) {
+              addAlert(`VM ${vm.vmid} updated: ${changes.join(', ')}`, 'success');
+            }
+
+          } catch (err: any) {
+            addAlert(`Failed to validate VM update: ${err.message ?? err}`, 'error');
           } finally {
             setIsApplying(false);
             setTableApplying(false);
@@ -184,8 +243,9 @@ const TableRow = ({
           addAlert(`Failed to update VM ${vm.vmid}: ${error.message}`, 'error');
           setIsApplying(false);
           setTableApplying(false);
-        },
+        }
       });
+
     } catch (error) {
       addAlert(`Failed to fetch VM status for ${vm.vmid}`, 'error');
       setIsApplying(false);
@@ -230,6 +290,7 @@ const TableRow = ({
             addAlert={addAlert}
             refreshVMs={refreshVMs}
             queryClient={queryClient}
+            isApplying={isApplying} // ✅ passed here
           />
         </td>
         <td className="px-2 py-4 text-center cursor-pointer" onClick={() => toggleRow(vm.vmid)}>

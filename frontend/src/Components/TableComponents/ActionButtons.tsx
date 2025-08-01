@@ -23,6 +23,7 @@ interface ActionButtonsProps {
   addAlert: (message: string, type: string) => void;
   refreshVMs: () => void;
   queryClient: QueryClient;
+  isApplying: boolean;
 }
 
 const API_BASE_URL = 'http://localhost:8000';
@@ -71,6 +72,7 @@ const ActionButtons = ({
   addAlert,
   refreshVMs,
   queryClient,
+  isApplying,
 }: ActionButtonsProps) => {
   const [isStarting, setIsStarting] = useState(false);
   const [isHalting, setIsHalting] = useState(false);
@@ -92,7 +94,8 @@ const ActionButtons = ({
     isHalting ||
     isCreatingSnapshot ||
     isCloningInProgress ||
-    isRemoving;
+    isRemoving ||
+    isApplying;
 
   const disableConsole =
     !isRebooting && !isStarting && (isCreatingSnapshot || isHalting || hasPendingActions);
@@ -156,9 +159,9 @@ const ActionButtons = ({
       let taskStatus: TaskStatus;
       do {
         const taskResponse = await fetch(
-          `${API_BASE_URL}/task/${PROXMOX_NODE}/${encodeURIComponent(upid)}?csrf_token=${encodeURIComponent(
-            auth.csrf_token
-          )}&ticket=${encodeURIComponent(auth.ticket)}`
+          `${API_BASE_URL}/task/${PROXMOX_NODE}/${encodeURIComponent(
+            upid
+          )}?csrf_token=${encodeURIComponent(auth.csrf_token)}&ticket=${encodeURIComponent(auth.ticket)}`
         );
 
         if (!taskResponse.ok) {
@@ -176,7 +179,7 @@ const ActionButtons = ({
       }
 
       addAlert(`VM ${vm.name} was removed`, 'success');
-      refreshVMs(); // ✅ Explicit backend refresh
+      refreshVMs();
     } catch (error: any) {
       queryClient.setQueryData<VM[]>(['vms'], previousVms);
       toast.error(error.message || 'Failed to delete VM');
