@@ -256,6 +256,9 @@ const TableRow = ({
 
       <ExpandedRow
         vm={vm}
+        node={node}
+        auth={auth}
+        addAlert={addAlert}
         snapshotView={snapshotView}
         expandedRows={expandedRows}
         openModal={openModal}
@@ -265,6 +268,7 @@ const TableRow = ({
         snapshots={snapshots}
         snapshotsLoading={snapshotsLoading}
         snapshotsError={snapshotsError}
+        refreshVMs={refreshVMs}
       />
     </>
   );

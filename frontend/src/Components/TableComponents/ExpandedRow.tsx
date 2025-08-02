@@ -5,6 +5,9 @@ import { UseMutationResult } from '@tanstack/react-query';
 
 interface ExpandedRowProps {
   vm: VM;
+  node: string;
+  auth: { csrf_token: string; ticket: string };
+  addAlert: (msg: string, type: string) => void;
   snapshotView: Set<number>;
   expandedRows: Set<number>;
   openModal: (vmid: number, name: string) => void;
@@ -14,10 +17,14 @@ interface ExpandedRowProps {
   snapshots?: Snapshot[];
   snapshotsLoading: boolean;
   snapshotsError: any;
+  refreshVMs: () => void;
 }
 
 const ExpandedRow = ({
   vm,
+  node,
+  auth,
+  addAlert,
   snapshotView,
   expandedRows,
   openModal,
@@ -27,12 +34,19 @@ const ExpandedRow = ({
   snapshots,
   snapshotsLoading,
   snapshotsError,
+  refreshVMs,
 }: ExpandedRowProps) =>
   expandedRows.has(vm.vmid) ? (
     <tr className="border-b border-gray-700 bg-gray-900">
       <td colSpan={11} className="px-6 py-4 align-top">
         <div className="flex flex-wrap gap-6 justify-center">
-          <DisksView vm={vm} />
+          <DisksView
+            vm={vm}
+            node={node}
+            auth={auth}
+            addAlert={addAlert}
+            refreshVMs={refreshVMs}
+          />
           {snapshotView.has(vm.vmid) && (
             <SnapshotsView
               vm={vm}

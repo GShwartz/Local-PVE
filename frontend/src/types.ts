@@ -18,6 +18,7 @@ export interface VM {
   hdd_sizes: string;
   ip_address: string;
   hdd_free: string;
+  config?: Record<string, string>;
 }
 
 // Snapshot

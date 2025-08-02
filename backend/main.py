@@ -1,18 +1,29 @@
-# main.py
-from fastapi import FastAPI, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from urllib.parse import quote_plus
+from urllib.parse import unquote_plus
+from pydantic import BaseModel
+import websockets
+import uvicorn
+import asyncio
+import httpx
+import ssl
 import re
 import os
-import uvicorn
-from pydantic import BaseModel
-from Modules.models import LoginRequest, AuthResponse, VMCreateRequest, VMUpdateRequest
-from Modules.proxmox_service import ProxmoxService
-import asyncio
-import websockets
-from urllib.parse import quote_plus
-import ssl
-from Modules.models import VMCloneRequest
 
+from Modules.models import LoginRequest, AuthResponse, VMCreateRequest, VMUpdateRequest, VMCloneRequest, VMDiskAddRequest  
+from Modules.proxmox_service import ProxmoxService
+
+import logging
+from logging.handlers import RotatingFileHandler
+
+# Configure logging
+logger = logging.getLogger(__name__)
+log_file = os.path.join(os.path.dirname(__file__), 'main.log')
+handler = RotatingFileHandler(log_file, maxBytes=5 * 1024 * 1024, backupCount=3)
+handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+logging.basicConfig(level=logging.INFO, handlers=[handler, logging.StreamHandler()])
+logger = logging.getLogger(__name__)
 
 class SnapRequest(BaseModel):
     snapname: str
@@ -20,6 +31,7 @@ class SnapRequest(BaseModel):
     vmstate: int = 0
 
 app = FastAPI(title="Proxmox Controller API")
+proxmox = ProxmoxService()
 
 PROXMOX_HOST = os.getenv("PROXMOX_HOST")
 PROXMOX_PORT = 8006  # Default Proxmox port
@@ -27,6 +39,7 @@ PROXMOX_USER = os.getenv("PROXMOX_USER")
 PROXMOX_PASSWORD = os.getenv("PROXMOX_PASSWORD")
 PROXMOX_NODE = os.getenv("PROXMOX_NODE")
 VERIFY_SSL = False
+PVE_BASE = "https://pve.home.lab:8006/api2/json"
 
 app.add_middleware(
     CORSMiddleware,
@@ -81,6 +94,7 @@ async def get_vm_config(node: str, vmid: int, csrf_token: str, ticket: str, serv
             "hdd_free": "N/A",
             "ip_address": "N/A",
             "status": service.get_vm_status(node, vmid, csrf_token, ticket),
+            "config": config,
         }
     except HTTPException as e:
         raise HTTPException(status_code=e.status_code, detail=f"Failed to fetch VM config: {e.detail}")
@@ -106,7 +120,7 @@ async def clone_vm(
         raise HTTPException(status_code=e.status_code, detail=e.detail)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
+
 @app.post("/vm/{node}/qemu/{vmid}/snapshot")
 async def create_snapshot(node: str, vmid: int, snap_request: SnapRequest, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
     try:
@@ -159,18 +173,77 @@ async def get_vnc_proxy(node: str, vmid: int, csrf_token: str, ticket: str, serv
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unexpected error getting VNC proxy: {str(e)}")
 
-@app.post("/vm/{node}/qemu/{vmid}/{action}")
-async def control_vm(node: str, vmid: int, action: str, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
-    if action not in ["start", "stop", "shutdown", "reboot", "hibernate", "resume"]:
-        raise HTTPException(status_code=400, detail="Invalid action")
-    return service.vm_action(node, vmid, action, csrf_token, ticket)
-
 @app.post("/vm/{node}")
 async def create_vm(node: str, vm_create: VMCreateRequest, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
     try:
         return service.create_vm(node, vm_create, csrf_token, ticket)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to create VM: {str(e)}")
+
+from fastapi import Request
+
+@app.post("/vm/{node}/qemu/{vmid}/add-disk")
+async def add_disk(
+    node: str,
+    vmid: int,
+    req: VMDiskAddRequest,
+    csrf_token: str,
+    ticket: str,
+    service: ProxmoxService = Depends(get_proxmox_service),
+):
+    try:
+        return service.add_disk(node, vmid, req, csrf_token, ticket)
+    except HTTPException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+from fastapi import Depends, HTTPException
+
+@app.post("/vm/{node}/qemu/{vmid}/activate-unused-disk/{unused_key}")
+async def activate_unused_disk(
+    node: str,
+    vmid: int,
+    unused_key: str,
+    csrf_token: str,
+    ticket: str,
+    target_controller: str = "scsi",
+    service: ProxmoxService = Depends(get_proxmox_service),
+):
+    try:
+        return await service.activate_unused_disk(
+            node=node,
+            vmid=vmid,
+            unused_key=unused_key,
+            target_controller=target_controller,
+            csrf_token=csrf_token,
+            ticket=ticket,
+        )
+    except HTTPException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/vm/{node}/qemu/{vmid}")
+async def delete_vm(
+    node: str,
+    vmid: int,
+    csrf_token: str,
+    ticket: str,
+    service: ProxmoxService = Depends(get_proxmox_service)
+):
+    try:
+        return service.delete_vm(node, vmid, csrf_token, ticket)
+    except HTTPException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error deleting VM: {str(e)}")
+
+@app.post("/vm/{node}/qemu/{vmid}/{action}")
+async def control_vm(node: str, vmid: int, action: str, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
+    if action not in ["start", "stop", "shutdown", "reboot", "hibernate", "resume"]:
+        raise HTTPException(status_code=400, detail="Invalid action")
+    return service.vm_action(node, vmid, action, csrf_token, ticket)
 
 @app.websocket("/ws/console/{node}/{vmid}")
 async def websocket_console(websocket: WebSocket, node: str, vmid: int, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
@@ -208,23 +281,6 @@ async def websocket_console(websocket: WebSocket, node: str, vmid: int, csrf_tok
             await asyncio.gather(client_to_remote(), remote_to_client())
     except Exception as e:
         await websocket.close(code=1011, reason=str(e))
-
-@app.delete("/vm/{node}/qemu/{vmid}")
-async def delete_vm(
-    node: str,
-    vmid: int,
-    csrf_token: str,
-    ticket: str,
-    service: ProxmoxService = Depends(get_proxmox_service)
-):
-    try:
-        return service.delete_vm(node, vmid, csrf_token, ticket)
-    except HTTPException as e:
-        raise HTTPException(status_code=e.status_code, detail=e.detail)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Unexpected error deleting VM: {str(e)}")
-
-
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

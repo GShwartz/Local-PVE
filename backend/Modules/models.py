@@ -32,3 +32,10 @@ class VMCloneRequest(BaseModel):
     full: bool = False
     target: str
     storage: Optional[str] = None
+
+class VMDiskAddRequest(BaseModel):
+    controller: str
+    bus: int
+    size: int
+    storage: str
+    format: Optional[str] = "qcow2"
