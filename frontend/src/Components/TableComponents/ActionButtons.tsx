@@ -66,7 +66,7 @@ const ActionButtons = ({
   vm,
   pendingActions,
   vmMutation,
-  showSnapshots,
+  // showSnapshots,
   onToggleRow,
   auth,
   addAlert,
@@ -286,7 +286,7 @@ const ActionButtons = ({
           Reboot
         </ActionButton>
 
-        <ActionButton
+        {/* <ActionButton
           onClick={(e) => {
             e.stopPropagation();
             showSnapshots(vm.vmid);
@@ -299,7 +299,7 @@ const ActionButtons = ({
           }
         >
           Snapshots
-        </ActionButton>
+        </ActionButton> */}
 
         <ConsoleButton
           onClick={(e) => {

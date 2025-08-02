@@ -28,7 +28,7 @@ from Modules.services.task_service import TaskService
 from Modules.services.vnc_service import VNCService
 
 # Logging setup
-log_file = os.path.join(os.path.dirname(__file__), 'main.log')
+log_file = os.path.join(os.path.dirname(__file__), 'local-pve.log')
 if not os.path.exists(log_file):
     with open(log_file, 'w'):
         pass
@@ -54,27 +54,27 @@ app.add_middleware(
 
 # Dependency providers
 def get_auth_service() -> AuthService:
-    return AuthService()
+    return AuthService(log_file=log_file)
 
 
 def get_vm_service() -> VMService:
-    return VMService()
+    return VMService(log_file=log_file)
 
 
 def get_snapshot_service() -> SnapshotService:
-    return SnapshotService()
+    return SnapshotService(log_file=log_file)
 
 
 def get_disk_service() -> DiskService:
-    return DiskService()
+    return DiskService(log_file=log_file)
 
 
 def get_task_service() -> TaskService:
-    return TaskService()
+    return TaskService(log_file=log_file)
 
 
 def get_vnc_service() -> VNCService:
-    return VNCService()
+    return VNCService(log_file=log_file)
 
 # Endpoints
 
@@ -271,8 +271,8 @@ async def delete_disk(
     node: str,
     vmid: int,
     disk_key: str,
-    csrf_token: str,  # from query
-    ticket: str,      # from query
+    csrf_token: str,
+    ticket: str,
     svc: DiskService = Depends(get_disk_service),
 ):
     return svc.delete_disk(node, vmid, disk_key, csrf_token, ticket)

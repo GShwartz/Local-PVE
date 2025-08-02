@@ -160,12 +160,12 @@ const DisksView = ({ vm, node, auth, addAlert, refreshVMs }: DisksViewProps) => 
 
               return (
                 <li key={index}>
-                  <div className="flex items-center justify-between p-3 text-sm font-medium text-gray-900 rounded-lg bg-gray-700 hover:bg-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-white">
+                  <div className="flex items-center justify-between p-3 text-sm font-normal text-gray-900 rounded-lg bg-gray-700 hover:bg-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-white">
                     <div className="flex items-center space-x-4">
                       <span className="text-[16px] font-semibold">
-                        {controllerLabel} 💾 {controllerNumber}
+                        💾 {controllerLabel} {controllerNumber}
                       </span>
-                      <span className="text-sm font-normal text-gray-200">{size}</span>
+                      <span className="text-base font-medium text-gray-200">{size}</span>
                     </div>
                     {isPending ? (
                       <div className="flex items-center space-x-2">
