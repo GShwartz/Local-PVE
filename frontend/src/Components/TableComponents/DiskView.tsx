@@ -18,13 +18,17 @@ interface VMConfigResponse {
 const DisksView = ({ vm, node, auth, addAlert, refreshVMs }: DisksViewProps) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [config, setConfig] = useState<VM['config'] | null>(null);
+  const [refreshCounter, setRefreshCounter] = useState(0);
+  const [pendingDiskKey, setPendingDiskKey] = useState<string | null>(null);
 
   const openModal = () => setIsModalOpen(true);
-  const closeModal = () => setIsModalOpen(false);
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setRefreshCounter((prev) => prev + 1);
+  };
 
   useEffect(() => {
     const fetchConfig = async () => {
-      console.log('🔄 Fetching config for VM', vm.vmid, 'on node', node);
       try {
         const response = await axios.get<VMConfigResponse>(
           `http://localhost:8000/vm/${node}/qemu/${vm.vmid}/config`,
@@ -35,7 +39,6 @@ const DisksView = ({ vm, node, auth, addAlert, refreshVMs }: DisksViewProps) => 
             },
           }
         );
-        console.log('✅ VM Config Response:', response.data);
         setConfig(response.data.config);
       } catch (err) {
         console.error('❌ Failed to fetch VM config:', err);
@@ -44,18 +47,87 @@ const DisksView = ({ vm, node, auth, addAlert, refreshVMs }: DisksViewProps) => 
     };
 
     fetchConfig();
-  }, [vm.vmid, node, auth]);
+  }, [vm.vmid, node, auth, refreshCounter]);
 
-  console.log('🧩 vm.config:', config);
+  const diskEntries = Object.entries(config || {})
+    .filter(([key, value]) => {
+      const isDiskKey = /^(scsi|sata|virtio|ide)\d+$/.test(key);
+      const isDiskValue = typeof value === 'string' && !/media=cdrom/.test(value);
+      return isDiskKey && isDiskValue;
+    })
+    .sort(([keyA], [keyB]) => {
+      const matchA = keyA.match(/^([a-z]+)(\d+)$/);
+      const matchB = keyB.match(/^([a-z]+)(\d+)$/);
+      if (!matchA || !matchB) return 0;
+      const [_, ctrlA, numA] = matchA;
+      const [__, ctrlB, numB] = matchB;
+      if (ctrlA !== ctrlB) return ctrlA.localeCompare(ctrlB);
+      return parseInt(numA) - parseInt(numB);
+    });
 
-  const diskEntries = Object.entries(config || {}).filter(([key, value]) => {
-    const isDiskKey = /^(scsi|sata|virtio|ide)\d+$/.test(key);
-    const isDiskValue = typeof value === 'string' && !/media=cdrom/.test(value);
-    console.log(`🔍 Key: ${key}, Value: ${value}, isDisk: ${isDiskKey && isDiskValue}`);
-    return isDiskKey && isDiskValue;
-  });
+  const confirmRemoveDisk = async (diskKey: string) => {
+    try {
+      if (vm.status === 'running') {
+        addAlert(
+          `VM ${vm.vmid} is currently running. Sending shutdown request before removing disk ${diskKey}...`,
+          'info'
+        );
 
-  console.log('📦 Parsed disk entries for VM', vm.vmid, ':', diskEntries);
+        await axios.post(
+          `http://localhost:8000/vm/${node}/qemu/${vm.vmid}/shutdown`,
+          {
+            csrf_token: auth.csrf_token,
+            ticket: auth.ticket,
+          }
+        );
+
+        addAlert(`Shutdown initiated for VM ${vm.vmid} on node ${node}.`, 'info');
+
+        await new Promise((res) => setTimeout(res, 3000));
+      }
+
+      await axios.request({
+        method: 'DELETE',
+        url: `http://localhost:8000/vm/${node}/qemu/${vm.vmid}/disk/${diskKey}`,
+        params: {
+          csrf_token: auth.csrf_token,
+          ticket: auth.ticket,
+        },
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      addAlert(
+        `✅ Disk ${diskKey} was successfully removed from VM ${vm.vmid} on node ${node}.`,
+        'success'
+      );
+
+      setPendingDiskKey(null);
+      setRefreshCounter((prev) => prev + 1);
+    } catch (err: any) {
+      console.error('❌ Failed to remove disk:', err);
+      const detail = err?.response?.data?.detail || err?.message || 'Unknown error';
+      addAlert(
+        `❌ Failed to remove disk ${diskKey} from VM ${vm.vmid} on node ${node}: ${detail}`,
+        'error'
+      );
+    }
+  };
+
+  const handleClickRemove = (diskKey: string) => {
+    if (diskEntries.length === 1) {
+      addAlert(
+        `⚠️ Cannot remove ${diskKey} — it is the only disk attached to VM ${vm.vmid}.`,
+        'warning'
+      );
+      return;
+    }
+
+    setPendingDiskKey(diskKey);
+  };
+
+  const handleCancelRemove = () => {
+    setPendingDiskKey(null);
+  };
 
   return (
     <div className="flex justify-center mt-4">
@@ -81,25 +153,48 @@ const DisksView = ({ vm, node, auth, addAlert, refreshVMs }: DisksViewProps) => 
             {diskEntries.map(([key, value], index) => {
               const controller = key.replace(/\d+$/, '') || 'unknown';
               const controllerLabel = controller.toUpperCase();
-
+              const controllerNumber = key.match(/\d+$/)?.[0];
               const sizeMatch = value.match(/size=(\d+[KMGTP]?)/);
               const size = sizeMatch ? sizeMatch[1] : 'unknown';
-
-              const ssdMatch = value.match(/ssd=(\d)/);
-              const ssd = ssdMatch ? `ssd=${ssdMatch[1]}` : 'ssd=0';
+              const isPending = pendingDiskKey === key;
 
               return (
                 <li key={index}>
-                  <div className="flex flex-col p-3 text-base font-bold text-gray-900 rounded-lg bg-gray-700 hover:bg-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-white">
-                    <div className="flex items-center justify-between">
-                      <span className="text-left whitespace-nowrap">
-                        {controllerLabel} 💾 {index + 1}
+                  <div className="flex items-center justify-between p-3 text-sm font-medium text-gray-900 rounded-lg bg-gray-700 hover:bg-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-white">
+                    <div className="flex items-center space-x-4">
+                      <span className="text-[16px] font-semibold">
+                        {controllerLabel} 💾 {controllerNumber}
                       </span>
-                      <span>{size}</span>
+                      <span className="text-sm font-normal text-gray-200">{size}</span>
                     </div>
-                    <div className="mt-0.5 text-base font-medium text-gray-300 dark:text-gray-400 text-left">
-                      {controller} • {ssd}
-                    </div>
+                    {isPending ? (
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs text-red-300">
+                          {vm.status === 'running'
+                            ? 'Shutdown + Remove?'
+                            : 'Confirm remove?'}
+                        </span>
+                        <button
+                          onClick={() => confirmRemoveDisk(key)}
+                          className="text-xs px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded"
+                        >
+                          Yes
+                        </button>
+                        <button
+                          onClick={handleCancelRemove}
+                          className="text-xs px-2 py-1 bg-gray-500 hover:bg-gray-600 text-white rounded"
+                        >
+                          No
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => handleClickRemove(key)}
+                        className="text-xs px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-red-400"
+                      >
+                        Remove
+                      </button>
+                    )}
                   </div>
                 </li>
               );

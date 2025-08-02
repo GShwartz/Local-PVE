@@ -1,5 +1,3 @@
-# disk_service.py
-
 import httpx
 from fastapi import HTTPException
 from typing import Dict
@@ -35,7 +33,6 @@ class DiskService:
 
         config = config_resp.json().get("data", {})
 
-        # Determine next available scsi slot starting from scsi1
         slot = 1
         while f"scsi{slot}" in config:
             slot += 1
@@ -43,7 +40,7 @@ class DiskService:
         disk_id = f"scsi{slot}"
         logger.info(f"Adding disk {disk_id} to VM {vmid} on node {node}")
 
-        value = f"{req.storage}:{req.size},format=qcow2,media=disk,size={req.size}G"
+        value = f"{req.storage}:{req.size},format=qcow2,media=disk,size={req.size}G,ssd=1"
         payload = {disk_id: value}
 
         response = httpx.post(
@@ -105,3 +102,55 @@ class DiskService:
                 "target_key": target_key,
                 "data": resp.json(),
             }
+
+    def delete_disk(self, node: str, vmid: int, disk_key: str, csrf_token: str, ticket: str) -> dict:
+        headers = {"CSRFPreventionToken": csrf_token}
+        cookies = {"PVEAuthCookie": ticket}
+
+        logger.info(f"Attempting to delete disk '{disk_key}' from VM {vmid} on node {node}")
+
+        config_resp = httpx.get(
+            f"{PROXMOX_BASE_URL}/nodes/{node}/qemu/{vmid}/config",
+            headers=headers,
+            cookies=cookies,
+            verify=False,
+        )
+        if config_resp.status_code != 200:
+            raise HTTPException(status_code=config_resp.status_code, detail="Failed to get VM config")
+
+        config = config_resp.json().get("data", {})
+        disk_value = config.get(disk_key)
+        if not disk_value:
+            raise HTTPException(status_code=404, detail=f"Disk {disk_key} not found")
+
+        storage_match = disk_value.split(":")[0]
+        volid = disk_value.split(":")[1].split(",")[0]
+        full_volid = f"{storage_match}:{volid}"
+
+        # First detach the disk
+        detach_resp = httpx.put(
+            f"{PROXMOX_BASE_URL}/nodes/{node}/qemu/{vmid}/config",
+            data={"delete": disk_key},
+            headers=headers,
+            cookies=cookies,
+            verify=False,
+        )
+        if detach_resp.status_code != 200:
+            raise HTTPException(status_code=detach_resp.status_code, detail=f"Failed to detach disk: {detach_resp.text}")
+
+        # Then delete the underlying volume
+        delete_resp = httpx.delete(
+            f"{PROXMOX_BASE_URL}/nodes/{node}/storage/{storage_match}/content/{full_volid}",
+            headers=headers,
+            cookies=cookies,
+            verify=False,
+        )
+        if delete_resp.status_code != 200:
+            raise HTTPException(status_code=delete_resp.status_code, detail=f"Failed to delete volume: {delete_resp.text}")
+
+        logger.info(f"Disk {disk_key} detached and volume {full_volid} deleted.")
+
+        return {
+            "success": True,
+            "message": f"Disk {disk_key} removed and volume {full_volid} deleted",
+        }

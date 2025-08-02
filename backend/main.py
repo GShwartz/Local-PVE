@@ -266,6 +266,17 @@ async def add_disk(
 ):
     return svc.add_disk(node, vmid, req, csrf_token, ticket)
 
+@app.delete("/vm/{node}/qemu/{vmid}/disk/{disk_key}")
+async def delete_disk(
+    node: str,
+    vmid: int,
+    disk_key: str,
+    csrf_token: str,  # from query
+    ticket: str,      # from query
+    svc: DiskService = Depends(get_disk_service),
+):
+    return svc.delete_disk(node, vmid, disk_key, csrf_token, ticket)
+
 @app.post("/vm/{node}/qemu/{vmid}/activate-unused-disk/{unused_key}")
 async def activate_unused_disk(
     node: str,

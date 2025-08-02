@@ -29,7 +29,7 @@ interface ActivateResponseData {
 }
 
 const DiskModal = ({ vm, isOpen, onClose, node, auth, addAlert, refreshVMs }: DiskModalProps) => {
-  const [size, setSize] = useState<number>(10);
+  const [size, setSize] = useState<number>(5);
   const [controller, setController] = useState<'scsi' | 'sata' | 'virtio'>('scsi');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
