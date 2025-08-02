@@ -1,3 +1,5 @@
+/* Navbar.css */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -35,9 +37,10 @@
 }
 
 .history-container {
-  @apply absolute top-8 right-0 w-[500px] max-h-80 overflow-y-auto bg-gray-800/30 rounded-lg shadow-2xl pt-4 pb-4 pl-4 pr-2 z-[100] text-white;
+  @apply absolute top-8 right-0 w-[500px] max-h-80 overflow-y-auto bg-gray-800/30 rounded-lg shadow-2xl pb-2 pl-1 pr-1 z-[100] text-white;
   scrollbar-width: thin !important;
   scrollbar-color: #4b5563 #1f2937 !important;
+  top: 4.5rem;
 }
 
 .history-container::-webkit-scrollbar {
@@ -60,10 +63,14 @@
 
 .history-table {
   @apply w-full text-sm text-left text-gray-400 bg-gray-800 table-fixed;
+  border: none;
 }
 
 .history-table thead {
   @apply text-xs text-gray-400 uppercase bg-gray-700;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .history-table-th {
