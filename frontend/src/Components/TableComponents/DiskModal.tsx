@@ -101,6 +101,44 @@ const DiskModal = ({ vm, isOpen, onClose, node, auth, addAlert, refreshVMs }: Di
     return false;
   };
 
+  const findMatchingUnusedDisk = async (): Promise<string | undefined> => {
+    const maxRetries = 10;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      const configResp = await axios.get<{ config: VM['config'] }>(
+        `http://localhost:8000/vm/${node}/qemu/${vm.vmid}/config`,
+        {
+          params: {
+            csrf_token: auth.csrf_token,
+            ticket: auth.ticket,
+          },
+        }
+      );
+
+      const config = configResp.data.config || {};
+      console.log(`Attempt ${attempt}: VM config`, config);
+
+      const unusedDisks = Object.entries(config)
+        .filter(([k, v]) =>
+          k.startsWith('unused') &&
+          typeof v === 'string' &&
+          v.includes(`vm-${vm.vmid}-disk-`)
+        )
+        .sort((a, b) => {
+          const aNum = parseInt((a[1] as string).match(/disk-(\d+)/)?.[1] || '0');
+          const bNum = parseInt((b[1] as string).match(/disk-(\d+)/)?.[1] || '0');
+          return bNum - aNum;
+        });
+
+      if (unusedDisks.length > 0) {
+        return unusedDisks[0][0];
+      }
+
+      await new Promise(res => setTimeout(res, 1000));
+    }
+
+    return undefined;
+  };
+
   useEffect(() => {
     if (isOpen) {
       setSize(10);
@@ -123,6 +161,8 @@ const DiskModal = ({ vm, isOpen, onClose, node, auth, addAlert, refreshVMs }: Di
 
     try {
       const currentStatus = await getVMStatus();
+      console.log('Current VM status:', currentStatus);
+
       if (currentStatus === 'running') {
         setVmWasRunning(true);
         addAlert(`Stopping VM ${vm.vmid} to add disk...`, 'success');
@@ -133,7 +173,6 @@ const DiskModal = ({ vm, isOpen, onClose, node, auth, addAlert, refreshVMs }: Di
       }
 
       const bus = findNextFreeBus();
-
       const diskRequestBody = {
         controller,
         bus,
@@ -142,7 +181,9 @@ const DiskModal = ({ vm, isOpen, onClose, node, auth, addAlert, refreshVMs }: Di
         format: 'qcow2',
       };
 
-      await axios.post<AddDiskResponse>(
+      console.log('Sending disk request body:', diskRequestBody);
+
+      const addResponse = await axios.post<AddDiskResponse>(
         `http://localhost:8000/vm/${node}/qemu/${vm.vmid}/add-disk`,
         diskRequestBody,
         {
@@ -154,25 +195,10 @@ const DiskModal = ({ vm, isOpen, onClose, node, auth, addAlert, refreshVMs }: Di
         }
       );
 
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log('Disk creation response:', addResponse.data);
 
-      const configResp = await axios.get<{ config: VM['config'] }>(
-        `http://localhost:8000/vm/${node}/qemu/${vm.vmid}/config`,
-        {
-          params: {
-            csrf_token: auth.csrf_token,
-            ticket: auth.ticket,
-          },
-        }
-      );
-
-      const config = configResp.data.config || {};
-      const unusedKey = Object.entries(config).find(
-        ([k, v]) =>
-          k.startsWith('unused') &&
-          typeof v === 'string' &&
-          v.includes(`vm-${vm.vmid}-disk-${bus}`)
-      )?.[0];
+      const unusedKey = await findMatchingUnusedDisk();
+      console.log('Matched unusedKey:', unusedKey);
 
       if (unusedKey) {
         const activateResponse = await axios.post<ActivateUnusedDiskResponse>(
@@ -187,13 +213,16 @@ const DiskModal = ({ vm, isOpen, onClose, node, auth, addAlert, refreshVMs }: Di
           }
         );
 
+        console.log('Activation response:', activateResponse.data);
+
         if (activateResponse.data.success) {
           addAlert(`Disk activated on VM ${vm.vmid} as ${activateResponse.data.target_key}`, 'success');
         } else {
           addAlert(`Disk created but not activated: ${unusedKey}`, 'error');
         }
       } else {
-        addAlert(`Disk created on VM ${vm.vmid} (attached directly or no matching unused entry found).`, 'success');
+        console.warn('No matching unused disk found');
+        addAlert(`Disk created on VM ${vm.vmid} (no matching unused entry found).`, 'success');
       }
 
       if (vmWasRunning) {
@@ -203,11 +232,11 @@ const DiskModal = ({ vm, isOpen, onClose, node, auth, addAlert, refreshVMs }: Di
         addAlert(`VM ${vm.vmid} started successfully`, 'success');
       }
 
-      refreshVMs(); // ✅ Refresh disk data in UI
-
+      refreshVMs();
       onClose();
     } catch (err: any) {
       console.error('Error adding disk:', err);
+
       if (vmWasRunning) {
         try {
           await controlVM('start');
@@ -216,6 +245,7 @@ const DiskModal = ({ vm, isOpen, onClose, node, auth, addAlert, refreshVMs }: Di
           addAlert(`Failed to restart VM ${vm.vmid}`, 'error');
         }
       }
+
       addAlert(`Failed to add disk: ${JSON.stringify(err.response?.data) || err.message}`, 'error');
     } finally {
       setLoading(false);

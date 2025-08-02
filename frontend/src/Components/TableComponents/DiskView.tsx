@@ -11,6 +11,7 @@ interface DisksViewProps {
 }
 
 const DisksView = ({ vm, node, auth, addAlert, refreshVMs }: DisksViewProps) => {
+
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const openModal = () => setIsModalOpen(true);

@@ -440,7 +440,7 @@ class ProxmoxService:
             target_key = f"{target_controller}{slot}"
 
             # Format the correct controller assignment string
-            disk_value = f"file={volume_path},media=disk,format=qcow2"
+            disk_value = f"file={volume_path},media=disk,format=qcow2,ssd=1"
 
             payload = {
                 target_key: disk_value,
