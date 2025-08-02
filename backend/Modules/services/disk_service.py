@@ -109,6 +109,7 @@ class DiskService:
 
         logger.info(f"Attempting to delete disk '{disk_key}' from VM {vmid} on node {node}")
 
+        # Step 1: Get VM config
         config_resp = httpx.get(
             f"{PROXMOX_BASE_URL}/nodes/{node}/qemu/{vmid}/config",
             headers=headers,
@@ -123,11 +124,16 @@ class DiskService:
         if not disk_value:
             raise HTTPException(status_code=404, detail=f"Disk {disk_key} not found")
 
-        storage_match = disk_value.split(":")[0]
-        volid = disk_value.split(":")[1].split(",")[0]
-        full_volid = f"{storage_match}:{volid}"
+        # Step 2: Extract full volume ID (e.g., local:vm-100-disk-0.qcow2)
+        try:
+            full_volid = disk_value.split(",")[0]
+            storage, filename = full_volid.split(":")
+        except Exception:
+            raise HTTPException(status_code=400, detail=f"Failed to parse volid: {disk_value}")
 
-        # First detach the disk
+        logger.info(f"Resolved volume to delete: {full_volid}")
+
+        # Step 3: Detach disk from config
         detach_resp = httpx.put(
             f"{PROXMOX_BASE_URL}/nodes/{node}/qemu/{vmid}/config",
             data={"delete": disk_key},
@@ -138,9 +144,11 @@ class DiskService:
         if detach_resp.status_code != 200:
             raise HTTPException(status_code=detach_resp.status_code, detail=f"Failed to detach disk: {detach_resp.text}")
 
-        # Then delete the underlying volume
+        logger.info(f"Detached disk {disk_key} from VM {vmid}")
+
+        # Step 4: Delete the underlying volume
         delete_resp = httpx.delete(
-            f"{PROXMOX_BASE_URL}/nodes/{node}/storage/{storage_match}/content/{full_volid}",
+            f"{PROXMOX_BASE_URL}/nodes/{node}/storage/{storage}/content/{filename}",
             headers=headers,
             cookies=cookies,
             verify=False,
@@ -148,9 +156,38 @@ class DiskService:
         if delete_resp.status_code != 200:
             raise HTTPException(status_code=delete_resp.status_code, detail=f"Failed to delete volume: {delete_resp.text}")
 
-        logger.info(f"Disk {disk_key} detached and volume {full_volid} deleted.")
+        logger.info(f"Deleted volume {filename} from storage {storage}")
+
+        # Step 5: Remove any unusedX entries that reference the deleted volid
+        final_config_resp = httpx.get(
+            f"{PROXMOX_BASE_URL}/nodes/{node}/qemu/{vmid}/config",
+            headers=headers,
+            cookies=cookies,
+            verify=False,
+        )
+        if final_config_resp.status_code != 200:
+            raise HTTPException(status_code=final_config_resp.status_code, detail="Failed to refresh VM config")
+
+        final_config = final_config_resp.json().get("data", {})
+        unused_to_delete = [
+            k for k, v in final_config.items()
+            if k.startswith("unused") and full_volid in v
+        ]
+
+        for unused_key in unused_to_delete:
+            logger.info(f"Cleaning up lingering config entry: {unused_key}")
+            cleanup_resp = httpx.put(
+                f"{PROXMOX_BASE_URL}/nodes/{node}/qemu/{vmid}/config",
+                data={"delete": unused_key},
+                headers=headers,
+                cookies=cookies,
+                verify=False,
+            )
+            if cleanup_resp.status_code != 200:
+                raise HTTPException(status_code=cleanup_resp.status_code, detail=f"Failed to remove unused disk '{unused_key}': {cleanup_resp.text}")
+            logger.info(f"Removed lingering unused disk config: {unused_key}")
 
         return {
             "success": True,
-            "message": f"Disk {disk_key} removed and volume {full_volid} deleted",
+            "message": f"Disk {disk_key} detached, volume {filename} deleted, and unused entries cleaned",
         }
