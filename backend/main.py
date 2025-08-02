@@ -1,4 +1,6 @@
-from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect, Request
+# main.py
+
+from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from urllib.parse import quote_plus
 from pydantic import BaseModel
@@ -8,9 +10,8 @@ import asyncio
 import ssl
 import os
 import re
-import logging
-from logging.handlers import RotatingFileHandler
 
+from Modules.logger import init_logger
 from Modules.models import (
     LoginRequest,
     AuthResponse,
@@ -19,28 +20,30 @@ from Modules.models import (
     VMCloneRequest,
     VMDiskAddRequest,
 )
-from Modules.proxmox_service import ProxmoxService
+from Modules.services.auth_service import AuthService
+from Modules.services.vm_service import VMService
+from Modules.services.snapshot_service import SnapshotService
+from Modules.services.disk_service import DiskService
+from Modules.services.task_service import TaskService
+from Modules.services.vnc_service import VNCService
 
+# Logging setup
+log_file = os.path.join(os.path.dirname(__file__), 'main.log')
+if not os.path.exists(log_file):
+    with open(log_file, 'w'):
+        pass
+logger = init_logger(log_file, __name__)
+
+# Pydantic model for snapshot requests
 class SnapRequest(BaseModel):
     snapname: str
     description: str = ""
     vmstate: int = 0
 
-# Logging setup
-logger = logging.getLogger(__name__)
-log_file = os.path.join(os.path.dirname(__file__), 'main.log')
-handler = RotatingFileHandler(log_file, maxBytes=5 * 1024 * 1024, backupCount=3)
-handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-logging.basicConfig(level=logging.INFO, handlers=[handler, logging.StreamHandler()])
-logger = logging.getLogger(__name__)
-
-# Constants
-PROXMOX_HOST = os.getenv("PROXMOX_HOST", "pve.home.lab")
-VERIFY_SSL = False
-
+# FastAPI app
 app = FastAPI(title="Proxmox Controller API")
-proxmox = ProxmoxService()
 
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
@@ -49,40 +52,84 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-def get_proxmox_service() -> ProxmoxService:
-    return ProxmoxService()
+# Dependency providers
+def get_auth_service() -> AuthService:
+    return AuthService()
+
+
+def get_vm_service() -> VMService:
+    return VMService()
+
+
+def get_snapshot_service() -> SnapshotService:
+    return SnapshotService()
+
+
+def get_disk_service() -> DiskService:
+    return DiskService()
+
+
+def get_task_service() -> TaskService:
+    return TaskService()
+
+
+def get_vnc_service() -> VNCService:
+    return VNCService()
+
+# Endpoints
 
 @app.post("/login", response_model=AuthResponse)
-async def login(login_data: LoginRequest, service: ProxmoxService = Depends(get_proxmox_service)):
-    return service.login(login_data.username, login_data.password)
-
-@app.get("/nodes")
-async def list_nodes(csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
-    return service.get_nodes(csrf_token, ticket)
+async def login(
+    login_data: LoginRequest,
+    auth: AuthService = Depends(get_auth_service),
+):
+    return auth.login(login_data.username, login_data.password)
 
 @app.get("/vms/{node}")
-async def list_vms(node: str, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
-    return service.get_vms(node, csrf_token, ticket)
+async def list_vms(
+    node: str,
+    csrf_token: str,
+    ticket: str,
+    svc: VMService = Depends(get_vm_service),
+):
+    return svc.get_vms(node, csrf_token, ticket)
 
 @app.get("/task/{node}/{upid}")
-async def get_task_status(node: str, upid: str, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
-    return service.get_task_status(node, upid, csrf_token, ticket)
+async def get_task_status(
+    node: str,
+    upid: str,
+    csrf_token: str,
+    ticket: str,
+    svc: TaskService = Depends(get_task_service),
+):
+    return svc.get_task_status(node, upid, csrf_token, ticket)
 
 @app.get("/vm/{node}/qemu/{vmid}/status")
-async def get_vm_status(node: str, vmid: int, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
-    return {"status": service.get_vm_status(node, vmid, csrf_token, ticket)}
+async def get_vm_status(
+    node: str,
+    vmid: int,
+    csrf_token: str,
+    ticket: str,
+    svc: VMService = Depends(get_vm_service),
+):
+    return {"status": svc.get_vm_status(node, vmid, csrf_token, ticket)}
 
 @app.get("/vm/{node}/qemu/{vmid}/config")
-async def get_vm_config(node: str, vmid: int, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
+async def get_vm_config(
+    node: str,
+    vmid: int,
+    csrf_token: str,
+    ticket: str,
+    svc: VMService = Depends(get_vm_service),
+):
     try:
-        config = service.get_vm_config(node, vmid, ticket)
+        config = svc.get_vm_config(node, vmid, ticket)
         disks = []
-        disk_prefixes = ["ide", "sata", "scsi", "virtio"]
         for key, value in config.items():
-            if any(key.startswith(prefix) for prefix in disk_prefixes) and "cdrom" not in value:
-                size_match = re.search(r'size=(\d+[KMGT]?)', value)
-                if size_match:
-                    disks.append(size_match.group(1))
+            if any(key.startswith(prefix) for prefix in ("ide", "sata", "scsi", "virtio")) and "cdrom" not in value:
+                m = re.search(r'size=(\d+[KMGT]?)', value)
+                if m:
+                    disks.append(m.group(1))
         return {
             "vmid": vmid,
             "name": config.get("name", f"VM {vmid}"),
@@ -93,101 +140,194 @@ async def get_vm_config(node: str, vmid: int, csrf_token: str, ticket: str, serv
             "num_hdd": len(disks),
             "hdd_free": "N/A",
             "ip_address": "N/A",
-            "status": service.get_vm_status(node, vmid, csrf_token, ticket),
+            "status": svc.get_vm_status(node, vmid, csrf_token, ticket),
             "config": config,
         }
     except HTTPException as e:
         raise HTTPException(status_code=e.status_code, detail=f"Failed to fetch VM config: {e.detail}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Unexpected error fetching VM config: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {e}")
 
 @app.post("/vm/{node}/qemu/{vmid}/update_config")
-async def update_vm_config(node: str, vmid: int, updates: VMUpdateRequest, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
+async def update_vm_config(
+    node: str,
+    vmid: int,
+    updates: VMUpdateRequest,
+    csrf_token: str,
+    ticket: str,
+    svc: VMService = Depends(get_vm_service),
+):
     try:
-        return service.update_vm_config(node, vmid, updates, csrf_token, ticket)
+        return svc.update_vm_config(node, vmid, updates, csrf_token, ticket)
     except HTTPException as e:
         raise HTTPException(status_code=e.status_code, detail=f"Failed to update VM config: {e.detail}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Unexpected error updating VM config: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {e}")
 
 @app.get("/vm/{node}/qemu/{vmid}/snapshots")
-async def list_snapshots(node: str, vmid: int, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
-    return service.get_snapshots(node, vmid, csrf_token, ticket)
+async def list_snapshots(
+    node: str,
+    vmid: int,
+    csrf_token: str,
+    ticket: str,
+    svc: SnapshotService = Depends(get_snapshot_service),
+):
+    return svc.get_snapshots(node, vmid, csrf_token, ticket)
 
 @app.post("/vm/{node}/qemu/{vmid}/clone")
-async def clone_vm(node: str, vmid: int, clone_req: VMCloneRequest, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
-    return service.clone_vm(node, vmid, clone_req, csrf_token, ticket)
+async def clone_vm(
+    node: str,
+    vmid: int,
+    clone_req: VMCloneRequest,
+    csrf_token: str,
+    ticket: str,
+    svc: VMService = Depends(get_vm_service),
+):
+    return svc.clone_vm(node, vmid, clone_req, csrf_token, ticket)
 
 @app.post("/vm/{node}/qemu/{vmid}/snapshot")
-async def create_snapshot(node: str, vmid: int, snap_request: SnapRequest, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
+async def create_snapshot(
+    node: str,
+    vmid: int,
+    snap_request: SnapRequest,
+    csrf_token: str,
+    ticket: str,
+    svc: SnapshotService = Depends(get_snapshot_service),
+):
     if not snap_request.snapname.strip():
         raise HTTPException(status_code=400, detail="Snapshot name cannot be empty")
-    return service.create_snapshot(
+    return svc.create_snapshot(
         node,
         vmid,
         snap_request.snapname.strip(),
         snap_request.description,
         snap_request.vmstate,
         csrf_token,
-        ticket
+        ticket,
     )
 
 @app.post("/vm/{node}/qemu/{vmid}/snapshot/{snapname}/revert")
-async def revert_snapshot(node: str, vmid: int, snapname: str, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
-    return service.revert_snapshot(node, vmid, snapname, csrf_token, ticket)
+async def revert_snapshot(
+    node: str,
+    vmid: int,
+    snapname: str,
+    csrf_token: str,
+    ticket: str,
+    svc: SnapshotService = Depends(get_snapshot_service),
+):
+    return svc.revert_snapshot(node, vmid, snapname, csrf_token, ticket)
 
 @app.delete("/vm/{node}/qemu/{vmid}/snapshot/{snapname}")
-async def delete_snapshot(node: str, vmid: int, snapname: str, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
-    return service.delete_snapshot(node, vmid, snapname, csrf_token, ticket)
+async def delete_snapshot(
+    node: str,
+    vmid: int,
+    snapname: str,
+    csrf_token: str,
+    ticket: str,
+    svc: SnapshotService = Depends(get_snapshot_service),
+):
+    return svc.delete_snapshot(node, vmid, snapname, csrf_token, ticket)
 
 @app.post("/vm/{node}/qemu/{vmid}/vncproxy")
-async def get_vnc_proxy(node: str, vmid: int, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
-    vnc_info = service.get_vnc_proxy(node, vmid, csrf_token, ticket)
+async def get_vnc_proxy(
+    node: str,
+    vmid: int,
+    csrf_token: str,
+    ticket: str,
+    svc: VNCService = Depends(get_vnc_service),
+):
+    data = svc.get_vnc_proxy(node, vmid, csrf_token, ticket)
     return {
-        "port": vnc_info["port"],
-        "ticket": vnc_info["ticket"],
-        "host": PROXMOX_HOST,
+        "port": data["port"],
+        "ticket": data["ticket"],
+        "host": os.getenv("PROXMOX_HOST", "pve.home.lab"),
         "node": node,
-        "vmid": vmid
+        "vmid": vmid,
     }
 
 @app.post("/vm/{node}")
-async def create_vm(node: str, vm_create: VMCreateRequest, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
-    return service.create_vm(node, vm_create, csrf_token, ticket)
+async def create_vm(
+    node: str,
+    vm_create: VMCreateRequest,
+    csrf_token: str,
+    ticket: str,
+    svc: VMService = Depends(get_vm_service),
+):
+    return svc.create_vm(node, vm_create, csrf_token, ticket)
 
 @app.post("/vm/{node}/qemu/{vmid}/add-disk")
-async def add_disk(node: str, vmid: int, req: VMDiskAddRequest, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
-    return service.add_disk(node, vmid, req, csrf_token, ticket)
+async def add_disk(
+    node: str,
+    vmid: int,
+    req: VMDiskAddRequest,
+    csrf_token: str,
+    ticket: str,
+    svc: DiskService = Depends(get_disk_service),
+):
+    return svc.add_disk(node, vmid, req, csrf_token, ticket)
 
 @app.post("/vm/{node}/qemu/{vmid}/activate-unused-disk/{unused_key}")
-async def activate_unused_disk(node: str, vmid: int, unused_key: str, csrf_token: str, ticket: str, target_controller: str = "scsi", service: ProxmoxService = Depends(get_proxmox_service)):
-    return await service.activate_unused_disk(node, vmid, unused_key, target_controller, csrf_token, ticket)
+async def activate_unused_disk(
+    node: str,
+    vmid: int,
+    unused_key: str,
+    csrf_token: str,
+    ticket: str,
+    target_controller: str = "scsi",
+    svc: DiskService = Depends(get_disk_service),
+):
+    return await svc.activate_unused_disk(node, vmid, unused_key, target_controller, csrf_token, ticket)
 
 @app.delete("/vm/{node}/qemu/{vmid}")
-async def delete_vm(node: str, vmid: int, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
-    return service.delete_vm(node, vmid, csrf_token, ticket)
+async def delete_vm(
+    node: str,
+    vmid: int,
+    csrf_token: str,
+    ticket: str,
+    svc: VMService = Depends(get_vm_service),
+):
+    return svc.delete_vm(node, vmid, csrf_token, ticket)
 
 @app.post("/vm/{node}/qemu/{vmid}/{action}")
-async def control_vm(node: str, vmid: int, action: str, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
+async def control_vm(
+    node: str,
+    vmid: int,
+    action: str,
+    csrf_token: str,
+    ticket: str,
+    svc: VMService = Depends(get_vm_service),
+):
     if action not in ["start", "stop", "shutdown", "reboot", "hibernate", "resume"]:
         raise HTTPException(status_code=400, detail="Invalid action")
-    return service.vm_action(node, vmid, action, csrf_token, ticket)
+    return svc.vm_action(node, vmid, action, csrf_token, ticket)
 
 @app.websocket("/ws/console/{node}/{vmid}")
-async def websocket_console(websocket: WebSocket, node: str, vmid: int, csrf_token: str, ticket: str, service: ProxmoxService = Depends(get_proxmox_service)):
+async def websocket_console(
+    websocket: WebSocket,
+    node: str,
+    vmid: int,
+    csrf_token: str,
+    ticket: str,
+    svc: VNCService = Depends(get_vnc_service),
+):
     await websocket.accept()
     try:
-        vnc_info = service.get_vnc_proxy(node, vmid, csrf_token, ticket)
-        port = vnc_info['port']
-        vncticket = vnc_info['ticket']
-        remote_uri = f"wss://{PROXMOX_HOST}/api2/json/nodes/{node}/qemu/{vmid}/vncwebsocket?port={port}&vncticket={quote_plus(vncticket)}"
+        vnc = svc.get_vnc_proxy(node, vmid, csrf_token, ticket)
+        port = vnc["port"]
+        vncticket = vnc["ticket"]
+        remote_uri = (
+            f"wss://{os.getenv('PROXMOX_HOST', 'pve.home.lab')}"
+            f"/api2/json/nodes/{node}/qemu/{vmid}/vncwebsocket"
+            f"?port={port}&vncticket={quote_plus(vncticket)}"
+        )
         headers = {"Cookie": f"PVEAuthCookie={ticket}"}
-        ssl_context = None
-        if not VERIFY_SSL:
-            ssl_context = ssl.create_default_context()
-            ssl_context.check_hostname = False
-            ssl_context.verify_mode = ssl.CERT_NONE
-        async with websockets.connect(remote_uri, extra_headers=headers, ssl=ssl_context) as remote_ws:
+        ssl_ctx = None
+        if not os.getenv("VERIFY_SSL", "false").lower().startswith("t"):
+            ssl_ctx = ssl.create_default_context()
+            ssl_ctx.check_hostname = False
+            ssl_ctx.verify_mode = ssl.CERT_NONE
+
+        async with websockets.connect(remote_uri, extra_headers=headers, ssl=ssl_ctx) as remote_ws:
             async def client_to_remote():
                 try:
                     while True:
