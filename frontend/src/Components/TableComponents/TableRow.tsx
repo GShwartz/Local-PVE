@@ -10,7 +10,7 @@ import ActionButtons from './ActionButtons';
 import ApplyButton from './ApplyButton';
 import HDDCell from './HDDCell';
 import StatusBadge from './StatusBadge';
-import ExpandedRow from './ExpandedRow';
+import ExpandedRow from '../ExpandedRow/ExpandedRow';
 
 interface VMConfigResponse {
   name?: string;
@@ -123,8 +123,8 @@ const TableRow = ({
   const requiresVMStopped = (changesToApply.cpu !== null || changesToApply.ram !== null) && vm.status === 'running';
 
   const handleApplyChanges = async (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.stopPropagation();
     setIsApplying(true);
+    e.stopPropagation();
     setTableApplying(true);
 
     try {
@@ -229,10 +229,10 @@ const TableRow = ({
         <CPUCell {...{ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply, isApplying }} />
         <RAMCell {...{ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply, isApplying }} />
         <HDDCell hdd_sizes={vm.hdd_sizes} />
-        <td className="px-2 py-2 text-center border-r border-gray-700">
+        <td className="px-2 py-2 text-center border-gray-700">
           <ApplyButton onClick={handleApplyChanges} hasChanges={hasChanges} requiresVMStopped={requiresVMStopped} isApplying={isApplying} />
         </td>
-        <td className="px-2 sm:px-6 py-2 sm:py-4 text-center narrow-col border-r border-gray-700">
+        <td className="px-2 sm:px-6 py-2 sm:py-4 text-center narrow-col border-gray-700">
           <StatusBadge status={vm.status} />
         </td>
         <td className="px-2 py-2 text-center">

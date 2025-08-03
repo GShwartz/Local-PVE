@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { VM, Auth } from '../../types';
+import { VM, Auth } from '../../../types';
 import axios from 'axios';
 import ModalWrapper from './ModalWrapper';
 import DiskWarning from './DiskWarning';
@@ -18,8 +18,10 @@ interface DiskModalProps {
   onClose: () => void;
   node: string;
   auth: Auth;
-  addAlert: (message: string, type: 'success' | 'error') => void;
+  addAlert: (message: string, type: 'success' | 'error' | 'info') => void;
   refreshVMs: () => void;
+  setIsAddingDisk: (adding: boolean) => void;
+  refreshConfig: () => void;
 }
 
 interface ActivateResponseData {
@@ -28,7 +30,17 @@ interface ActivateResponseData {
   target_key: string;
 }
 
-const DiskModal = ({ vm, isOpen, onClose, node, auth, addAlert, refreshVMs }: DiskModalProps) => {
+const DiskModal = ({
+  vm,
+  isOpen,
+  onClose,
+  node,
+  auth,
+  addAlert,
+  refreshVMs,
+  setIsAddingDisk,
+  refreshConfig,
+}: DiskModalProps) => {
   const [size, setSize] = useState<number>(5);
   const [controller, setController] = useState<'scsi' | 'sata' | 'virtio'>('scsi');
   const [loading, setLoading] = useState(false);
@@ -54,10 +66,15 @@ const DiskModal = ({ vm, isOpen, onClose, node, auth, addAlert, refreshVMs }: Di
     }
 
     setLoading(true);
+    setIsAddingDisk(true);
 
     try {
       const currentStatus = await getVMStatus(vm.vmid, node, auth);
       console.log('Current VM status:', currentStatus);
+
+      addAlert(`Adding ${size}GB disk to VM ${vm.vmid} on ${controller.toUpperCase()}...`, 'info');
+
+      onClose();
 
       if (currentStatus === 'running') {
         setVmWasRunning(true);
@@ -130,7 +147,7 @@ const DiskModal = ({ vm, isOpen, onClose, node, auth, addAlert, refreshVMs }: Di
       }
 
       refreshVMs();
-      onClose();
+      refreshConfig();
     } catch (err: any) {
       console.error('Error adding disk:', err);
 
@@ -146,6 +163,7 @@ const DiskModal = ({ vm, isOpen, onClose, node, auth, addAlert, refreshVMs }: Di
       addAlert(`Failed to add disk: ${JSON.stringify(err.response?.data) || err.message}`, 'error');
     } finally {
       setLoading(false);
+      setIsAddingDisk(false);
     }
   };
 
@@ -156,9 +174,7 @@ const DiskModal = ({ vm, isOpen, onClose, node, auth, addAlert, refreshVMs }: Di
       <DiskWarning />
       <DiskForm
         size={size}
-        controller={controller}
         setSize={setSize}
-        setController={setController}
         handleSubmit={handleSubmit}
         error={error}
         loading={loading}

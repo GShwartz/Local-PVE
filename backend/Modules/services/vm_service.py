@@ -7,6 +7,8 @@ from Modules.logger import init_logger
 from fastapi import HTTPException
 import requests
 import urllib3
+import asyncio
+import httpx
 import re
 
 
@@ -58,56 +60,64 @@ class VMService:
         
         return response.json().get("data", {}).get("status", "")
 
-    def get_vms(self, node: str, csrf_token: str, ticket: str) -> List[Dict[str, Any]]:
+    async def get_vms(self, node: str, csrf_token: str, ticket: str) -> List[Dict[str, Any]]:
         self.logger.info(f"Fetching VMs on node {node}")
-        headers = self.set_auth_headers(csrf_token, ticket)
-        self.session.cookies.set("PVEAuthCookie", ticket)
+        base_url = f"{PROXMOX_BASE_URL}/nodes/{node}/qemu"
+        headers = {"CSRFPreventionToken": csrf_token}
+        cookies = {"PVEAuthCookie": ticket}
 
-        response = self.session.get(f"{PROXMOX_BASE_URL}/nodes/{node}/qemu", headers=headers)
-        self.logger.info(f"VMs response status code: {response.status_code}")
+        async with httpx.AsyncClient(verify=False) as client:
+            r = await client.get(base_url, headers=headers, cookies=cookies)
+            r.raise_for_status()
+            vms = r.json().get("data", [])
+            self.logger.info(f"Found {len(vms)} VMs on node {node}")
 
-        if response.status_code == 401:
-            self.logger.error("Authentication failed: invalid ticket")
-            raise HTTPException(status_code=401, detail="Proxmox authentication failed: invalid ticket")
-        
-        response.raise_for_status()
-        self.logger.info("Successfully fetched VMs")
+            async def enrich_vm(vm):
+                vmid = vm["vmid"]
+                config_url = f"{base_url}/{vmid}/config"
+                status_url = f"{base_url}/{vmid}/status/current"
 
-        vms = response.json().get("data", [])
-        self.logger.info(f"Found {len(vms)} VMs on node {node}")
+                try:
+                    config_task = client.get(config_url, headers=headers, cookies=cookies)
+                    status_task = client.get(status_url, headers=headers, cookies=cookies)
+                    config_res, status_res = await asyncio.gather(config_task, status_task)
 
-        for vm in vms:
-            self.logger.info(f"Processing VM {vm['vmid']} on node {node}")
-            config = self.get_vm_config(node, vm["vmid"], ticket)
-            self.logger.info(f"Config for VM {vm['vmid']}: {config}")
+                    config = config_res.json().get("data", {})
+                    status = status_res.json().get("data", {}).get("status", "stopped")
 
-            vm.update({
-                "cpus": int(config.get("cores", 0)),
-                "ram": int(config.get("memory", 0)),
-                "name": config.get("name", f"VM {vm['vmid']}"),
-                "status": vm.get("status", "stopped"),
-                "os": "Windows" if "win" in config.get("ostype", "").lower() else "Linux"
-            })
+                    disks = []
+                    for k, v in config.items():
+                        if any(k.startswith(p) for p in ("ide", "sata", "scsi", "virtio")) and "cdrom" not in v:
+                            match = re.search(r"size=(\d+[KMGT]?)", v)
+                            if match:
+                                disks.append(match.group(1))
 
-            disks = []
-            for k, v in config.items():
-                if any(k.startswith(p) for p in ("ide", "sata", "scsi", "virtio")) and "cdrom" not in v:
-                    match = re.search(r"size=(\d+[KMGT]?)", v)
-                    if match:
-                        disks.append(match.group(1))
-            vm["num_hdd"] = len(disks)
-            vm["hdd_sizes"] = ", ".join(disks) if disks else "N/A"
-            vm["hdd_free"] = "N/A"
-            vm["ip_address"] = "N/A"
+                    vm.update({
+                        "cpus": int(config.get("cores", 0)),
+                        "ram": int(config.get("memory", 0)),
+                        "name": config.get("name", f"VM {vmid}"),
+                        "status": status,
+                        "os": "Windows" if "win" in config.get("ostype", "").lower() else "Linux",
+                        "num_hdd": len(disks),
+                        "hdd_sizes": ", ".join(disks) if disks else "N/A",
+                        "ip_address": "N/A",
+                        "hdd_free": "N/A",
+                    })
 
-            if vm["status"] == "running":
-                vm["hdd_free"] = self.agent_service.get_fsinfo(node, vm["vmid"], csrf_token, ticket)
-                vm["ip_address"] = self.agent_service.get_ip_addresses(node, vm["vmid"], csrf_token, ticket)
-            
-            self.logger.info(f"Processed VM {vm['vmid']}: {vm}")
+                    if status == "running":
+                        ip_task = self.agent_service.get_ip_addresses(client, node, vmid, csrf_token, ticket)
+                        fs_task = self.agent_service.get_fsinfo(client, node, vmid, csrf_token, ticket)
+                        ip_address, hdd_free = await asyncio.gather(ip_task, fs_task)
+                        vm["ip_address"] = ip_address
+                        vm["hdd_free"] = hdd_free
 
-        self.logger.info("Completed fetching VMs")
-        return vms
+                except Exception as e:
+                    self.logger.warning(f"Error enriching VM {vmid}: {str(e)}")
+
+                return vm
+
+            enriched_vms = await asyncio.gather(*[enrich_vm(vm) for vm in vms])
+            return enriched_vms
 
     def vm_action(self, node: str, vmid: int, action: str, csrf_token: str, ticket: str) -> Any:
         self.logger.info(f"Performing action '{action}' on VM {vmid} on node {node}")

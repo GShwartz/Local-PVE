@@ -29,7 +29,6 @@ interface SnapshotParams {
   ticket: string;
 }
 
-// Basic API calls
 const controlVM = async ({ node, vmid, action, csrf, ticket }: ControlParams): Promise<string> => {
   const { data } = await axios.post<string>(
     `${API_BASE}/vm/${node}/qemu/${vmid}/${action}`,
@@ -95,13 +94,8 @@ const createSnapshot = async ({ node, vmid, snapname, csrf, ticket }: SnapshotPa
   return data;
 };
 
-// Validate snapshot name
-const isValidSnapshotName = (name: string): boolean => {
-  const regex = /^[a-zA-Z0-9_+.\-]{1,40}$/;
-  return regex.test(name);
-};
+const isValidSnapshotName = (name: string): boolean => /^[a-zA-Z0-9_+.\-]{1,40}$/.test(name);
 
-// useVMMutation: handles start/stop/shutdown/reboot/clone/update_config
 export const useVMMutation = (
   auth: Auth,
   node: string,
@@ -113,7 +107,6 @@ export const useVMMutation = (
     mutationFn: async (vars) => {
       const { vmid, action, name, cpus, ram } = vars;
 
-      // CLONE
       if (action === 'clone') {
         const payload: VMCloneRequest = {
           name: name || 'test',
@@ -132,7 +125,6 @@ export const useVMMutation = (
         return data;
       }
 
-      // UPDATE CONFIG
       if (action === 'update_config') {
         const updates: { name?: string; cpus?: number; ram?: number } = {};
         if (name) updates.name = name;
@@ -141,9 +133,9 @@ export const useVMMutation = (
         return await updateVMConfig({ node, vmid, updates, csrf: auth.csrf_token, ticket: auth.ticket });
       }
 
-      // DEFAULT CONTROL
       return await controlVM({ node, vmid, action, csrf: auth.csrf_token, ticket: auth.ticket });
     },
+
     onMutate: (vars) => {
       const { vmid, action } = vars;
       setPendingActions(prev => ({
@@ -151,8 +143,9 @@ export const useVMMutation = (
         [vmid]: [...(prev[vmid] || []), action],
       }));
     },
+
     onSuccess: (upid, vars) => {
-      const { vmid, action, name } = vars;
+      const { vmid, action, name, cpus, ram } = vars;
       const pollTask = async () => {
         try {
           const { data: status } = await axios.get<TaskStatus>(
@@ -163,16 +156,19 @@ export const useVMMutation = (
             if (status.exitstatus !== 'OK') {
               addAlert(`VM ${name || ''} (${vmid}) ${action} failed: ${status.exitstatus}`, 'error');
             } else {
-              addAlert(`VM ${name || ''} (${vmid}) ${action} succeeded`, 'success');
+              if (action === 'update_config') {
+                if (cpus !== undefined) addAlert(`VM (${vmid}) CPU updated to ${cpus}`, 'success');
+                if (ram !== undefined) addAlert(`VM (${vmid}) RAM updated to ${ram}MB`, 'success');
+                if (name) addAlert(`VM (${vmid}) renamed to "${name}"`, 'success');
+              } else {
+                addAlert(`VM ${name || ''} (${vmid}) ${action} succeeded`, 'success');
+              }
             }
-            const delay = ['start','stop','shutdown','reboot','resume','hibernate','clone'].includes(action) ? 15000 : 0;
-            setTimeout(() => {
-              queryClient.invalidateQueries(['vms']);
-              setPendingActions(prev => ({
-                ...prev,
-                [vmid]: (prev[vmid] || []).filter(a => a !== action),
-              }));
-            }, delay);
+            queryClient.invalidateQueries(['vms']);
+            setPendingActions(prev => ({
+              ...prev,
+              [vmid]: (prev[vmid] || []).filter(a => a !== action),
+            }));
           } else {
             setTimeout(pollTask, 1000);
           }
@@ -186,6 +182,7 @@ export const useVMMutation = (
       };
       pollTask();
     },
+
     onError: (error, vars) => {
       const { vmid, action, name } = vars;
       const msg = error.response?.data?.detail || error.message;
@@ -198,7 +195,6 @@ export const useVMMutation = (
   });
 };
 
-// useSnapshotMutation: revert
 export const useSnapshotMutation = (
   auth: Auth,
   node: string,
@@ -209,7 +205,8 @@ export const useSnapshotMutation = (
   return useMutation<string, any, { vmid: number; snapname: string; name?: string }, unknown>({
     mutationFn: ({ vmid, snapname }) =>
       revertSnapshot({ node, vmid, snapname, csrf: auth.csrf_token, ticket: auth.ticket }),
-    onMutate: ({ vmid, snapname }) => {
+    onMutate: ({ vmid, snapname, name }) => {
+      addAlert(`Reverting VM ${name || ''} (${vmid}) to snapshot "${snapname}"...`, 'info');
       setPendingActions(prev => ({
         ...prev,
         [vmid]: [...(prev[vmid] || []), `revert-${snapname}`],
@@ -224,22 +221,20 @@ export const useSnapshotMutation = (
           );
           if (status.status === 'stopped') {
             if (status.exitstatus !== 'OK') {
-              addAlert(`VM ${name || ''} (${vmid}) revert ${snapname} failed: ${status.exitstatus}`, 'error');
+              addAlert(`VM ${name || ''} (${vmid}) failed to revert snapshot "${snapname}": ${status.exitstatus}`, 'error');
             } else {
-              addAlert(`VM ${name || ''} (${vmid}) revert ${snapname} succeeded`, 'success');
+              addAlert(`VM ${name || ''} (${vmid}) successfully reverted to snapshot "${snapname}"`, 'success');
             }
-            setTimeout(() => {
-              queryClient.invalidateQueries(['vms']);
-              setPendingActions(prev => ({
-                ...prev,
-                [vmid]: (prev[vmid] || []).filter(a => a !== `revert-${snapname}`),
-              }));
-            }, 15000);
+            queryClient.invalidateQueries(['vms']);
+            setPendingActions(prev => ({
+              ...prev,
+              [vmid]: (prev[vmid] || []).filter(a => a !== `revert-${snapname}`),
+            }));
           } else {
             setTimeout(poll, 1000);
           }
         } catch {
-          addAlert(`Polling revert for VM ${vmid} failed`, 'error');
+          addAlert(`Error polling snapshot revert for VM ${vmid}`, 'error');
           setPendingActions(prev => ({
             ...prev,
             [vmid]: (prev[vmid] || []).filter(a => a !== `revert-${snapname}`),
@@ -250,7 +245,7 @@ export const useSnapshotMutation = (
     },
     onError: (error, { vmid, snapname, name }) => {
       const msg = error.response?.data?.detail || error.message;
-      addAlert(`VM ${name || ''} (${vmid}) revert ${snapname} error: ${msg}`, 'error');
+      addAlert(`Snapshot revert error for VM ${name || ''} (${vmid}): ${msg}`, 'error');
       setPendingActions(prev => ({
         ...prev,
         [vmid]: (prev[vmid] || []).filter(a => a !== `revert-${snapname}`),
@@ -259,7 +254,6 @@ export const useSnapshotMutation = (
   });
 };
 
-// useDeleteSnapshotMutation
 export const useDeleteSnapshotMutation = (
   auth: Auth,
   node: string,
@@ -270,7 +264,8 @@ export const useDeleteSnapshotMutation = (
   return useMutation<string, any, { vmid: number; snapname: string; name?: string }, unknown>({
     mutationFn: ({ vmid, snapname }) =>
       deleteSnapshot({ node, vmid, snapname, csrf: auth.csrf_token, ticket: auth.ticket }),
-    onMutate: ({ vmid, snapname }) => {
+    onMutate: ({ vmid, snapname, name }) => {
+      addAlert(`Deleting snapshot "${snapname}" from VM ${name || ''} (${vmid})...`, 'info');
       setPendingActions(prev => ({
         ...prev,
         [vmid]: [...(prev[vmid] || []), `delete-${snapname}`],
@@ -285,22 +280,20 @@ export const useDeleteSnapshotMutation = (
           );
           if (status.status === 'stopped') {
             if (status.exitstatus !== 'OK') {
-              addAlert(`VM ${name || ''} (${vmid}) delete ${snapname} failed: ${status.exitstatus}`, 'error');
+              addAlert(`Snapshot deletion failed for VM ${name || ''} (${vmid}): ${status.exitstatus}`, 'error');
             } else {
-              addAlert(`VM ${name || ''} (${vmid}) delete ${snapname} succeeded`, 'success');
+              addAlert(`Snapshot "${snapname}" deleted from VM ${name || ''} (${vmid})`, 'success');
             }
-            setTimeout(() => {
-              queryClient.invalidateQueries(['snapshots', node, vmid]);
-              setPendingActions(prev => ({
-                ...prev,
-                [vmid]: (prev[vmid] || []).filter(a => a !== `delete-${snapname}`),
-              }));
-            }, 5000);
+            queryClient.invalidateQueries(['snapshots', node, vmid]);
+            setPendingActions(prev => ({
+              ...prev,
+              [vmid]: (prev[vmid] || []).filter(a => a !== `delete-${snapname}`),
+            }));
           } else {
             setTimeout(poll, 1000);
           }
         } catch {
-          addAlert(`Polling delete for VM ${vmid} failed`, 'error');
+          addAlert(`Error polling snapshot delete for VM ${vmid}`, 'error');
           setPendingActions(prev => ({
             ...prev,
             [vmid]: (prev[vmid] || []).filter(a => a !== `delete-${snapname}`),
@@ -311,7 +304,7 @@ export const useDeleteSnapshotMutation = (
     },
     onError: (error, { vmid, snapname, name }) => {
       const msg = error.response?.data?.detail || error.message;
-      addAlert(`VM ${name || ''} (${vmid}) delete ${snapname} error: ${msg}`, 'error');
+      addAlert(`Snapshot delete error for VM ${name || ''} (${vmid}): ${msg}`, 'error');
       setPendingActions(prev => ({
         ...prev,
         [vmid]: (prev[vmid] || []).filter(a => a !== `delete-${snapname}`),
@@ -320,7 +313,6 @@ export const useDeleteSnapshotMutation = (
   });
 };
 
-// useCreateSnapshotMutation
 export const useCreateSnapshotMutation = (
   auth: Auth,
   node: string,
@@ -336,7 +328,8 @@ export const useCreateSnapshotMutation = (
       }
       return createSnapshot({ node, vmid, snapname, csrf: auth.csrf_token, ticket: auth.ticket });
     },
-    onMutate: ({ vmid, snapname }) => {
+    onMutate: ({ vmid, snapname, name }) => {
+      addAlert(`Creating snapshot "${snapname}" for VM ${name || ''} (${vmid})...`, 'info');
       setPendingActions(prev => ({
         ...prev,
         [vmid]: [...(prev[vmid] || []), `create-${snapname}`],
@@ -352,22 +345,20 @@ export const useCreateSnapshotMutation = (
           );
           if (status.status === 'stopped') {
             if (status.exitstatus !== 'OK') {
-              addAlert(`VM ${name || ''} (${vmid}) create ${snapname} failed: ${status.exitstatus}`, 'error');
+              addAlert(`Snapshot "${snapname}" creation failed for VM ${name || ''} (${vmid}): ${status.exitstatus}`, 'error');
             } else {
-              addAlert(`VM ${name || ''} (${vmid}) create ${snapname} succeeded`, 'success');
+              addAlert(`Snapshot "${snapname}" successfully created for VM ${name || ''} (${vmid})`, 'success');
             }
-            setTimeout(() => {
-              queryClient.invalidateQueries(['snapshots', node, vmid]);
-              setPendingActions(prev => ({
-                ...prev,
-                [vmid]: (prev[vmid] || []).filter(a => a !== `create-${snapname}`),
-              }));
-            }, 5000);
+            queryClient.invalidateQueries(['snapshots', node, vmid]);
+            setPendingActions(prev => ({
+              ...prev,
+              [vmid]: (prev[vmid] || []).filter(a => a !== `create-${snapname}`),
+            }));
           } else {
             setTimeout(poll, 1000);
           }
         } catch {
-          addAlert(`Polling create for VM ${vmid} failed`, 'error');
+          addAlert(`Error polling snapshot create for VM ${vmid}`, 'error');
           setPendingActions(prev => ({
             ...prev,
             [vmid]: (prev[vmid] || []).filter(a => a !== `create-${snapname}`),
@@ -379,7 +370,7 @@ export const useCreateSnapshotMutation = (
     onError: (error, { vmid, snapname, name }) => {
       closeModal();
       const msg = error.response?.data?.detail || error.message;
-      addAlert(`VM ${name || ''} (${vmid}) create ${snapname} error: ${msg}`, 'error');
+      addAlert(`Snapshot create error for VM ${name || ''} (${vmid}): ${msg}`, 'error');
       setPendingActions(prev => ({
         ...prev,
         [vmid]: (prev[vmid] || []).filter(a => a !== `create-${snapname}`),
