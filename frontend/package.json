@@ -10,16 +10,19 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@novnc/novnc": "^1.3.0",
     "@tanstack/react-query": "^5.83.0",
     "axios": "^1.4.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-hot-toast": "^2.5.2",
     "react-router-dom": "^6.4.0"
   },
   "devDependencies": {
     "@tanstack/react-query-devtools": "^5.83.0",
     "@types/axios": "^0.9.36",
     "@types/node": "^24.1.0",
+    "@types/novnc__novnc": "^1.6.0",
     "@types/react": "^18.3.23",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^4.7.0",
