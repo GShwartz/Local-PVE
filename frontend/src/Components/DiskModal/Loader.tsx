@@ -1,18 +1,14 @@
+import styles from '../../CSS/Loader.module.css';
+
 const Loader = () => (
-  <span
-    className="loader"
-    aria-label="Loader"
-    style={{
-      display: 'block',
-      position: 'relative',
-      height: '20px',
-      width: '140px',
-      backgroundRepeat: 'no-repeat',
-      backgroundSize: '20px auto',
-      backgroundPosition: '0 0, 40px 0, 80px 0, 120px 0',
-      animation: 'pgfill 1s linear infinite'
-    }}
-  />
+  <div className={styles.loader}>
+    {[...Array(5)].map((_, i) => (
+      <div key={i} className={styles.circle}>
+        <div className={styles.dot}></div>
+        <div className={styles.outline}></div>
+      </div>
+    ))}
+  </div>
 );
 
 export default Loader;

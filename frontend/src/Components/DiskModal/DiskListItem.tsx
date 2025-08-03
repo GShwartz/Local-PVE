@@ -37,6 +37,7 @@ const DiskListItem = ({
   const size = sizeMatch ? sizeMatch[1] : 'unknown';
   const isPending = pendingDiskKey === diskKey;
   const isDeleting = deletingDiskKey === diskKey;
+  const isBootDisk = diskKey === 'scsi0';
 
   const confirmRemoveDisk = async () => {
     setDeletingDiskKey(diskKey);
@@ -58,8 +59,8 @@ const DiskListItem = ({
       });
 
       addAlert(`✅ Disk ${diskKey} removed successfully from VM ${vm.vmid}.`, 'success');
-      refreshVMs();
-      refreshConfig();
+      await refreshConfig();
+      refreshVMs(); // ← Ensures TableRow is updated
     } catch (err: any) {
       const detail = err?.response?.data?.detail || err?.message || 'Unknown error';
       addAlert(`❌ Failed to remove disk ${diskKey}: ${detail}`, 'error');
@@ -95,9 +96,9 @@ const DiskListItem = ({
         ) : (
           <button
             onClick={() => setPendingDiskKey(diskKey)}
-            disabled={pendingDiskKey !== null}
+            disabled={isBootDisk || pendingDiskKey !== null || deletingDiskKey === diskKey}
             className={`text-xs px-2 py-1 rounded-md focus:outline-none ${
-              pendingDiskKey !== null
+              isBootDisk || pendingDiskKey !== null || deletingDiskKey === diskKey
                 ? 'bg-gray-600 text-white cursor-not-allowed'
                 : 'bg-red-600 hover:bg-red-700 text-white focus:ring-2 focus:ring-red-400'
             }`}

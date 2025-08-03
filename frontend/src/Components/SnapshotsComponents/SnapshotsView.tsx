@@ -1,6 +1,7 @@
 import { UseMutationResult } from '@tanstack/react-query';
 import { VM, Snapshot } from '../../types';
 import { useState } from 'react';
+import styles from '../../CSS/Loader.module.css';
 
 interface SnapshotsViewProps {
   vm: VM;
@@ -25,7 +26,7 @@ const Popconfirm: React.FC<PopconfirmProps> = ({ isOpen, onConfirm, onCancel, me
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-center items-center bg-black/50">
+    <div className="fixed inset-0 z-50 mt-1 flex justify-center items-center bg-black/50">
       <div className="relative p-4 w-full max-w-sm max-h-full">
         <div className="relative bg-white rounded-lg shadow-sm dark:bg-gray-700">
           <div className="p-4 md:p-5">
@@ -96,123 +97,101 @@ const SnapshotsView = ({
 
   return (
     <>
-      <style>
-        {`
-          .loader {
-            display: block;
-            height: 20px;
-            width: 140px;
-            margin: 0 auto;
-            background-image: 
-              linear-gradient(#4B5563 20px, transparent 0), 
-              linear-gradient(#4B5563 20px, transparent 0), 
-              linear-gradient(#4B5563 20px, transparent 0), 
-              linear-gradient(#4B5563 20px, transparent 0);
-            background-repeat: no-repeat;
-            background-size: 20px auto;
-            background-position: 0 0, 40px 0, 80px 0, 120px 0;
-            animation: pgfill 1s linear infinite;
-          }
-          .dark .loader {
-            background-image: 
-              linear-gradient(#D1D5DB 20px, transparent 0), 
-              linear-gradient(#D1D5DB 20px, transparent 0), 
-              linear-gradient(#D1D5DB 20px, transparent 0), 
-              linear-gradient(#D1D5DB 20px, transparent 0);
-          }
-        `}
-      </style>
-
       {snapshotsLoading && <p className="sr-only">Loading snapshots...</p>}
       {snapshotsError && <p className="text-red-500">Error loading snapshots: {snapshotsError.message}</p>}
 
-      <div className="flex justify-center mt-4">
-        <div className="w-full sm:w-[400px] md:w-[460px] min-h-[256px] p-4 bg-white border border-gray-200 rounded-lg shadow-sm sm:p-6 dark:bg-gray-800 dark:border-gray-700">
-          <div className="flex items-center justify-between mb-3">
-            <h5 className="text-base font-semibold text-gray-900 md:text-xl dark:text-white">
-              Snapshots
-            </h5>
-            {(isCreatingSnapshot || isRevertingSnapshot) && (
-              <span className="loader" aria-label="Snapshot action in progress"></span>
-            )}
-            <button
-              onClick={() => openModal(vm.vmid)}
-              disabled={isCreatingSnapshot || isRevertingSnapshot}
-              className={`text-white font-medium rounded-lg text-sm px-3 py-1 text-center ${
-                isCreatingSnapshot || isRevertingSnapshot
-                  ? 'bg-gray-600 cursor-not-allowed'
-                  : 'bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800'
-              }`}
-            >
-              Take Snapshot
-            </button>
-          </div>
-
-          {snapshots && snapshots.length === 0 ? (
-            <p>No snapshots available.</p>
-          ) : (
-            <div className="max-h-52 overflow-y-auto">
-              <ul className="my-4 space-y-3">
-                {snapshots?.map((snapshot) => (
-                  <li key={snapshot.name}>
-                    <div className="flex items-center p-3 text-base font-bold text-gray-900 rounded-lg bg-gray-700 hover:bg-gray-600 group hover:shadow dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-white">
-                      <span className="flex-1 text-left whitespace-nowrap">
-                        {snapshot.name}
-                        {snapshot.snaptime && (
-                          <span className="block text-sm font-normal text-gray-500 dark:text-gray-400">
-                            Created: {new Date(snapshot.snaptime * 1000).toLocaleString()}
-                          </span>
-                        )}
-                      </span>
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            showPopconfirm('revert', snapshot.name);
-                          }}
-                          disabled={
-                            isRevertingSnapshot ||
-                            isCreatingSnapshot ||
-                            pendingActions[vm.vmid]?.includes(`delete-${snapshot.name}`)
-                          }
-                          className={`px-3 py-1 text-sm font-medium rounded-md active:scale-95 transition-transform duration-100 ${
-                            isRevertingSnapshot ||
-                            isCreatingSnapshot ||
-                            pendingActions[vm.vmid]?.includes(`delete-${snapshot.name}`)
-                              ? 'bg-gray-600 cursor-not-allowed'
-                              : 'bg-purple-600 hover:bg-purple-700'
-                          } text-white`}
-                        >
-                          Revert
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            showPopconfirm('delete', snapshot.name);
-                          }}
-                          disabled={
-                            pendingActions[vm.vmid]?.includes(`delete-${snapshot.name}`) ||
-                            isCreatingSnapshot ||
-                            pendingActions[vm.vmid]?.includes(`revert-${snapshot.name}`)
-                          }
-                          className={`px-3 py-1 text-sm font-medium rounded-md active:scale-95 transition-transform duration-100 ${
-                            pendingActions[vm.vmid]?.includes(`delete-${snapshot.name}`) ||
-                            isCreatingSnapshot ||
-                            pendingActions[vm.vmid]?.includes(`revert-${snapshot.name}`)
-                              ? 'bg-gray-600 cursor-not-allowed'
-                              : 'bg-red-600 hover:bg-red-700'
-                          } text-white`}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+      <div className="w-full flex-1 min-h-[300px] p-4 bg-white border border-gray-200 rounded-lg shadow-sm sm:p-6 dark:bg-gray-800 dark:border-gray-700">
+        <div className="flex items-center justify-between mb-3 gap-2">
+          <h5 className="text-base font-semibold text-gray-900 md:text-xl dark:text-white">
+            Snapshots
+          </h5>
+          {(isCreatingSnapshot || isRevertingSnapshot) && (
+            <div className={`${styles.loader}`} aria-label="Snapshot action in progress">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className={styles.circle}>
+                  <div className={styles.dot}></div>
+                  <div className={styles.outline}></div>
+                </div>
+              ))}
             </div>
           )}
+          <button
+            onClick={() => openModal(vm.vmid)}
+            disabled={isCreatingSnapshot || isRevertingSnapshot}
+            className={`text-white font-medium rounded-lg text-sm px-3 py-1 text-center ${
+              isCreatingSnapshot || isRevertingSnapshot
+                ? 'bg-gray-600 cursor-not-allowed'
+                : 'bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800'
+            }`}
+          >
+            Take Snapshot
+          </button>
         </div>
+
+        {snapshots && snapshots.length === 0 ? (
+          <p>No snapshots available.</p>
+        ) : (
+          <div className="max-h-52 overflow-y-auto">
+            <ul className="my-4 space-y-3">
+              {snapshots?.map((snapshot) => (
+                <li key={snapshot.name}>
+                  <div className="flex items-center p-3 text-base font-bold text-gray-900 rounded-lg bg-gray-700 hover:bg-gray-600 group hover:shadow dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-white">
+                    <span className="flex-1 text-left whitespace-nowrap">
+                      {snapshot.name}
+                      {snapshot.snaptime && (
+                        <span className="block text-sm font-normal text-gray-500 dark:text-gray-400">
+                          Created: {new Date(snapshot.snaptime * 1000).toLocaleString()}
+                        </span>
+                      )}
+                    </span>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          showPopconfirm('revert', snapshot.name);
+                        }}
+                        disabled={
+                          isRevertingSnapshot ||
+                          isCreatingSnapshot ||
+                          pendingActions[vm.vmid]?.includes(`delete-${snapshot.name}`)
+                        }
+                        className={`px-3 py-1 text-sm font-medium rounded-md active:scale-95 transition-transform duration-100 ${
+                          isRevertingSnapshot ||
+                          isCreatingSnapshot ||
+                          pendingActions[vm.vmid]?.includes(`delete-${snapshot.name}`)
+                            ? 'bg-gray-600 cursor-not-allowed'
+                            : 'bg-purple-600 hover:bg-purple-700'
+                        } text-white`}
+                      >
+                        Revert
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          showPopconfirm('delete', snapshot.name);
+                        }}
+                        disabled={
+                          pendingActions[vm.vmid]?.includes(`delete-${snapshot.name}`) ||
+                          isCreatingSnapshot ||
+                          pendingActions[vm.vmid]?.includes(`revert-${snapshot.name}`)
+                        }
+                        className={`px-3 py-1 text-sm font-medium rounded-md active:scale-95 transition-transform duration-100 ${
+                          pendingActions[vm.vmid]?.includes(`delete-${snapshot.name}`) ||
+                          isCreatingSnapshot ||
+                          pendingActions[vm.vmid]?.includes(`revert-${snapshot.name}`)
+                            ? 'bg-gray-600 cursor-not-allowed'
+                            : 'bg-red-600 hover:bg-red-700'
+                        } text-white`}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       <Popconfirm

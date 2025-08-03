@@ -2,6 +2,7 @@ import SnapshotsView from '../SnapshotsComponents/SnapshotsView';
 import DisksView from './DiskView';
 import { VM, Snapshot } from '../../types';
 import { UseMutationResult } from '@tanstack/react-query';
+import styles from '../../CSS/ExpandedArea.module.css';
 
 interface ExpandedRowProps {
   vm: VM;
@@ -39,25 +40,29 @@ const ExpandedRow = ({
   expandedRows.has(vm.vmid) ? (
     <tr className="border-b border-gray-700 bg-gray-900">
       <td colSpan={11} className="px-6 py-4 align-top">
-        <div className="flex flex-wrap gap-6 justify-center">
-          <DisksView
-            vm={vm}
-            node={node}
-            auth={auth}
-            addAlert={addAlert}
-            refreshVMs={refreshVMs}
-          />
-          {snapshotView.has(vm.vmid) && (
-            <SnapshotsView
+        <div className={styles.container}>
+          <div className={styles.column}>
+            <DisksView
               vm={vm}
-              snapshots={snapshots}
-              snapshotsLoading={snapshotsLoading}
-              snapshotsError={snapshotsError}
-              openModal={(vmid) => openModal(vmid, vm.name)}
-              snapshotMutation={snapshotMutation}
-              deleteSnapshotMutation={deleteSnapshotMutation}
-              pendingActions={pendingActions}
+              node={node}
+              auth={auth}
+              addAlert={addAlert}
+              refreshVMs={refreshVMs}
             />
+          </div>
+          {snapshotView.has(vm.vmid) && (
+            <div className={styles.column}>
+              <SnapshotsView
+                vm={vm}
+                snapshots={snapshots}
+                snapshotsLoading={snapshotsLoading}
+                snapshotsError={snapshotsError}
+                openModal={(vmid) => openModal(vmid, vm.name)}
+                snapshotMutation={snapshotMutation}
+                deleteSnapshotMutation={deleteSnapshotMutation}
+                pendingActions={pendingActions}
+              />
+            </div>
           )}
         </div>
       </td>

@@ -227,7 +227,7 @@ const ActionButtons = ({
           className={
             vm.status === 'running' || vm.status === 'suspended' || disableAll
               ? 'bg-gray-600 cursor-not-allowed'
-              : 'bg-green-600 hover:bg-green-700'
+              : 'bg-blue-600 hover:bg-blue-700'
           }
         >
           Start
@@ -250,7 +250,7 @@ const ActionButtons = ({
           className={
             vm.status !== 'running' || disableAll
               ? 'bg-gray-600 cursor-not-allowed'
-              : 'bg-red-600 hover:bg-red-700'
+              : 'bg-blue-600 hover:bg-blue-700'
           }
         >
           Stop
@@ -273,7 +273,7 @@ const ActionButtons = ({
           className={
             vm.status !== 'running' || disableAll
               ? 'bg-gray-600 cursor-not-allowed'
-              : 'bg-yellow-600 hover:bg-yellow-700'
+              : 'bg-blue-600 hover:bg-blue-700'
           }
         >
           Shutdown
@@ -296,7 +296,7 @@ const ActionButtons = ({
           className={
             vm.status !== 'running' || disableAll
               ? 'bg-gray-600 cursor-not-allowed'
-              : 'bg-indigo-600 hover:bg-indigo-700'
+              : 'bg-blue-600 hover:bg-blue-700'
           }
         >
           Reboot

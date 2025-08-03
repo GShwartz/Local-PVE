@@ -21,6 +21,7 @@ interface DiskModalProps {
   addAlert: (message: string, type: 'success' | 'error' | 'info') => void;
   refreshVMs: () => void;
   setIsAddingDisk: (adding: boolean) => void;
+  refreshConfig: () => void;
 }
 
 interface ActivateResponseData {
@@ -38,6 +39,7 @@ const DiskModal = ({
   addAlert,
   refreshVMs,
   setIsAddingDisk,
+  refreshConfig,
 }: DiskModalProps) => {
   const [size, setSize] = useState<number>(5);
   const [controller, setController] = useState<'scsi' | 'sata' | 'virtio'>('scsi');
@@ -72,7 +74,7 @@ const DiskModal = ({
 
       addAlert(`Adding ${size}GB disk to VM ${vm.vmid} on ${controller.toUpperCase()}...`, 'info');
 
-      onClose(); // close modal immediately after alert
+      onClose();
 
       if (currentStatus === 'running') {
         setVmWasRunning(true);
@@ -145,6 +147,7 @@ const DiskModal = ({
       }
 
       refreshVMs();
+      refreshConfig();
     } catch (err: any) {
       console.error('Error adding disk:', err);
 
