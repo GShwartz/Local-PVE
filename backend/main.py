@@ -92,7 +92,7 @@ async def list_vms(
     ticket: str,
     svc: VMService = Depends(get_vm_service),
 ):
-    return svc.get_vms(node, csrf_token, ticket)
+    return await svc.get_vms(node, csrf_token, ticket)
 
 @app.get("/task/{node}/{upid}")
 async def get_task_status(

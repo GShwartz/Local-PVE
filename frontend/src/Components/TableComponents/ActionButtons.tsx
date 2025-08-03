@@ -66,7 +66,6 @@ const ActionButtons = ({
   vm,
   pendingActions,
   vmMutation,
-  // showSnapshots,
   onToggleRow,
   auth,
   addAlert,
@@ -111,16 +110,17 @@ const ActionButtons = ({
   const handleConfirmClone = () => {
     setIsCloning(false);
     setIsCloningInProgress(true);
+    addAlert(`Cloning process for VM ${vm.name} has started. Target name: "${cloneName}".`, 'info');
     vmMutation.mutate(
       { vmid: vm.vmid, action: 'clone', name: cloneName },
       {
         onSuccess: () => {
           setIsCloningInProgress(false);
-          addAlert(`Cloning of VM ${vm.name} started`, 'success');
+          addAlert(`Cloning of VM "${vm.name}" to "${cloneName}" successfully initiated.`, 'success');
         },
         onError: () => {
           setIsCloningInProgress(false);
-          toast.error('Cloning failed.');
+          addAlert(`Cloning of VM "${vm.name}" failed.`, 'error');
         },
       }
     );
@@ -129,12 +129,13 @@ const ActionButtons = ({
   const handleCancelClone = () => {
     setIsCloning(false);
     setCloneName(vm.name);
+    addAlert(`Clone operation for VM "${vm.name}" was cancelled.`, 'info');
   };
 
   const handleRemove = async () => {
     setIsRemoving(true);
     setShowRemoveConfirm(false);
-    addAlert(`Removing VM ${vm.name}...`, 'info');
+    addAlert(`Initiating deletion process for VM "${vm.name}"...`, 'warning');
 
     const previousVms = queryClient.getQueryData<VM[]>(['vms']);
     queryClient.setQueryData<VM[]>(['vms'], (oldVms) =>
@@ -178,12 +179,11 @@ const ActionButtons = ({
         throw new Error(`Deletion task failed: ${taskStatus.exitstatus}`);
       }
 
-      addAlert(`VM ${vm.name} was removed`, 'success');
+      addAlert(`VM "${vm.name}" has been successfully deleted.`, 'success');
       refreshVMs();
     } catch (error: any) {
       queryClient.setQueryData<VM[]>(['vms'], previousVms);
-      toast.error(error.message || 'Failed to delete VM');
-      addAlert(`Failed to remove VM ${vm.name}: ${error.message}`, 'error');
+      addAlert(`Failed to delete VM "${vm.name}": ${error.message}`, 'error');
     } finally {
       setIsRemoving(false);
     }
@@ -214,9 +214,13 @@ const ActionButtons = ({
           onClick={(e) => {
             e.stopPropagation();
             setIsStarting(true);
+            addAlert(`Starting VM "${vm.name}"...`, 'info');
             vmMutation.mutate(
               { vmid: vm.vmid, action: 'start', name: vm.name },
-              { onError: () => setIsStarting(false) }
+              {
+                onSuccess: () => addAlert(`VM "${vm.name}" successfully started.`, 'success'),
+                onError: () => addAlert(`Failed to start VM "${vm.name}".`, 'error'),
+              }
             );
           }}
           disabled={vm.status === 'running' || vm.status === 'suspended' || disableAll}
@@ -233,9 +237,13 @@ const ActionButtons = ({
           onClick={(e) => {
             e.stopPropagation();
             setIsHalting(true);
+            addAlert(`Force stopping VM "${vm.name}"...`, 'warning');
             vmMutation.mutate(
               { vmid: vm.vmid, action: 'stop', name: vm.name },
-              { onError: () => setIsHalting(false) }
+              {
+                onSuccess: () => addAlert(`VM "${vm.name}" was stopped.`, 'success'),
+                onError: () => addAlert(`Failed to stop VM "${vm.name}".`, 'error'),
+              }
             );
           }}
           disabled={vm.status !== 'running' || disableAll}
@@ -252,9 +260,13 @@ const ActionButtons = ({
           onClick={(e) => {
             e.stopPropagation();
             setIsHalting(true);
+            addAlert(`Sending shutdown signal to VM "${vm.name}"...`, 'info');
             vmMutation.mutate(
               { vmid: vm.vmid, action: 'shutdown', name: vm.name },
-              { onError: () => setIsHalting(false) }
+              {
+                onSuccess: () => addAlert(`Shutdown initiated for VM "${vm.name}".`, 'success'),
+                onError: () => addAlert(`Failed to shutdown VM "${vm.name}".`, 'error'),
+              }
             );
           }}
           disabled={vm.status !== 'running' || disableAll}
@@ -271,9 +283,13 @@ const ActionButtons = ({
           onClick={(e) => {
             e.stopPropagation();
             setIsRebooting(true);
+            addAlert(`Rebooting VM "${vm.name}"...`, 'info');
             vmMutation.mutate(
               { vmid: vm.vmid, action: 'reboot', name: vm.name },
-              { onError: () => setIsRebooting(false) }
+              {
+                onSuccess: () => addAlert(`VM "${vm.name}" reboot initiated.`, 'success'),
+                onError: () => addAlert(`Failed to reboot VM "${vm.name}".`, 'error'),
+              }
             );
           }}
           disabled={vm.status !== 'running' || disableAll}
@@ -285,21 +301,6 @@ const ActionButtons = ({
         >
           Reboot
         </ActionButton>
-
-        {/* <ActionButton
-          onClick={(e) => {
-            e.stopPropagation();
-            showSnapshots(vm.vmid);
-          }}
-          disabled={disableAll}
-          className={
-            disableAll
-              ? 'bg-gray-600 cursor-not-allowed'
-              : 'bg-purple-600 hover:bg-purple-700'
-          }
-        >
-          Snapshots
-        </ActionButton> */}
 
         <ConsoleButton
           onClick={(e) => {

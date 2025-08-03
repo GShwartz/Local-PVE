@@ -123,8 +123,8 @@ const TableRow = ({
   const requiresVMStopped = (changesToApply.cpu !== null || changesToApply.ram !== null) && vm.status === 'running';
 
   const handleApplyChanges = async (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.stopPropagation();
     setIsApplying(true);
+    e.stopPropagation();
     setTableApplying(true);
 
     try {
