@@ -1,4 +1,4 @@
-import styles from '../../CSS/Loader.module.css';
+import styles from '../../../CSS/Loader.module.css';
 
 const Loader = () => (
   <div className={styles.loader}>

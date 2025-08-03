@@ -1,7 +1,8 @@
-import SnapshotsView from '../SnapshotsComponents/SnapshotsView';
-import DisksView from './DiskView';
+import SnapshotsView from './SnapshotsComponents/SnapshotsView';
+import DisksView from './DiskModal/DiskView';
 import { VM, Snapshot } from '../../types';
 import { UseMutationResult } from '@tanstack/react-query';
+import { useState } from 'react';
 import styles from '../../CSS/ExpandedArea.module.css';
 
 interface ExpandedRowProps {
@@ -36,8 +37,10 @@ const ExpandedRow = ({
   snapshotsLoading,
   snapshotsError,
   refreshVMs,
-}: ExpandedRowProps) =>
-  expandedRows.has(vm.vmid) ? (
+}: ExpandedRowProps) => {
+  const [isAddingDisk, setIsAddingDisk] = useState(false);
+
+  return expandedRows.has(vm.vmid) ? (
     <tr className="border-b border-gray-700 bg-gray-900">
       <td colSpan={11} className="px-6 py-4 align-top">
         <div className={styles.container}>
@@ -48,6 +51,9 @@ const ExpandedRow = ({
               auth={auth}
               addAlert={addAlert}
               refreshVMs={refreshVMs}
+              snapshots={snapshots}
+              isAddingDisk={isAddingDisk}
+              setIsAddingDisk={setIsAddingDisk}
             />
           </div>
           {snapshotView.has(vm.vmid) && (
@@ -61,6 +67,7 @@ const ExpandedRow = ({
                 snapshotMutation={snapshotMutation}
                 deleteSnapshotMutation={deleteSnapshotMutation}
                 pendingActions={pendingActions}
+                isAddingDisk={isAddingDisk}
               />
             </div>
           )}
@@ -68,5 +75,6 @@ const ExpandedRow = ({
       </td>
     </tr>
   ) : null;
+};
 
 export default ExpandedRow;

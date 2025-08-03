@@ -1,9 +1,9 @@
-import { useState } from 'react';
-import { VM } from '../../types';
-import DiskModal from '../DiskModal/DiskModal';
-import DiskList from '../DiskModal/DiskList';
-import useDiskConfig from '../DiskModal/useDiskConfig';
-import Loader from '../DiskModal/Loader';
+import { useState, Dispatch, SetStateAction } from 'react';
+import { VM, Snapshot } from '../../../types';
+import DiskModal from './DiskModal';
+import DiskList from './DiskList';
+import useDiskConfig from './useDiskConfig';
+import Loader from './Loader';
 
 interface DisksViewProps {
   vm: VM;
@@ -11,17 +11,30 @@ interface DisksViewProps {
   auth: { csrf_token: string; ticket: string };
   addAlert: (msg: string, type: string) => void;
   refreshVMs: () => void;
+  snapshots?: Snapshot[];
+  isAddingDisk: boolean;
+  setIsAddingDisk: Dispatch<SetStateAction<boolean>>;
 }
 
-const DisksView = ({ vm, node, auth, addAlert, refreshVMs }: DisksViewProps) => {
+const DisksView = ({
+  vm,
+  node,
+  auth,
+  addAlert,
+  refreshVMs,
+  snapshots,
+  isAddingDisk,
+  setIsAddingDisk
+}: DisksViewProps) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [pendingDiskKey, setPendingDiskKey] = useState<string | null>(null);
   const [deletingDiskKey, setDeletingDiskKey] = useState<string | null>(null);
-  const [isAddingDisk, setIsAddingDisk] = useState(false);
   const { config, refreshConfig } = useDiskConfig(vm.vmid, node, auth);
 
   const openModal = () => setIsModalOpen(true);
   const closeModal = () => setIsModalOpen(false);
+
+  const hasSnapshots = (snapshots?.length ?? 0) > 0;
 
   return (
     <>
@@ -62,6 +75,7 @@ const DisksView = ({ vm, node, auth, addAlert, refreshVMs }: DisksViewProps) => 
           setPendingDiskKey={setPendingDiskKey}
           setDeletingDiskKey={setDeletingDiskKey}
           refreshConfig={refreshConfig}
+          hasSnapshots={hasSnapshots}
         />
 
         <DiskModal

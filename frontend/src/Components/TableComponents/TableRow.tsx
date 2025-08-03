@@ -10,7 +10,7 @@ import ActionButtons from './ActionButtons';
 import ApplyButton from './ApplyButton';
 import HDDCell from './HDDCell';
 import StatusBadge from './StatusBadge';
-import ExpandedRow from './ExpandedRow';
+import ExpandedRow from '../ExpandedRow/ExpandedRow';
 
 interface VMConfigResponse {
   name?: string;

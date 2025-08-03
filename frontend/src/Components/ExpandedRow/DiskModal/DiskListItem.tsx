@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { VM } from '../../types';
+import { VM } from '../../../types';
 
 interface DiskListItemProps {
   diskKey: string;
@@ -14,6 +14,7 @@ interface DiskListItemProps {
   setPendingDiskKey: (key: string | null) => void;
   setDeletingDiskKey: (key: string | null) => void;
   refreshConfig: () => void;
+  hasSnapshots: boolean;
 }
 
 const DiskListItem = ({
@@ -28,7 +29,8 @@ const DiskListItem = ({
   deletingDiskKey,
   setPendingDiskKey,
   setDeletingDiskKey,
-  refreshConfig
+  refreshConfig,
+  hasSnapshots
 }: DiskListItemProps) => {
   const controller = diskKey.replace(/\d+$/, '') || 'unknown';
   const controllerLabel = controller.toUpperCase();
@@ -70,6 +72,9 @@ const DiskListItem = ({
     }
   };
 
+  const disableRemove =
+    isBootDisk || pendingDiskKey !== null || deletingDiskKey === diskKey || hasSnapshots;
+
   return (
     <li>
       <div className="flex items-center justify-between p-3 text-sm font-normal text-gray-900 rounded-lg bg-gray-700 dark:bg-gray-700 dark:text-white">
@@ -96,9 +101,9 @@ const DiskListItem = ({
         ) : (
           <button
             onClick={() => setPendingDiskKey(diskKey)}
-            disabled={isBootDisk || pendingDiskKey !== null || deletingDiskKey === diskKey}
+            disabled={disableRemove}
             className={`text-xs px-2 py-1 rounded-md focus:outline-none ${
-              isBootDisk || pendingDiskKey !== null || deletingDiskKey === diskKey
+              disableRemove
                 ? 'bg-gray-600 text-white cursor-not-allowed'
                 : 'bg-red-600 hover:bg-red-700 text-white focus:ring-2 focus:ring-red-400'
             }`}

@@ -1,5 +1,5 @@
 import DiskListItem from './DiskListItem';
-import { VM } from '../../types';
+import { VM } from '../../../types';
 
 interface DiskListProps {
   config: VM['config'] | null;
@@ -13,6 +13,7 @@ interface DiskListProps {
   setPendingDiskKey: (key: string | null) => void;
   setDeletingDiskKey: (key: string | null) => void;
   refreshConfig: () => void;
+  hasSnapshots: boolean;
 }
 
 const DiskList = ({
@@ -26,7 +27,8 @@ const DiskList = ({
   deletingDiskKey,
   setPendingDiskKey,
   setDeletingDiskKey,
-  refreshConfig
+  refreshConfig,
+  hasSnapshots
 }: DiskListProps) => {
   if (!config) {
     return <p className="text-sm text-gray-600 dark:text-gray-300">Loading disks...</p>;
@@ -63,6 +65,7 @@ const DiskList = ({
           setPendingDiskKey={setPendingDiskKey}
           setDeletingDiskKey={setDeletingDiskKey}
           refreshConfig={refreshConfig}
+          hasSnapshots={hasSnapshots}
         />
       ))}
     </ul>

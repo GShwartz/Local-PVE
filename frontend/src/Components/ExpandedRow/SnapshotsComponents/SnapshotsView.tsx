@@ -1,7 +1,7 @@
 import { UseMutationResult } from '@tanstack/react-query';
-import { VM, Snapshot } from '../../types';
+import { VM, Snapshot } from '../../../types';
 import { useState } from 'react';
-import styles from '../../CSS/Loader.module.css';
+import styles from '../../../CSS/Loader.module.css';
 
 interface SnapshotsViewProps {
   vm: VM;
@@ -12,6 +12,7 @@ interface SnapshotsViewProps {
   snapshotMutation: UseMutationResult<string, any, { vmid: number; snapname: string }, unknown>;
   deleteSnapshotMutation: UseMutationResult<string, any, { vmid: number; snapname: string }, unknown>;
   pendingActions: { [vmid: number]: string[] };
+  isAddingDisk?: boolean;
 }
 
 interface PopconfirmProps {
@@ -65,6 +66,7 @@ const SnapshotsView = ({
   snapshotMutation,
   deleteSnapshotMutation,
   pendingActions,
+  isAddingDisk,
 }: SnapshotsViewProps) => {
   const isCreatingSnapshot = pendingActions[vm.vmid]?.some((action) =>
     action.startsWith('create-')
@@ -72,6 +74,7 @@ const SnapshotsView = ({
   const isRevertingSnapshot = pendingActions[vm.vmid]?.some((action) =>
     action.startsWith('revert-')
   );
+
   const [popconfirm, setPopconfirm] = useState<{
     isOpen: boolean;
     action: 'revert' | 'delete' | null;
@@ -117,9 +120,9 @@ const SnapshotsView = ({
           )}
           <button
             onClick={() => openModal(vm.vmid)}
-            disabled={isCreatingSnapshot || isRevertingSnapshot}
+            disabled={isCreatingSnapshot || isRevertingSnapshot || isAddingDisk}
             className={`text-white font-medium rounded-lg text-sm px-3 py-1 text-center ${
-              isCreatingSnapshot || isRevertingSnapshot
+              isCreatingSnapshot || isRevertingSnapshot || isAddingDisk
                 ? 'bg-gray-600 cursor-not-allowed'
                 : 'bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800'
             }`}
