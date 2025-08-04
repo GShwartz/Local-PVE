@@ -11,6 +11,7 @@ import CloneButton from './CloneButton';
 import RemoveButton from './RemoveButton';
 import SuspendResumeButton from './ActionButtons/SuspendResumeButton';
 import { openProxmoxConsole } from './ActionButtons/openProxmoxConsole';
+import styles from './ActionButtons.module.css';
 
 interface ActionButtonsProps {
   vm: VM;
@@ -28,6 +29,7 @@ interface ActionButtonsProps {
   refreshVMs: () => void;
   queryClient: QueryClient;
   isApplying: boolean;
+  applyButton: React.ReactNode;
 }
 
 const PROXMOX_NODE = 'pve';
@@ -43,6 +45,7 @@ const ActionButtons = ({
   refreshVMs,
   queryClient,
   isApplying,
+  applyButton,
 }: ActionButtonsProps) => {
   const [isStarting, setIsStarting] = useState(false);
   const [isHalting, setIsHalting] = useState(false);
@@ -52,11 +55,14 @@ const ActionButtons = ({
   const [cloneName, setCloneName] = useState(vm.name);
   const [isRemoving, setIsRemoving] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+  const [isSuspending, setIsSuspending] = useState(false);
 
   const hasPendingActions = pendingActions[vm.vmid]?.length > 0;
   const isCreatingSnapshot = pendingActions[vm.vmid]?.some((a) => a.startsWith('create-'));
   const isClonePending = pendingActions[vm.vmid]?.includes('clone');
   const showCloningLabel = isCloningInProgress || isClonePending;
+
+  const isSuspended = vm.status === 'paused';
 
   const disableAll =
     hasPendingActions ||
@@ -64,10 +70,11 @@ const ActionButtons = ({
     isHalting ||
     isCloningInProgress ||
     isRemoving ||
-    isApplying;
+    isApplying ||
+    isSuspending;
 
   const disableConsole =
-    !isRebooting && !isStarting && (isCreatingSnapshot || isHalting || hasPendingActions);
+    isSuspended || (!isRebooting && !isStarting && (isCreatingSnapshot || isHalting || hasPendingActions || isSuspending));
 
   useEffect(() => {
     if (isStarting && vm.status === 'running') setIsStarting(false);
@@ -161,13 +168,6 @@ const ActionButtons = ({
     }
   };
 
-  const removeDisabled =
-    isCloning ||
-    isCloningInProgress ||
-    vm.status === 'running' ||
-    vm.status === 'suspended' ||
-    disableAll;
-
   return (
     <td
       className="px-2 py-1 text-center action-buttons-cell"
@@ -181,7 +181,7 @@ const ActionButtons = ({
       }}
       onClick={onToggleRow}
     >
-      <div className="flex space-x-2.5 justify-center items-center" style={{ height: '48px' }}>
+      <div className={styles.buttonGroup} style={{ height: '48px' }}>
         <StartButton
           vm={vm}
           disabled={disableAll}
@@ -199,14 +199,14 @@ const ActionButtons = ({
         />
         <ShutdownButton
           vm={vm}
-          disabled={disableAll}
+          disabled={disableAll || isSuspended}
           setIsHalting={setIsHalting}
           vmMutation={vmMutation}
           addAlert={addAlert}
         />
         <RebootButton
           vm={vm}
-          disabled={disableAll}
+          disabled={disableAll || isSuspended}
           setIsRebooting={setIsRebooting}
           vmMutation={vmMutation}
           addAlert={addAlert}
@@ -218,8 +218,9 @@ const ActionButtons = ({
           addAlert={addAlert}
           refreshVMs={refreshVMs}
           disabled={disableAll}
+          isPending={pendingActions[vm.vmid]?.some((a) => a === 'suspend' || a === 'resume')}
+          setSuspending={setIsSuspending}
         />
-
         <ConsoleButton
           onClick={(e) => {
             e.stopPropagation();
@@ -228,7 +229,7 @@ const ActionButtons = ({
           disabled={disableConsole}
         />
         <CloneButton
-          disabled={disableAll}
+          disabled={disableAll || isSuspended}
           showCloningLabel={showCloningLabel}
           isCloning={isCloning}
           cloneName={cloneName}
@@ -246,11 +247,12 @@ const ActionButtons = ({
           onCancel={handleCancelClone}
         />
         <RemoveButton
-          disabled={removeDisabled}
+          disabled={false}
           onConfirm={handleRemove}
           showConfirm={showRemoveConfirm}
           setShowConfirm={setShowRemoveConfirm}
         />
+        {applyButton}
       </div>
     </td>
   );

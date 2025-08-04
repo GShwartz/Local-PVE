@@ -1,0 +1,12 @@
+.buttonGroup {
+  display: flex;
+  gap: 0.625rem; /* Matches Tailwind space-x-2.5 */
+}
+
+.buttonGroup > * {
+  flex: 1;
+  text-align: center;
+  width: 100%;
+  min-width: 5rem;
+  position: relative;
+}

@@ -49,6 +49,7 @@
   @apply absolute top-[4.5rem] right-0 w-[500px] max-h-80 overflow-y-auto bg-gray-800/50 rounded-lg shadow-lg z-[100] text-white pt-0 pb-[1px] pl-[1px] pr-[1px];
   scrollbar-width: thin !important;
   scrollbar-color: #4b5563 #1f2937 !important;
+  overflow-x: hidden
 }
 
 .history-container::-webkit-scrollbar {
@@ -74,6 +75,8 @@
 ────────────────────────────────── */
 .history-table {
   @apply w-full text-sm text-left text-gray-400 bg-gray-800 table-fixed border-0;
+  margin-left: 1px;
+  overflow-x: hidden
 }
 
 .history-table thead {

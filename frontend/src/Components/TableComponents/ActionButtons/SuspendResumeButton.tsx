@@ -14,6 +14,8 @@ interface SuspendResumeButtonProps {
   addAlert: (message: string, type: string) => void;
   refreshVMs: () => void;
   disabled: boolean;
+  isPending: boolean;
+  setSuspending: (state: boolean) => void;
 }
 
 const SuspendResumeButton: React.FC<SuspendResumeButtonProps> = ({
@@ -22,20 +24,29 @@ const SuspendResumeButton: React.FC<SuspendResumeButtonProps> = ({
   vmMutation,
   addAlert,
   refreshVMs,
-  disabled
+  disabled,
+  isPending,
+  setSuspending,
 }) => {
-  const [isToggling, setIsToggling] = useState(false);
+  const [forceDelay, setForceDelay] = useState(false);
+  const [localSuspended, setLocalSuspended] = useState(
+    vm.status === 'paused' || (vm.status === 'running' && vm.ip_address === 'N/A')
+  );
   const API_BASE_URL = 'http://localhost:8000';
 
-  const isSuspended = vm.status === 'paused' || vm.ip_address === 'N/A';
-  const action = isSuspended ? 'resume' : 'hibernate';
-  const targetStatus = isSuspended ? 'running' : 'paused';
+  const shouldDisableDueToState =
+    vm.ip_address === 'N/A' && vm.status !== 'running';
+
+  const isButtonDisabled = disabled || isPending || shouldDisableDueToState || forceDelay;
+
+  const action = localSuspended ? 'resume' : 'suspend';
+  const targetStatus = localSuspended ? 'running' : 'paused';
 
   const handleClick = () => {
-    if (disabled || isToggling) return;
+    if (isButtonDisabled) return;
 
-    setIsToggling(true);
-    addAlert(`${action === 'hibernate' ? 'Suspending' : 'Resuming'} VM "${vm.name}"...`, 'info');
+    setSuspending(true);
+    addAlert(`${action === 'suspend' ? 'Suspending' : 'Resuming'} VM "${vm.name}"...`, 'info');
 
     vmMutation.mutate(
       { vmid: vm.vmid, action },
@@ -65,16 +76,20 @@ const SuspendResumeButton: React.FC<SuspendResumeButtonProps> = ({
           if (currentStatus === targetStatus) {
             addAlert(`VM "${vm.name}" is now ${targetStatus}.`, 'success');
             refreshVMs();
-          } else {
-            addAlert(`VM "${vm.name}" did not reach ${targetStatus} state.`, 'error');
           }
         },
         onError: () => {
           addAlert(`Failed to ${action} VM "${vm.name}".`, 'error');
         },
-        onSettled: () => setIsToggling(false),
       }
     );
+
+    setForceDelay(true);
+    setTimeout(() => {
+      setLocalSuspended((prev) => !prev);
+      setForceDelay(false);
+      setSuspending(false);
+    }, 10000);
   };
 
   return (
@@ -83,15 +98,15 @@ const SuspendResumeButton: React.FC<SuspendResumeButtonProps> = ({
         e.stopPropagation();
         handleClick();
       }}
-      disabled={disabled || isToggling}
+      disabled={isButtonDisabled}
       className={`px-2 py-1 text-sm font-medium rounded-md active:scale-95 transition-transform duration-100 text-white ${
-        disabled || isToggling
+        isButtonDisabled
           ? 'bg-gray-600 cursor-not-allowed'
           : 'bg-blue-600 hover:bg-blue-700'
       }`}
       style={{ height: '34px', lineHeight: '1.5' }}
     >
-      {isSuspended ? 'Resume' : 'Suspend'}
+      {localSuspended ? 'Resume' : 'Suspend'}
     </button>
   );
 };

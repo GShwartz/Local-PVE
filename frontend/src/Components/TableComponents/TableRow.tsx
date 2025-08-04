@@ -47,21 +47,51 @@ interface TableRowProps {
   hasRowAboveExpanded: boolean;
 }
 
-const getSnapshots = async ({ node, vmid, csrf, ticket }: { node: string; vmid: number; csrf: string; ticket: string }): Promise<Snapshot[]> => {
+const getSnapshots = async ({
+  node,
+  vmid,
+  csrf,
+  ticket,
+}: {
+  node: string;
+  vmid: number;
+  csrf: string;
+  ticket: string;
+}): Promise<Snapshot[]> => {
   const { data } = await axios.get<Snapshot[]>(`http://localhost:8000/vm/${node}/qemu/${vmid}/snapshots`, {
     params: { csrf_token: csrf, ticket },
   });
   return data;
 };
 
-const getVMStatus = async ({ node, vmid, csrf, ticket }: { node: string; vmid: number; csrf: string; ticket: string }): Promise<string> => {
+const getVMStatus = async ({
+  node,
+  vmid,
+  csrf,
+  ticket,
+}: {
+  node: string;
+  vmid: number;
+  csrf: string;
+  ticket: string;
+}): Promise<string> => {
   const { data } = await axios.get<{ status: string }>(`http://localhost:8000/vm/${node}/qemu/${vmid}/status`, {
     params: { csrf_token: csrf, ticket },
   });
   return data.status;
 };
 
-const getVMInfo = async ({ node, vmid, csrf, ticket }: { node: string; vmid: number; csrf: string; ticket: string }): Promise<VM> => {
+const getVMInfo = async ({
+  node,
+  vmid,
+  csrf,
+  ticket,
+}: {
+  node: string;
+  vmid: number;
+  csrf: string;
+  ticket: string;
+}): Promise<VM> => {
   const { data } = await axios.get<VMConfigResponse>(`http://localhost:8000/vm/${node}/qemu/${vmid}/config`, {
     params: { csrf_token: csrf, ticket },
   });
@@ -112,7 +142,11 @@ const TableRow = ({
     enabled: snapshotView.has(vm.vmid),
   });
 
-  const [changesToApply, setChangesToApply] = useState<{ vmname: string | null; cpu: number | null; ram: string | null }>({
+  const [changesToApply, setChangesToApply] = useState<{
+    vmname: string | null;
+    cpu: number | null;
+    ram: string | null;
+  }>({
     vmname: null,
     cpu: null,
     ram: null,
@@ -180,7 +214,7 @@ const TableRow = ({
             if (!validated) throw new Error(`Validation failed after retries.`);
 
             queryClient.setQueryData(['vms'], (oldVms: VM[] | undefined) =>
-              !oldVms ? [updatedVM!] : oldVms.map((oldVm) => (oldVm.vmid === vm.vmid ? updatedVM! : oldVm)),
+              !oldVms ? [updatedVM!] : oldVms.map((oldVm) => (oldVm.vmid === vm.vmid ? updatedVM! : oldVm))
             );
 
             const changes: string[] = [];
@@ -200,7 +234,7 @@ const TableRow = ({
             setIsApplying(false);
             setTableApplying(false);
           },
-        },
+        }
       );
     } catch (error) {
       addAlert(`Failed to fetch VM status for ${vm.vmid}`, 'error');
@@ -229,26 +263,29 @@ const TableRow = ({
         <CPUCell {...{ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply, isApplying }} />
         <RAMCell {...{ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply, isApplying }} />
         <HDDCell hdd_sizes={vm.hdd_sizes} />
-        <td className="px-2 py-2 text-center border-gray-700">
-          <ApplyButton onClick={handleApplyChanges} hasChanges={hasChanges} requiresVMStopped={requiresVMStopped} isApplying={isApplying} />
-        </td>
         <td className="px-2 sm:px-6 py-2 sm:py-4 text-center narrow-col border-gray-700">
           <StatusBadge status={vm.status} />
         </td>
-        <td className="px-2 py-2 text-center">
-          <ActionButtons
-            vm={vm}
-            pendingActions={pendingActions}
-            vmMutation={vmMutation}
-            showSnapshots={showSnapshots}
-            onToggleRow={() => toggleRow(vm.vmid)}
-            auth={auth}
-            addAlert={addAlert}
-            refreshVMs={refreshVMs}
-            queryClient={queryClient}
-            isApplying={isApplying}
-          />
-        </td>
+        <ActionButtons
+          vm={vm}
+          pendingActions={pendingActions}
+          vmMutation={vmMutation}
+          showSnapshots={showSnapshots}
+          onToggleRow={() => toggleRow(vm.vmid)}
+          auth={auth}
+          addAlert={addAlert}
+          refreshVMs={refreshVMs}
+          queryClient={queryClient}
+          isApplying={isApplying}
+          applyButton={
+            <ApplyButton
+              onClick={handleApplyChanges}
+              hasChanges={hasChanges}
+              requiresVMStopped={requiresVMStopped}
+              isApplying={isApplying}
+            />
+          }
+        />
         <td className="px-2 py-4 text-center cursor-pointer" onClick={() => toggleRow(vm.vmid)}>
           {expandedRows.has(vm.vmid) && !snapshotView.has(vm.vmid) ? '▲' : '▼'}
         </td>

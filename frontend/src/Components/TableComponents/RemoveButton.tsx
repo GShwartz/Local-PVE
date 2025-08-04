@@ -7,7 +7,6 @@ interface RemoveButtonProps {
   setShowConfirm: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-
 const RemoveButton = ({
   disabled,
   onConfirm,
@@ -31,7 +30,7 @@ const RemoveButton = ({
   };
 
   return (
-    <div className="relative">
+    <>
       <ActionButton
         onClick={handleClick}
         disabled={disabled}
@@ -41,27 +40,29 @@ const RemoveButton = ({
       </ActionButton>
 
       {showConfirm && (
-        <span
-          className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-gray-800 border border-gray-600 rounded-md p-3 flex items-center space-x-2 z-50"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            onClick={handleConfirm}
-            className="text-white bg-green-600 hover:bg-green-500 rounded-md px-3 py-1"
-            style={{ fontSize: '1.25rem', fontFamily: 'Arial, sans-serif', lineHeight: '1' }}
+        <div className="absolute z-50 mt-2">
+          <span
+            className="bg-gray-800 border border-gray-600 rounded-md p-3 flex items-center space-x-2"
+            onClick={(e) => e.stopPropagation()}
           >
-            ✔
-          </button>
-          <button
-            onClick={handleCancel}
-            className="text-white bg-red-600 hover:bg-red-500 rounded-md px-3 py-1"
-            style={{ fontSize: '1.25rem', fontFamily: 'Arial, sans-serif', lineHeight: '1' }}
-          >
-            ✖
-          </button>
-        </span>
+            <button
+              onClick={handleConfirm}
+              className="text-white bg-green-600 hover:bg-green-500 rounded-md px-3 py-1"
+              style={{ fontSize: '1.25rem', fontFamily: 'Arial, sans-serif', lineHeight: '1' }}
+            >
+              ✔
+            </button>
+            <button
+              onClick={handleCancel}
+              className="text-white bg-red-600 hover:bg-red-500 rounded-md px-3 py-1"
+              style={{ fontSize: '1.25rem', fontFamily: 'Arial, sans-serif', lineHeight: '1' }}
+            >
+              ✖
+            </button>
+          </span>
+        </div>
       )}
-    </div>
+    </>
   );
 };
 

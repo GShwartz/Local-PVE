@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { VM, Auth } from '../../types';
 import axios from 'axios';
 import ModalWrapper from './ModalWrapper';
-import DiskWarning from './DiskWarning';
+import DiskWarning from '../ExpandedRow/DiskModal/DiskWarning';
 import DiskForm from './DiskForm';
 import {
   getVMStatus,
@@ -45,14 +45,12 @@ const DiskModal = ({
   const [controller, setController] = useState<'scsi' | 'sata' | 'virtio'>('scsi');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [vmWasRunning, setVmWasRunning] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setSize(10);
       setController('scsi');
       setError(null);
-      setVmWasRunning(false);
     }
   }, [isOpen, vm.vmid]);
 
@@ -68,22 +66,23 @@ const DiskModal = ({
     setLoading(true);
     setIsAddingDisk(true);
 
+    let wasRunning = false;
+
     try {
       const currentStatus = await getVMStatus(vm.vmid, node, auth);
       console.log('Current VM status:', currentStatus);
 
-      addAlert(`Adding ${size}GB disk to VM ${vm.vmid} on ${controller.toUpperCase()}...`, 'info');
-
-      onClose();
-
       if (currentStatus === 'running') {
-        setVmWasRunning(true);
+        wasRunning = true;
         addAlert(`Stopping VM ${vm.vmid} to add disk...`, 'success');
         await controlVM('shutdown', vm.vmid, node, auth);
         const stopped = await waitForVMStatus(vm.vmid, node, auth, 'stopped');
         if (!stopped) throw new Error('Failed to stop VM within timeout period');
         addAlert(`VM ${vm.vmid} stopped successfully`, 'success');
       }
+
+      onClose();
+      addAlert(`Adding ${size}GB disk to VM ${vm.vmid} on ${controller.toUpperCase()}...`, 'info');
 
       const bus = findNextFreeBus(vm, controller);
       const diskRequestBody = {
@@ -139,7 +138,7 @@ const DiskModal = ({
         addAlert(`Disk created on VM ${vm.vmid} (no matching unused entry found).`, 'success');
       }
 
-      if (vmWasRunning) {
+      if (wasRunning) {
         addAlert(`Starting VM ${vm.vmid}...`, 'success');
         await controlVM('start', vm.vmid, node, auth);
         await waitForVMStatus(vm.vmid, node, auth, 'running');
@@ -151,7 +150,7 @@ const DiskModal = ({
     } catch (err: any) {
       console.error('Error adding disk:', err);
 
-      if (vmWasRunning) {
+      if (wasRunning) {
         try {
           await controlVM('start', vm.vmid, node, auth);
           addAlert(`VM ${vm.vmid} restarted after error`, 'success');
