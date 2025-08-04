@@ -1,5 +1,3 @@
-# vm_service.py
-
 from Modules.models import VMCreateRequest, VMUpdateRequest, VMCloneRequest
 from typing import Dict, List, Any, Optional
 from .agent_service import AgentService
@@ -71,7 +69,6 @@ class VMService:
                 self.logger.error(f"Failed to fetch base VM list: {str(e)}")
                 return []
 
-            # Batch all config + status + agent info fetches in parallel
             async def fetch_vm_data(vm):
                 vmid = vm["vmid"]
                 config_url = f"{base_url}/{vmid}/config"
@@ -123,14 +120,15 @@ class VMService:
 
     def vm_action(self, node: str, vmid: int, action: str, csrf_token: str, ticket: str) -> Any:
         self.logger.info(f"Performing action '{action}' on VM {vmid} on node {node}")
-        valid_actions = ["start", "stop", "shutdown", "reboot", "hibernate", "resume"]
+
+        if action == "hibernate":
+            action = "suspend"
+
+        valid_actions = ["start", "stop", "shutdown", "reboot", "suspend", "resume"]
 
         if action not in valid_actions:
             self.logger.error(f"Invalid action: {action}")
             raise HTTPException(status_code=400, detail="Invalid action")
-        
-        if action == "hibernate":
-            action = "suspend"
 
         headers = self.set_auth_headers(csrf_token, ticket)
         response = self.session.post(
@@ -142,7 +140,7 @@ class VMService:
         if response.status_code != 200:
             self.logger.error(f"Failed to perform action '{action}' on VM {vmid}: {response.text}")
             raise HTTPException(status_code=response.status_code, detail=response.text)
-        
+
         return response.json().get("data")
 
     def create_vm(self, node: str, vm_create: VMCreateRequest, csrf_token: str, ticket: str) -> Any:

@@ -1,5 +1,3 @@
-# main.py
-
 from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from urllib.parse import quote_plus
@@ -308,7 +306,11 @@ async def control_vm(
     ticket: str,
     svc: VMService = Depends(get_vm_service),
 ):
-    if action not in ["start", "stop", "shutdown", "reboot", "hibernate", "resume"]:
+    # Convert hibernate to suspend
+    if action == "hibernate":
+        action = "suspend"
+
+    if action not in ["start", "stop", "shutdown", "reboot", "suspend", "resume"]:
         raise HTTPException(status_code=400, detail="Invalid action")
     return svc.vm_action(node, vmid, action, csrf_token, ticket)
 
