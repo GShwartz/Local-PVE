@@ -1,12 +1,17 @@
 import { useState, useEffect } from 'react';
 import { VM, Auth, TaskStatus } from '../../types';
 import { UseMutationResult, QueryClient } from '@tanstack/react-query';
-import toast from 'react-hot-toast';
 
-import ActionButton from './ActionButton';
-import CloneButton from './CloneButton';
+import StartButton from './ActionButtons/StartButton';
+import StopButton from './ActionButtons/StopButton';
+import ShutdownButton from './ActionButtons/ShutdownButton';
+import RebootButton from './ActionButtons/RebootButton';
 import ConsoleButton from './ConsoleButton';
+import CloneButton from './CloneButton';
 import RemoveButton from './RemoveButton';
+import SuspendResumeButton from './ActionButtons/SuspendResumeButton';
+import { openProxmoxConsole } from './ActionButtons/openProxmoxConsole';
+import styles from './ActionButtons.module.css';
 
 interface ActionButtonsProps {
   vm: VM;
@@ -24,43 +29,11 @@ interface ActionButtonsProps {
   refreshVMs: () => void;
   queryClient: QueryClient;
   isApplying: boolean;
+  applyButton: React.ReactNode;
 }
 
-const API_BASE_URL = 'http://localhost:8000';
 const PROXMOX_NODE = 'pve';
-const PROXMOX_HOST = 'pve.home.lab';
-const PROXMOX_PORT = '8006';
-
-async function openProxmoxConsole(
-  node: string,
-  vmid: number,
-  csrf_token: string,
-  ticket: string
-) {
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/vm/${node}/qemu/${vmid}/vncproxy?csrf_token=${encodeURIComponent(
-        csrf_token
-      )}&ticket=${encodeURIComponent(ticket)}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-      }
-    );
-    if (!response.ok) {
-      throw new Error(`Failed to get VNC proxy data: ${await response.text()}`);
-    }
-    const { node: respNode, vmid: respVmid } = await response.json();
-    const consoleUrl = `https://${PROXMOX_HOST}:${PROXMOX_PORT}/?console=kvm&novnc=1&node=${encodeURIComponent(
-      respNode
-    )}&vmid=${encodeURIComponent(respVmid)}`;
-    window.open(consoleUrl, '_blank', 'noopener,noreferrer');
-  } catch (error: any) {
-    console.error('Error opening Proxmox console:', error);
-    toast.error(error.message || 'Failed to open console. Please try again.');
-  }
-}
+const API_BASE_URL = 'http://localhost:8000';
 
 const ActionButtons = ({
   vm,
@@ -72,6 +45,7 @@ const ActionButtons = ({
   refreshVMs,
   queryClient,
   isApplying,
+  applyButton,
 }: ActionButtonsProps) => {
   const [isStarting, setIsStarting] = useState(false);
   const [isHalting, setIsHalting] = useState(false);
@@ -81,30 +55,35 @@ const ActionButtons = ({
   const [cloneName, setCloneName] = useState(vm.name);
   const [isRemoving, setIsRemoving] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+  const [isSuspending, setIsSuspending] = useState(false);
 
   const hasPendingActions = pendingActions[vm.vmid]?.length > 0;
   const isCreatingSnapshot = pendingActions[vm.vmid]?.some((a) => a.startsWith('create-'));
   const isClonePending = pendingActions[vm.vmid]?.includes('clone');
   const showCloningLabel = isCloningInProgress || isClonePending;
 
+  const isSuspended = vm.status === 'paused';
+
   const disableAll =
     hasPendingActions ||
     isStarting ||
     isHalting ||
-    isCreatingSnapshot ||
     isCloningInProgress ||
     isRemoving ||
-    isApplying;
+    isApplying ||
+    isSuspending;
 
   const disableConsole =
-    !isRebooting && !isStarting && (isCreatingSnapshot || isHalting || hasPendingActions);
+    isSuspended || (!isRebooting && !isStarting && (isCreatingSnapshot || isHalting || hasPendingActions || isSuspending));
 
   useEffect(() => {
     if (isStarting && vm.status === 'running') setIsStarting(false);
   }, [vm.status, isStarting]);
 
   useEffect(() => {
-    if (isHalting && vm.status !== 'running') setIsHalting(false);
+    if (isHalting && vm.status !== 'running') {
+      setIsHalting(false);
+    }
   }, [vm.status, isHalting]);
 
   const handleConfirmClone = () => {
@@ -189,13 +168,6 @@ const ActionButtons = ({
     }
   };
 
-  const removeDisabled =
-    isCloning ||
-    isCloningInProgress ||
-    vm.status === 'running' ||
-    vm.status === 'suspended' ||
-    disableAll;
-
   return (
     <td
       className="px-2 py-1 text-center action-buttons-cell"
@@ -209,99 +181,46 @@ const ActionButtons = ({
       }}
       onClick={onToggleRow}
     >
-      <div className="flex space-x-2.5 justify-center items-center" style={{ height: '48px' }}>
-        <ActionButton
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsStarting(true);
-            addAlert(`Starting VM "${vm.name}"...`, 'info');
-            vmMutation.mutate(
-              { vmid: vm.vmid, action: 'start', name: vm.name },
-              {
-                onSuccess: () => addAlert(`VM "${vm.name}" successfully started.`, 'success'),
-                onError: () => addAlert(`Failed to start VM "${vm.name}".`, 'error'),
-              }
-            );
-          }}
-          disabled={vm.status === 'running' || vm.status === 'suspended' || disableAll}
-          className={
-            vm.status === 'running' || vm.status === 'suspended' || disableAll
-              ? 'bg-gray-600 cursor-not-allowed'
-              : 'bg-blue-600 hover:bg-blue-700'
-          }
-        >
-          Start
-        </ActionButton>
-
-        <ActionButton
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsHalting(true);
-            addAlert(`Force stopping VM "${vm.name}"...`, 'warning');
-            vmMutation.mutate(
-              { vmid: vm.vmid, action: 'stop', name: vm.name },
-              {
-                onSuccess: () => addAlert(`VM "${vm.name}" was stopped.`, 'success'),
-                onError: () => addAlert(`Failed to stop VM "${vm.name}".`, 'error'),
-              }
-            );
-          }}
-          disabled={vm.status !== 'running' || disableAll}
-          className={
-            vm.status !== 'running' || disableAll
-              ? 'bg-gray-600 cursor-not-allowed'
-              : 'bg-blue-600 hover:bg-blue-700'
-          }
-        >
-          Stop
-        </ActionButton>
-
-        <ActionButton
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsHalting(true);
-            addAlert(`Sending shutdown signal to VM "${vm.name}"...`, 'info');
-            vmMutation.mutate(
-              { vmid: vm.vmid, action: 'shutdown', name: vm.name },
-              {
-                onSuccess: () => addAlert(`Shutdown initiated for VM "${vm.name}".`, 'success'),
-                onError: () => addAlert(`Failed to shutdown VM "${vm.name}".`, 'error'),
-              }
-            );
-          }}
-          disabled={vm.status !== 'running' || disableAll}
-          className={
-            vm.status !== 'running' || disableAll
-              ? 'bg-gray-600 cursor-not-allowed'
-              : 'bg-blue-600 hover:bg-blue-700'
-          }
-        >
-          Shutdown
-        </ActionButton>
-
-        <ActionButton
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsRebooting(true);
-            addAlert(`Rebooting VM "${vm.name}"...`, 'info');
-            vmMutation.mutate(
-              { vmid: vm.vmid, action: 'reboot', name: vm.name },
-              {
-                onSuccess: () => addAlert(`VM "${vm.name}" reboot initiated.`, 'success'),
-                onError: () => addAlert(`Failed to reboot VM "${vm.name}".`, 'error'),
-              }
-            );
-          }}
-          disabled={vm.status !== 'running' || disableAll}
-          className={
-            vm.status !== 'running' || disableAll
-              ? 'bg-gray-600 cursor-not-allowed'
-              : 'bg-blue-600 hover:bg-blue-700'
-          }
-        >
-          Reboot
-        </ActionButton>
-
+      <div className={styles.buttonGroup} style={{ height: '48px' }}>
+        <StartButton
+          vm={vm}
+          disabled={disableAll}
+          isStarting={isStarting}
+          setIsStarting={setIsStarting}
+          vmMutation={vmMutation}
+          addAlert={addAlert}
+        />
+        <StopButton
+          vm={vm}
+          disabled={disableAll}
+          setIsHalting={setIsHalting}
+          vmMutation={vmMutation}
+          addAlert={addAlert}
+        />
+        <ShutdownButton
+          vm={vm}
+          disabled={disableAll || isSuspended}
+          setIsHalting={setIsHalting}
+          vmMutation={vmMutation}
+          addAlert={addAlert}
+        />
+        <RebootButton
+          vm={vm}
+          disabled={disableAll || isSuspended}
+          setIsRebooting={setIsRebooting}
+          vmMutation={vmMutation}
+          addAlert={addAlert}
+        />
+        <SuspendResumeButton
+          vm={vm}
+          auth={auth}
+          vmMutation={vmMutation}
+          addAlert={addAlert}
+          refreshVMs={refreshVMs}
+          disabled={disableAll}
+          isPending={pendingActions[vm.vmid]?.some((a) => a === 'suspend' || a === 'resume')}
+          setSuspending={setIsSuspending}
+        />
         <ConsoleButton
           onClick={(e) => {
             e.stopPropagation();
@@ -309,9 +228,8 @@ const ActionButtons = ({
           }}
           disabled={disableConsole}
         />
-
         <CloneButton
-          disabled={disableAll}
+          disabled={disableAll || isSuspended}
           showCloningLabel={showCloningLabel}
           isCloning={isCloning}
           cloneName={cloneName}
@@ -328,13 +246,13 @@ const ActionButtons = ({
           onConfirm={handleConfirmClone}
           onCancel={handleCancelClone}
         />
-
         <RemoveButton
-          disabled={removeDisabled}
+          disabled={false}
           onConfirm={handleRemove}
           showConfirm={showRemoveConfirm}
           setShowConfirm={setShowRemoveConfirm}
         />
+        {applyButton}
       </div>
     </td>
   );

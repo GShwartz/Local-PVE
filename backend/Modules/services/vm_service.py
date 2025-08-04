@@ -1,5 +1,3 @@
-# vm_service.py
-
 from Modules.models import VMCreateRequest, VMUpdateRequest, VMCloneRequest
 from typing import Dict, List, Any, Optional
 from .agent_service import AgentService
@@ -11,18 +9,14 @@ import asyncio
 import httpx
 import re
 
-
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 PROXMOX_BASE_URL = "https://pve.home.lab:8006/api2/json"
-
 
 class VMService:
     def __init__(self, log_file: str):
         self.log_file = log_file
         self.logger = init_logger(log_file, __name__)
-
         self.agent_service = AgentService(self.log_file)
-
         self.session = requests.Session()
         self.session.verify = False
 
@@ -66,24 +60,29 @@ class VMService:
         headers = {"CSRFPreventionToken": csrf_token}
         cookies = {"PVEAuthCookie": ticket}
 
-        async with httpx.AsyncClient(verify=False) as client:
-            r = await client.get(base_url, headers=headers, cookies=cookies)
-            r.raise_for_status()
-            vms = r.json().get("data", [])
-            self.logger.info(f"Found {len(vms)} VMs on node {node}")
+        async with httpx.AsyncClient(verify=False, timeout=10.0) as client:
+            try:
+                r = await client.get(base_url, headers=headers, cookies=cookies)
+                r.raise_for_status()
+                vms = r.json().get("data", [])
+            except Exception as e:
+                self.logger.error(f"Failed to fetch base VM list: {str(e)}")
+                return []
 
-            async def enrich_vm(vm):
+            async def fetch_vm_data(vm):
                 vmid = vm["vmid"]
                 config_url = f"{base_url}/{vmid}/config"
                 status_url = f"{base_url}/{vmid}/status/current"
 
                 try:
-                    config_task = client.get(config_url, headers=headers, cookies=cookies)
-                    status_task = client.get(status_url, headers=headers, cookies=cookies)
-                    config_res, status_res = await asyncio.gather(config_task, status_task)
+                    config_res, status_res = await asyncio.gather(
+                        client.get(config_url, headers=headers, cookies=cookies),
+                        client.get(status_url, headers=headers, cookies=cookies)
+                    )
 
                     config = config_res.json().get("data", {})
-                    status = status_res.json().get("data", {}).get("status", "stopped")
+                    status_data = status_res.json().get("data", {})
+                    status = status_data.get("status", "stopped")
 
                     disks = []
                     for k, v in config.items():
@@ -116,19 +115,20 @@ class VMService:
 
                 return vm
 
-            enriched_vms = await asyncio.gather(*[enrich_vm(vm) for vm in vms])
+            enriched_vms = await asyncio.gather(*(fetch_vm_data(vm) for vm in vms))
             return enriched_vms
 
     def vm_action(self, node: str, vmid: int, action: str, csrf_token: str, ticket: str) -> Any:
         self.logger.info(f"Performing action '{action}' on VM {vmid} on node {node}")
-        valid_actions = ["start", "stop", "shutdown", "reboot", "hibernate", "resume"]
+
+        if action == "hibernate":
+            action = "suspend"
+
+        valid_actions = ["start", "stop", "shutdown", "reboot", "suspend", "resume"]
 
         if action not in valid_actions:
             self.logger.error(f"Invalid action: {action}")
             raise HTTPException(status_code=400, detail="Invalid action")
-        
-        if action == "hibernate":
-            action = "suspend"
 
         headers = self.set_auth_headers(csrf_token, ticket)
         response = self.session.post(
@@ -140,14 +140,13 @@ class VMService:
         if response.status_code != 200:
             self.logger.error(f"Failed to perform action '{action}' on VM {vmid}: {response.text}")
             raise HTTPException(status_code=response.status_code, detail=response.text)
-        
+
         return response.json().get("data")
 
     def create_vm(self, node: str, vm_create: VMCreateRequest, csrf_token: str, ticket: str) -> Any:
         self.logger.info(f"Creating VM on node {node} with request: {vm_create}")
         self.session.cookies.set("PVEAuthCookie", ticket)
 
-        # Get next available VMID
         resp_id = self.session.get(f"{PROXMOX_BASE_URL}/cluster/nextid")
         self.logger.info(f"Next VMID response status code: {resp_id.status_code}")
         resp_id.raise_for_status()
@@ -168,7 +167,6 @@ class VMService:
         if vm_create.source == "ISO":
             data["ide2"] = "local:iso/ubuntu-22.04.3-live-server-amd64.iso,media=cdrom"
             data["boot"] = "order=ide2;scsi0;net0"
-
         else:
             data["boot"] = "order=scsi0;net0"
 
@@ -187,7 +185,6 @@ class VMService:
         self.logger.info(f"Updating VM {vmid} on node {node} with updates: {updates}")
         headers = self.set_auth_headers(csrf_token, ticket)
 
-        # Prevent CPU/RAM updates on running VMs
         if (updates.cpus is not None or updates.ram is not None) and \
            self.get_vm_status(node, vmid, csrf_token, ticket) == "running":
             self.logger.error("Cannot update CPU or RAM while VM is running")
@@ -196,13 +193,11 @@ class VMService:
         data: Dict[str, Any] = {}
         if updates.name is not None:
             data["name"] = updates.name
-        
         if updates.cpus is not None:
             data["cores"] = updates.cpus
-        
         if updates.ram is not None:
             data["memory"] = updates.ram
-        
+
         if not data:
             raise HTTPException(status_code=400, detail="No valid updates provided")
 
@@ -218,7 +213,6 @@ class VMService:
             err = response.text
             try:
                 err = response.json().get("errors", {}).get("data", err)
-
             except ValueError:
                 pass
 
@@ -231,7 +225,6 @@ class VMService:
         self.logger.info(f"Cloning VM {vmid} on node {node} with request: {clone_req}")
         self.session.cookies.set("PVEAuthCookie", ticket)
 
-        # Fetch new VMID
         resp_id = self.session.get(f"{PROXMOX_BASE_URL}/cluster/nextid")
         resp_id.raise_for_status()
         new_id = resp_id.json().get("data")
@@ -257,7 +250,6 @@ class VMService:
             response.raise_for_status()
             self.logger.info(f"Clone successful, new VMID: {new_id}")
             return response.json().get("data")
-        
         except requests.exceptions.HTTPError:
             self.logger.error(f"Failed to clone VM {vmid}: {response.text}")
             return None
