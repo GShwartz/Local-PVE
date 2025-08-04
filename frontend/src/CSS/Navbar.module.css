@@ -46,7 +46,7 @@
    HISTORY DROPDOWN
 ────────────────────────────────── */
 .history-container {
-  @apply absolute top-[4rem] right-0 w-[500px] max-h-80 overflow-y-auto bg-gray-800/50 rounded-lg shadow-lg z-[100] text-white pt-0 pb-[6px] pl-[4px] pr-[4px];
+  @apply absolute top-[4.5rem] right-0 w-[500px] max-h-80 overflow-y-auto bg-gray-800/50 rounded-lg shadow-lg z-[100] text-white pt-0 pb-[1px] pl-[1px] pr-[1px];
   scrollbar-width: thin !important;
   scrollbar-color: #4b5563 #1f2937 !important;
 }
