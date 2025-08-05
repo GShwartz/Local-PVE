@@ -101,6 +101,9 @@ rm -rf node_modules package-lock.json
 npm install
 ```
 
+### Icons issue
+npm install react-icons
+
 ### Node.js Version Issues
 Check your Node.js version:
 ```bash

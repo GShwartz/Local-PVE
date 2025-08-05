@@ -29,6 +29,7 @@ interface ActionButtonsProps {
   refreshVMs: () => void;
   queryClient: QueryClient;
   isApplying: boolean;
+  
 }
 
 const PROXMOX_NODE = 'pve';
@@ -245,7 +246,7 @@ const ActionButtons = ({
           onCancel={handleCancelClone}
         />
         <RemoveButton
-          disabled={false}
+          disabled={vm.status === 'running' || disableAll}
           onConfirm={handleRemove}
           showConfirm={showRemoveConfirm}
           setShowConfirm={setShowRemoveConfirm}
