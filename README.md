@@ -56,7 +56,14 @@ npm install && npm uninstall @novnc/novnc && npm install @novnc/novnc@1.3.0 && n
 
 ## Configuration
 ### Proxmox Configuration
-Ensure your Proxmox server allows CORS requests from your frontend domain.
+- Ensure your Proxmox server allows CORS requests from your frontend domain.
+- edit /etc/lvm/lvm.conf on the host:
+  Un-Comment and set the following:
+  ```activation {
+      thin_pool_autoextend_threshold = 75
+      thin_pool_autoextend_percent   = 20
+  }
+  ```
 
 ## Troubleshooting
 ### Fix noVNC version (if needed)
@@ -100,27 +107,5 @@ Check your Node.js version:
 node --version  # Should be 18+
 npm --version
 ```
-
-## Development
-### Adding New Types
-TypeScript interfaces are defined in `src/types.ts`. Common types include:
-- `VM` - Virtual machine interface
-- `Auth` - Authentication data
-- `Snapshot` - VM snapshot data
-- `Node` - Proxmox node information
-
-### API Integration
-API services are located in `src/services/`. The project uses:
-- **Axios** for HTTP requests
-- **TanStack React Query** for data fetching and caching
-
-### VNC Console
-VNC functionality uses noVNC 1.3.0 for browser-based console access. Console components should handle:
-- Connection management
-- Authentication
-- Keyboard/mouse input
-- Screen scaling
-
----
 
 **Note**: This project requires a running Proxmox VE server and proper network configuration for API access and VNC connections.
