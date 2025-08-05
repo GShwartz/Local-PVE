@@ -50,7 +50,7 @@ const RemoveButton = ({
   }, [showConfirm, setShowConfirm]);
 
   return (
-    <div className="relative inline-block">
+    <div className="flex-1 min-w-[5rem] text-center relative inline-block">
       <ActionButton
         onClick={handleClick}
         disabled={disabled}

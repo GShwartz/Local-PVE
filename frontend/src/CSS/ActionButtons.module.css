@@ -1,6 +1,6 @@
 .buttonGroup {
   display: flex;
-  gap: 0.625rem; /* Matches Tailwind space-x-2.5 */
+  gap: 0.625rem;
   margin-top: 2rem;
 }
 
@@ -10,4 +10,8 @@
   width: 100%;
   min-width: 5rem;
   position: relative;
+}
+
+.buttonGroup > * > *:first-child {
+  width: 100%;
 }

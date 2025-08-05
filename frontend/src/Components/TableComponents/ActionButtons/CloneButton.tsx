@@ -23,7 +23,7 @@ const CloneButton = ({
   onCancel,
 }: CloneButtonProps) => {
   return (
-    <>
+    <div className="flex-1 min-w-[5rem] text-center relative">
       <ActionButton
         onClick={(e) => {
           e.stopPropagation();
@@ -45,7 +45,7 @@ const CloneButton = ({
           />
         </div>
       )}
-    </>
+    </div>
   );
 };
 
