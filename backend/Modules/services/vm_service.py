@@ -133,7 +133,8 @@ class VMService:
         headers = self.set_auth_headers(csrf_token, ticket)
         response = self.session.post(
             f"{PROXMOX_BASE_URL}/nodes/{node}/qemu/{vmid}/status/{action}",
-            headers=headers
+            headers=headers,
+            data={}  # <-- Added empty body so Proxmox accepts POST
         )
         self.logger.info(f"VM action response status code: {response.status_code}")
 
@@ -142,6 +143,7 @@ class VMService:
             raise HTTPException(status_code=response.status_code, detail=response.text)
 
         return response.json().get("data")
+
 
     def create_vm(self, node: str, vm_create: VMCreateRequest, csrf_token: str, ticket: str) -> Any:
         self.logger.info(f"Creating VM on node {node} with request: {vm_create}")
