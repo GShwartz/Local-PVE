@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { VM, Snapshot } from '../../../types';
+import { VM, Snapshot } from '../../../../types';
 import DiskModal from '../DiskModal/DiskModal';
 import DiskList from '../DiskModal/DiskList';
 import useDiskConfig from '../DiskModal/useDiskConfig';

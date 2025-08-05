@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { VM, Auth } from '../../../types';
+import { VM, Auth } from '../../../../types';
 import axios from 'axios';
 import ModalWrapper from './ModalWrapper';
 import DiskWarning from './DiskWarning';

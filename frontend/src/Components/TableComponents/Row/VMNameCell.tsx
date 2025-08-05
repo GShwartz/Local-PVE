@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { VM } from '../../types';
+import { VM } from '../../../types';
 
 interface VMNameCellProps {
   vm: VM;

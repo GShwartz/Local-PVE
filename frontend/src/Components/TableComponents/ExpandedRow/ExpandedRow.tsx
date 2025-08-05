@@ -2,9 +2,9 @@ import { useState } from 'react';
 
 import SnapshotsView from './SnapshotsComponents/SnapshotsView';
 import DisksView from './DiskModal/DiskView';
-import { VM, Snapshot } from '../../types';
+import { VM, Snapshot } from '../../../types';
 import { UseMutationResult } from '@tanstack/react-query';
-import styles from '../../CSS/ExpandedArea.module.css';
+import styles from '../../../CSS/ExpandedArea.module.css';
 
 interface ExpandedRowProps {
   vm: VM;

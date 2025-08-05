@@ -1,17 +1,17 @@
 import { useState, useEffect } from 'react';
-import { VM, Auth, TaskStatus } from '../../types';
+import { VM, Auth, TaskStatus } from '../../../types';
 import { UseMutationResult, QueryClient } from '@tanstack/react-query';
 
-import StartButton from './ActionButtons/StartButton';
-import StopButton from './ActionButtons/StopButton';
-import ShutdownButton from './ActionButtons/ShutdownButton';
-import RebootButton from './ActionButtons/RebootButton';
+import StartButton from './StartButton';
+import StopButton from './StopButton';
+import ShutdownButton from './ShutdownButton';
+import RebootButton from './RebootButton';
 import ConsoleButton from './ConsoleButton';
 import CloneButton from './CloneButton';
 import RemoveButton from './RemoveButton';
-import SuspendResumeButton from './ActionButtons/SuspendResumeButton';
-import { openProxmoxConsole } from './ActionButtons/openProxmoxConsole';
-import styles from '../../CSS/ActionButtons.module.css';
+import SuspendResumeButton from './SuspendResumeButton';
+import { openProxmoxConsole } from './openProxmoxConsole';
+import styles from '../../../CSS/ActionButtons.module.css';
 
 interface ActionButtonsProps {
   vm: VM;

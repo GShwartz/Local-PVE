@@ -3,14 +3,14 @@ import { useState } from 'react';
 import axios from 'axios';
 import { VM, Auth, Snapshot, TaskStatus } from '../../types';
 
-import VMNameCell from './VMNameCell';
-import CPUCell from './CPUCell';
-import RAMCell from './RAMCell';
-import ActionButtons from './ActionButtons';
-import ApplyButton from './ApplyButton';
-import HDDCell from './HDDCell';
-import StatusBadge from './StatusBadge';
-import ExpandedRow from '../ExpandedRow/ExpandedRow';
+import VMNameCell from './Row/VMNameCell';
+import CPUCell from './Row/CPUCell';
+import RAMCell from './Row/RAMCell';
+import ActionButtons from './ActionButtons/ActionButtons';
+import ApplyButton from './ActionButtons/ApplyButton';
+import HDDCell from './Row/HDDCell';
+import StatusBadge from './Row/StatusBadge';
+import ExpandedRow from './ExpandedRow/ExpandedRow';
 
 interface VMConfigResponse {
   name?: string;

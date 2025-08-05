@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import TableHeader from './TableHeader';
 import TableRow from './TableRow';
-import SnapshotModal from '../ExpandedRow/SnapshotsComponents/SnapshotModal';
+import SnapshotModal from './ExpandedRow/SnapshotsComponents/SnapshotModal';
 import { Auth, VM } from '../../types';
 import {
   useVMMutation,
