@@ -11,7 +11,7 @@ import CloneButton from './CloneButton';
 import RemoveButton from './RemoveButton';
 import SuspendResumeButton from './ActionButtons/SuspendResumeButton';
 import { openProxmoxConsole } from './ActionButtons/openProxmoxConsole';
-import styles from './ActionButtons.module.css';
+import styles from '../../CSS/ActionButtons.module.css';
 
 interface ActionButtonsProps {
   vm: VM;

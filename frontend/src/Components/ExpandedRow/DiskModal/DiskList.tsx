@@ -44,10 +44,6 @@ const DiskList = ({
       return parseInt(ma[2]) - parseInt(mb[2]);
     });
 
-  if (diskEntries.length === 0) {
-    return <p className="text-sm text-gray-600 dark:text-gray-300">No disks found.</p>;
-  }
-
   return (
     <ul className="my-4 space-y-3 max-h-64 overflow-y-auto">
       {diskEntries.map(([key, value], index) => (
@@ -66,6 +62,7 @@ const DiskList = ({
           setDeletingDiskKey={setDeletingDiskKey}
           refreshConfig={refreshConfig}
           hasSnapshots={hasSnapshots}
+          isOnlyDisk={diskEntries.length === 1}
         />
       ))}
     </ul>

@@ -1,8 +1,9 @@
+import { useState } from 'react';
+
 import SnapshotsView from './SnapshotsComponents/SnapshotsView';
 import DisksView from './DiskModal/DiskView';
 import { VM, Snapshot } from '../../types';
 import { UseMutationResult } from '@tanstack/react-query';
-import { useState } from 'react';
 import styles from '../../CSS/ExpandedArea.module.css';
 
 interface ExpandedRowProps {
@@ -38,6 +39,7 @@ const ExpandedRow = ({
   snapshotsError,
   refreshVMs,
 }: ExpandedRowProps) => {
+  const hasSnapshots = (snapshots?.length ?? 0) > 0;
   const [isAddingDisk, setIsAddingDisk] = useState(false);
 
   return expandedRows.has(vm.vmid) ? (
@@ -52,8 +54,9 @@ const ExpandedRow = ({
               addAlert={addAlert}
               refreshVMs={refreshVMs}
               snapshots={snapshots}
-              isAddingDisk={isAddingDisk}
+              hasSnapshots={hasSnapshots}
               setIsAddingDisk={setIsAddingDisk}
+              isAddingDisk={isAddingDisk}
             />
           </div>
           {snapshotView.has(vm.vmid) && (

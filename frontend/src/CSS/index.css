@@ -173,3 +173,36 @@ th, td {
 .snapshots-card::-webkit-scrollbar-thumb:hover {
   background: #6b7280; /* Lighter gray on hover */
 }
+
+/* Global reusable styling for tooltips/notes */
+.note-tooltip {
+  position: fixed; /* Always floats above layout */
+  background: rgba(243, 200, 70, 0.95); /* Tailwind yellow-500 with slight transparency */
+  color: #720404; /* Tailwind red-900 for text */
+  font-size: 0.8125rem; /* text-xs + 1px (~13px) */
+  font-weight: 500; /* Semi-bold text */
+  padding: 0.375rem 0.625rem; /* Slightly larger padding for readability */
+  border-radius: 0.375rem; /* Rounded-md */
+  white-space: nowrap; /* Prevent line breaks */
+  border: 1px solid rgba(202, 138, 4, 0.8); /* More visible yellow-600 border */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6); /* Stronger dark shadow */
+  z-index: 999999; /* Float above all UI elements */
+  pointer-events: none; /* Let clicks pass through */
+  transition: opacity 0.15s ease-in-out, transform 0.15s ease-in-out;
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.note-tooltip.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.note-tooltip::before {
+  content: "ℹ️";
+  margin-right: 0.4rem;
+  font-size: 0.85rem;
+  position: relative;
+  top: 1px; /* Adjust for perfect vertical centering */
+}
+

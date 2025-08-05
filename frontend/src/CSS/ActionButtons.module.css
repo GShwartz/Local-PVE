@@ -1,6 +1,7 @@
 .buttonGroup {
   display: flex;
   gap: 0.625rem; /* Matches Tailwind space-x-2.5 */
+  margin-top: 2rem;
 }
 
 .buttonGroup > * {
