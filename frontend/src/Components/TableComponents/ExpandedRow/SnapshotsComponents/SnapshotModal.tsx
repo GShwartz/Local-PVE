@@ -1,7 +1,7 @@
 import { UseMutationResult } from '@tanstack/react-query';
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
-import { Snapshot } from '../../types';
+import { Snapshot } from '../../../../types';
 import { useState, useEffect } from 'react';
 
 interface SnapshotModalProps {

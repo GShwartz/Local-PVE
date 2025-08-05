@@ -1,7 +1,7 @@
 import { UseMutationResult } from '@tanstack/react-query';
-import { VM, Snapshot } from '../../../types';
+import { VM, Snapshot } from '../../../../types';
 import { useState } from 'react';
-import styles from '../../../CSS/Loader.module.css';
+import styles from '..//../../../CSS/Loader.module.css';
 
 interface SnapshotsViewProps {
   vm: VM;

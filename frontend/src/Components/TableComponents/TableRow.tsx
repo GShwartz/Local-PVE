@@ -3,14 +3,14 @@ import { useState } from 'react';
 import axios from 'axios';
 import { VM, Auth, Snapshot, TaskStatus } from '../../types';
 
-import VMNameCell from './VMNameCell';
-import CPUCell from './CPUCell';
-import RAMCell from './RAMCell';
-import ActionButtons from './ActionButtons';
-import ApplyButton from './ApplyButton';
-import HDDCell from './HDDCell';
-import StatusBadge from './StatusBadge';
-import ExpandedRow from '../ExpandedRow/ExpandedRow';
+import VMNameCell from './Row/VMNameCell';
+import CPUCell from './Row/CPUCell';
+import RAMCell from './Row/RAMCell';
+import ActionButtons from './ActionButtons/ActionButtons';
+import ApplyButton from './ActionButtons/ApplyButton';
+import HDDCell from './Row/HDDCell';
+import StatusBadge from './Row/StatusBadge';
+import ExpandedRow from './ExpandedRow/ExpandedRow';
 
 interface VMConfigResponse {
   name?: string;
@@ -266,6 +266,14 @@ const TableRow = ({
         <td className="px-2 sm:px-6 py-2 sm:py-4 text-center narrow-col border-gray-700">
           <StatusBadge status={vm.status} />
         </td>
+        <td className="px-2 py-1 text-center">
+          <ApplyButton
+            onClick={handleApplyChanges}
+            hasChanges={hasChanges}
+            requiresVMStopped={requiresVMStopped}
+            isApplying={isApplying}
+          />
+        </td>
         <ActionButtons
           vm={vm}
           pendingActions={pendingActions}
@@ -277,14 +285,6 @@ const TableRow = ({
           refreshVMs={refreshVMs}
           queryClient={queryClient}
           isApplying={isApplying}
-          applyButton={
-            <ApplyButton
-              onClick={handleApplyChanges}
-              hasChanges={hasChanges}
-              requiresVMStopped={requiresVMStopped}
-              isApplying={isApplying}
-            />
-          }
         />
         <td className="px-2 py-4 text-center cursor-pointer" onClick={() => toggleRow(vm.vmid)}>
           {expandedRows.has(vm.vmid) && !snapshotView.has(vm.vmid) ? '▲' : '▼'}

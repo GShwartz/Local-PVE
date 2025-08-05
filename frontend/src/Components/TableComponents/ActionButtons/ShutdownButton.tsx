@@ -1,4 +1,4 @@
-import ActionButton from '../ActionButton';
+import ActionButton from './ActionButton';
 import { VM } from '../../../types';
 import { UseMutationResult } from '@tanstack/react-query';
 
