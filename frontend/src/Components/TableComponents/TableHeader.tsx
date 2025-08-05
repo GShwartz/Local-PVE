@@ -94,11 +94,13 @@ const TableHeader = ({ sortConfig, handleSort, isApplying }: TableHeaderProps) =
               {label} {sortConfig.key === key && (sortConfig.direction === 'asc' ? '↑' : '↓')}
             </th>
           ))}
+          <th scope="col" className="px-2 sm:px-6 py-3 narrow-col">State</th>
           <th scope="col" className="px-2 py-3 border-gray-700">
             {isApplying ? <div className="header-loader"></div> : ''}
           </th>
-          <th scope="col" className="px-2 sm:px-6 py-3 narrow-col">State</th>
-          <th scope="col" className="px-2 py-3">Actions</th>
+          <th scope="col" className="px-2 py-3">
+            Actions
+          </th>
         </tr>
       </thead>
     </>

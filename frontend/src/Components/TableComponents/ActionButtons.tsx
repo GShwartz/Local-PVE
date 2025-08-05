@@ -29,7 +29,6 @@ interface ActionButtonsProps {
   refreshVMs: () => void;
   queryClient: QueryClient;
   isApplying: boolean;
-  applyButton: React.ReactNode;
 }
 
 const PROXMOX_NODE = 'pve';
@@ -45,7 +44,6 @@ const ActionButtons = ({
   refreshVMs,
   queryClient,
   isApplying,
-  applyButton,
 }: ActionButtonsProps) => {
   const [isStarting, setIsStarting] = useState(false);
   const [isHalting, setIsHalting] = useState(false);
@@ -252,7 +250,6 @@ const ActionButtons = ({
           showConfirm={showRemoveConfirm}
           setShowConfirm={setShowRemoveConfirm}
         />
-        {applyButton}
       </div>
     </td>
   );
