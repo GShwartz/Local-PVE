@@ -25,6 +25,10 @@ from Modules.services.disk_service import DiskService
 from Modules.services.task_service import TaskService
 from Modules.services.vnc_service import VNCService
 
+class DiskExpandRequest(BaseModel):
+    new_size: int  # GB
+
+
 # Logging setup
 log_file = os.path.join(os.path.dirname(__file__), 'local-pve.log')
 if not os.path.exists(log_file):
@@ -362,6 +366,19 @@ async def websocket_console(
             await asyncio.gather(client_to_remote(), remote_to_client())
     except Exception as e:
         await websocket.close(code=1011, reason=str(e))
+
+@app.post("/vm/{node}/qemu/{vmid}/disk/{disk_key}/expand")
+async def expand_disk(
+    node: str,
+    vmid: int,
+    disk_key: str,
+    req: DiskExpandRequest,
+    csrf_token: str,
+    ticket: str,
+    svc: DiskService = Depends(get_disk_service),
+):
+    return svc.expand_disk(node, vmid, disk_key, req.new_size, csrf_token, ticket)
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

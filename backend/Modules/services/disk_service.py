@@ -1,6 +1,7 @@
 from Modules.Disk.disk_add import add_disk
 from Modules.Disk.disk_delete import delete_disk
 from Modules.Disk.disk_activate import activate_unused_disk
+from Modules.Disk.disk_expand import expand_disk
 from Modules.logger import init_logger
 
 
@@ -20,3 +21,8 @@ class DiskService:
     async def activate_unused_disk(self, node, vmid, unused_key, target_controller, csrf_token, ticket):
         self.logger.info(f"Activating unused disk {unused_key} for VM {vmid} on node {node}")
         return await activate_unused_disk(node, vmid, unused_key, target_controller, csrf_token, ticket, self.log_file)
+    
+    def expand_disk(self, node, vmid, disk_key, new_size_gb, csrf_token, ticket):
+        self.logger.info(f"Expanding disk {disk_key} for VM {vmid} on node {node} to {new_size_gb} GB")
+        return expand_disk(node, vmid, disk_key, new_size_gb, csrf_token, ticket, self.log_file)
+    

@@ -96,7 +96,7 @@ const TableHeader = ({ sortConfig, handleSort, isApplying }: TableHeaderProps) =
           ))}
           <th scope="col" className="px-2 sm:px-6 py-3 narrow-col">State</th>
           <th scope="col" className="px-2 py-3 border-gray-700">
-            {isApplying ? <div className="header-loader"></div> : ''}
+            {isApplying ? <div className="header-loader"></div> : 'VM Config'}
           </th>
           <th scope="col" className="px-2 py-3">
             Actions

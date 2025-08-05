@@ -1,6 +1,7 @@
 import axios from 'axios';
-import { VM } from '../../../types';
+import { VM } from '../../../../types';
 import { useState, useRef, useEffect } from 'react';
+import DiskExpandModal from './DiskExpandModal';
 
 interface DiskListItemProps {
   diskKey: string;
@@ -16,7 +17,7 @@ interface DiskListItemProps {
   setDeletingDiskKey: (key: string | null) => void;
   refreshConfig: () => void;
   hasSnapshots: boolean;
-  isOnlyDisk: boolean; // NEW PROP
+  isOnlyDisk: boolean;
 }
 
 const DiskListItem = ({
@@ -40,9 +41,13 @@ const DiskListItem = ({
   const controllerNumber = diskKey.match(/\d+$/)?.[0];
   const sizeMatch = diskValue.match(/size=(\d+[KMGTP]?)/);
   const size = sizeMatch ? sizeMatch[1] : 'unknown';
+  const currentSizeGB = parseInt(sizeMatch ? sizeMatch[1].replace(/[^\d]/g, '') : '0', 10);
+
   const isPending = pendingDiskKey === diskKey;
   const isDeleting = deletingDiskKey === diskKey;
   const isBootDisk = diskKey === 'scsi0';
+
+  const [isExpandModalOpen, setIsExpandModalOpen] = useState(false);
 
   const confirmRemoveDisk = async () => {
     setDeletingDiskKey(diskKey);
@@ -97,7 +102,7 @@ const DiskListItem = ({
     if (disableRemove) {
       const rect = e.currentTarget.getBoundingClientRect();
       setTooltipPosition({
-        top: rect.top - 30, // 30px above button
+        top: rect.top - 30,
         left: rect.left + rect.width / 2
       });
 
@@ -140,21 +145,33 @@ const DiskListItem = ({
             </div>
           )
         ) : (
-          <div
-            onMouseEnter={handleMouseEnter}
-            onMouseLeave={handleMouseLeave}
-          >
+          <div className="flex items-center space-x-2">
+            {/* Expand Button */}
             <button
-              onClick={() => setPendingDiskKey(diskKey)}
-              disabled={disableRemove}
-              className={`text-xs px-2 py-1 rounded-md focus:outline-none ${
-                disableRemove
-                  ? 'bg-gray-600 text-white cursor-not-allowed'
-                  : 'bg-red-600 hover:bg-red-700 text-white focus:ring-2 focus:ring-red-400'
-              }`}
+              onClick={() => setIsExpandModalOpen(true)}
+              disabled={pendingDiskKey !== null || deletingDiskKey !== null}
+              className="text-xs px-2 py-1 rounded-md bg-green-600 hover:bg-green-700 text-white focus:ring-2 focus:ring-green-400"
             >
-              Remove
+              Expand
             </button>
+
+            {/* Remove Button */}
+            <div
+              onMouseEnter={handleMouseEnter}
+              onMouseLeave={handleMouseLeave}
+            >
+              <button
+                onClick={() => setPendingDiskKey(diskKey)}
+                disabled={disableRemove}
+                className={`text-xs px-2 py-1 rounded-md focus:outline-none ${
+                  disableRemove
+                    ? 'bg-gray-600 text-white cursor-not-allowed'
+                    : 'bg-red-600 hover:bg-red-700 text-white focus:ring-2 focus:ring-red-400'
+                }`}
+              >
+                Remove
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -170,6 +187,19 @@ const DiskListItem = ({
           {tooltipMessage}
         </div>
       )}
+
+      {/* Expand Modal */}
+      <DiskExpandModal
+        vm={vm}
+        node={node}
+        auth={auth}
+        diskKey={diskKey}
+        currentSize={currentSizeGB}
+        isOpen={isExpandModalOpen}
+        onClose={() => setIsExpandModalOpen(false)}
+        addAlert={addAlert}
+        refreshConfig={refreshConfig}
+      />
     </li>
   );
 };

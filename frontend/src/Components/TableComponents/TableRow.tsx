@@ -1,3 +1,5 @@
+import { FiChevronUp, FiChevronDown } from 'react-icons/fi';
+
 import { useQuery, useQueryClient, UseMutationResult } from '@tanstack/react-query';
 import { useState } from 'react';
 import axios from 'axios';
@@ -286,8 +288,15 @@ const TableRow = ({
           queryClient={queryClient}
           isApplying={isApplying}
         />
-        <td className="px-2 py-4 text-center cursor-pointer" onClick={() => toggleRow(vm.vmid)}>
-          {expandedRows.has(vm.vmid) && !snapshotView.has(vm.vmid) ? '▲' : '▼'}
+        <td
+          className="px-2 py-4 text-center cursor-pointer"
+          onClick={() => toggleRow(vm.vmid)}
+        >
+          {expandedRows.has(vm.vmid) ? (
+            <FiChevronUp className="inline text-lg" />
+          ) : (
+            <FiChevronDown className="inline text-lg" />
+          )}
         </td>
       </tr>
 
