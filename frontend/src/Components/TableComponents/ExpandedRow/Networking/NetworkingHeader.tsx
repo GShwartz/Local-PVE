@@ -1,36 +1,83 @@
+import styles from '../../../../CSS/ExpandedArea.module.css';
+import { useRef, useState, useEffect } from 'react';
+
 interface NetworkingHeaderProps {
   loading: boolean;
   onRefresh: () => void;
   onAddNIC: () => void;
+  vmStatus: string;
 }
 
-const NetworkingHeader = ({ loading, onRefresh, onAddNIC }: NetworkingHeaderProps) => {
+const NetworkingHeader = ({ loading, onRefresh, onAddNIC, vmStatus }: NetworkingHeaderProps) => {
+  const disableAddNIC = ['running', 'paused', 'suspended', 'hibernated'].includes(vmStatus);
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [tooltipPosition, setTooltipPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const tooltipMessage = `VM must be off to add NIC (current: ${vmStatus})`;
+
+  useEffect(() => {
+    return () => {
+      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    };
+  }, []);
+
+  const handleMouseEnter = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (disableAddNIC) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      setTooltipPosition({
+        top: rect.top - 30,
+        left: rect.left + rect.width / 2
+      });
+
+      hoverTimerRef.current = setTimeout(() => {
+        setShowTooltip(true);
+      }, 1000);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    setShowTooltip(false);
+  };
+
   return (
-    <div className="flex items-center justify-between mb-4">
+    <div className="flex items-center justify-between mb-4 relative">
       <h5 className="text-base font-semibold text-gray-900 md:text-xl dark:text-white">
         Networking
       </h5>
 
       <div className="flex gap-2">
-        <button
-          onClick={onAddNIC}
-          className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-green-500 dark:hover:bg-green-600 dark:focus:ring-green-400"
-        >
-          Add NIC
-        </button>
+        <div onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+          <button
+            onClick={onAddNIC}
+            disabled={disableAddNIC}
+            className={`${styles.button} ${styles['button-blue']} ${disableAddNIC ? styles['button-disabled'] : ''}`}
+          >
+            Add NIC
+          </button>
+        </div>
 
         <button
           onClick={onRefresh}
           disabled={loading}
-          className={`inline-flex items-center px-3 py-1.5 text-sm font-medium text-white rounded-lg ${
-            loading
-              ? 'bg-gray-500 cursor-not-allowed'
-              : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-blue-500 dark:hover:bg-blue-600 dark:focus:ring-blue-400'
-          }`}
+          className={`${styles.button} ${loading ? styles['button-disabled'] : styles['button-blue']}`}
         >
           {loading ? 'Refreshing...' : 'Refresh'}
         </button>
       </div>
+
+      {showTooltip && (
+        <div
+          className="note-tooltip show"
+          style={{
+            top: `${tooltipPosition.top}px`,
+            left: `${tooltipPosition.left}px`
+          }}
+        >
+          {tooltipMessage}
+        </div>
+      )}
     </div>
   );
 };

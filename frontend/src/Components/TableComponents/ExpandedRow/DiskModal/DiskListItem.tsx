@@ -2,6 +2,7 @@ import axios from 'axios';
 import { VM } from '../../../../types';
 import { useState, useRef, useEffect } from 'react';
 import DiskExpandModal from './DiskExpandModal';
+import styles from '../../../../CSS/ExpandedArea.module.css';
 
 interface DiskListItemProps {
   diskKey: string;
@@ -34,7 +35,7 @@ const DiskListItem = ({
   setDeletingDiskKey,
   refreshConfig,
   hasSnapshots,
-  isOnlyDisk
+  isOnlyDisk,
 }: DiskListItemProps) => {
   const controller = diskKey.replace(/\d+$/, '') || 'unknown';
   const controllerLabel = controller.toUpperCase();
@@ -128,6 +129,7 @@ const DiskListItem = ({
           <span className="text-[16px] font-semibold">💾 {controllerLabel} {controllerNumber}</span>
           <span className="text-base font-medium text-gray-200">{size}</span>
         </div>
+
         {isPending ? (
           isDeleting ? (
             <span className="text-xs text-gray-400">Removing...</span>
@@ -136,26 +138,30 @@ const DiskListItem = ({
               <span className="text-xs text-red-300">
                 {vm.status === 'running' ? 'Shutdown + Remove?' : 'Confirm remove?'}
               </span>
-              <button onClick={confirmRemoveDisk} className="text-xs px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded">
+              <button
+                onClick={confirmRemoveDisk}
+                className={`${styles.button} ${styles['button-red']}`}
+              >
                 Yes
               </button>
-              <button onClick={() => setPendingDiskKey(null)} className="text-xs px-2 py-1 bg-gray-500 hover:bg-gray-600 text-white rounded">
+              <button
+                onClick={() => setPendingDiskKey(null)}
+                className={`${styles.button} ${styles['button-disabled']}`}
+              >
                 No
               </button>
             </div>
           )
         ) : (
           <div className="flex items-center space-x-2">
-            {/* Expand Button */}
             <button
               onClick={() => setIsExpandModalOpen(true)}
               disabled={pendingDiskKey !== null || deletingDiskKey !== null}
-              className="text-xs px-2 py-1 rounded-md bg-green-600 hover:bg-green-700 text-white focus:ring-2 focus:ring-green-400"
+              className={`${styles.button} ${styles['button-green']}`}
             >
               Expand
             </button>
 
-            {/* Remove Button */}
             <div
               onMouseEnter={handleMouseEnter}
               onMouseLeave={handleMouseLeave}
@@ -163,10 +169,8 @@ const DiskListItem = ({
               <button
                 onClick={() => setPendingDiskKey(diskKey)}
                 disabled={disableRemove}
-                className={`text-xs px-2 py-1 rounded-md focus:outline-none ${
-                  disableRemove
-                    ? 'bg-gray-600 text-white cursor-not-allowed'
-                    : 'bg-red-600 hover:bg-red-700 text-white focus:ring-2 focus:ring-red-400'
+                className={`${styles.button} ${
+                  disableRemove ? styles['button-disabled'] : styles['button-red']
                 }`}
               >
                 Remove
@@ -188,7 +192,6 @@ const DiskListItem = ({
         </div>
       )}
 
-      {/* Expand Modal */}
       <DiskExpandModal
         vm={vm}
         node={node}

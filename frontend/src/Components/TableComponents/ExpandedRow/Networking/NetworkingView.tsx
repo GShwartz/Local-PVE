@@ -125,7 +125,6 @@ const NetworkingView = ({ vm, node, auth, addAlert, refreshVMs }: NetworkingView
     const config = { [nicKey]: parts.join(',') };
 
     try {
-      // 🔥 If editing, delete the existing NIC before replacing
       if (editNIC) {
         await axios.delete(`${API_BASE}/vm/${node}/qemu/${vm.vmid}/network`, {
           params: {
@@ -136,7 +135,6 @@ const NetworkingView = ({ vm, node, auth, addAlert, refreshVMs }: NetworkingView
         });
       }
 
-      // ✅ Use PUT to create or update NIC (Proxmox only supports PUT)
       await axios.put(
         `${API_BASE}/vm/${node}/qemu/${vm.vmid}/network`,
         config,
@@ -193,11 +191,12 @@ const NetworkingView = ({ vm, node, auth, addAlert, refreshVMs }: NetworkingView
   };
 
   return (
-    <div className="w-full flex-1 min-h-[300px] p-4 bg-white border border-gray-200 rounded-lg shadow-sm sm:p-6 dark:bg-gray-800 dark:border-gray-700">
+    <div className="w-full flex-1 min-h-[300px] max-h-[600px] overflow-y-auto p-4 bg-white border border-gray-200 rounded-lg shadow-sm sm:p-6 dark:bg-gray-800 dark:border-gray-700">
       <NetworkingHeader
         loading={loading}
         onRefresh={handleRefreshClick}
         onAddNIC={handleAddNIC}
+        vmStatus={vm.status}
       />
 
       {loading && <p className="text-sm text-gray-500">Loading networking...</p>}
@@ -211,6 +210,7 @@ const NetworkingView = ({ vm, node, auth, addAlert, refreshVMs }: NetworkingView
           onRemove={handleRemoveNIC}
           onEdit={handleEditNIC}
           onCopyMac={handleCopyMac}
+          vmStatus={vm.status}
         />
       )}
 
