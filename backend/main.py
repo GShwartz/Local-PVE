@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 from urllib.parse import quote_plus
 from pydantic import BaseModel
@@ -395,6 +395,36 @@ async def expand_disk(
 ):
     return svc.expand_disk(node, vmid, disk_key, req.new_size, csrf_token, ticket)
 
+@app.delete("/vm/{node}/qemu/{vmid}/network")
+async def remove_network_interface(
+    node: str,
+    vmid: int,
+    nic: str = Query(...),
+    csrf_token: str = Query(...),
+    ticket: str = Query(...),
+    svc: VMService = Depends(get_vm_service)
+):
+    if not nic:
+        raise HTTPException(status_code=400, detail="NIC name is required")
+    try:
+        return svc.modify_vm_network(node, vmid, net=None, delete=nic, csrf_token=csrf_token, ticket=ticket)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
+@app.put("/vm/{node}/qemu/{vmid}/network")
+async def update_network_interface(
+    node: str,
+    vmid: int,
+    config: dict = Body(...),
+    csrf_token: str = Query(...),
+    ticket: str = Query(...),
+    svc: VMService = Depends(get_vm_service)
+):
+    try:
+        return svc.modify_vm_network(node, vmid, net=config, delete=None, csrf_token=csrf_token, ticket=ticket)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
+    
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

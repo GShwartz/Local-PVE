@@ -3,6 +3,7 @@ import axios from 'axios';
 import { VM, VMConfigResponse, ProxmoxVMConfig } from '../../../../types';
 import NetworkingHeader from './NetworkingHeader';
 import NetworkingList from './NetworkingList';
+import NetworkingModal, { NetworkingFormData } from './NetworkingModal';
 
 export interface NetworkInterface {
   name: string;
@@ -30,19 +31,35 @@ const NetworkingView = ({ vm, node, auth, addAlert, refreshVMs }: NetworkingView
   const [interfaces, setInterfaces] = useState<NetworkInterface[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editNIC, setEditNIC] = useState<NetworkInterface | null>(null);
+
   const API_BASE = 'http://localhost:8000';
 
   const parseNetConfig = (key: string, value: string): NetworkInterface => {
-    const params = value.split(',').reduce<Record<string, string>>((acc, part) => {
+    const parts = value.split(',');
+    let model = '';
+    let macaddr = '';
+
+    if (parts[0].includes('=')) {
+      const [m, mac] = parts[0].split('=');
+      model = m.trim();
+      macaddr = mac.trim();
+    } else {
+      model = parts[0].trim();
+    }
+
+    const params = parts.slice(1).reduce<Record<string, string>>((acc, part) => {
       const [k, v] = part.includes('=') ? part.split('=') : [part, 'true'];
       acc[k.trim()] = v.trim();
       return acc;
     }, {});
+
     return {
       name: key,
-      model: Object.keys(params)[0] || '',
+      model,
+      macaddr,
       bridge: params.bridge,
-      macaddr: params.macaddr,
       firewall: params.firewall === '1' || params.firewall?.toLowerCase() === 'true',
       link_down: params.link_down === '1' || params.link_down?.toLowerCase() === 'true',
       queues: params.queues ? Number(params.queues) : undefined,
@@ -87,15 +104,122 @@ const NetworkingView = ({ vm, node, auth, addAlert, refreshVMs }: NetworkingView
     refreshVMs();
   };
 
+  const handleAddNIC = () => {
+    setEditNIC(null);
+    setIsModalOpen(true);
+  };
+
+  const handleNICSubmit = async (data: NetworkingFormData) => {
+    const nicIndex = editNIC
+      ? Number(editNIC.name.replace('net', ''))
+      : interfaces.length;
+
+    const nicKey = `net${nicIndex}`;
+    const parts = [`${data.model}=${data.macaddr}`];
+
+    if (data.firewall) parts.push('firewall=1');
+    if (data.link_down) parts.push('link_down=1');
+    if (data.tag !== undefined) parts.push(`tag=${data.tag}`);
+    parts.push('bridge=vmbr0');
+
+    const config = { [nicKey]: parts.join(',') };
+
+    try {
+      // 🔥 If editing, delete the existing NIC before replacing
+      if (editNIC) {
+        await axios.delete(`${API_BASE}/vm/${node}/qemu/${vm.vmid}/network`, {
+          params: {
+            csrf_token: auth.csrf_token,
+            ticket: auth.ticket,
+            nic: nicKey
+          }
+        });
+      }
+
+      // ✅ Use PUT to create or update NIC (Proxmox only supports PUT)
+      await axios.put(
+        `${API_BASE}/vm/${node}/qemu/${vm.vmid}/network`,
+        config,
+        {
+          params: {
+            csrf_token: auth.csrf_token,
+            ticket: auth.ticket
+          }
+        }
+      );
+
+      addAlert(`${editNIC ? 'Updated' : 'Added'} NIC ${nicKey}`, 'success');
+      fetchNetworking(true);
+      refreshVMs();
+    } catch (err: any) {
+      const msg = err.response?.data?.detail || err.message;
+      addAlert(`Failed to ${editNIC ? 'edit' : 'add'} NIC: ${msg}`, 'error');
+    } finally {
+      setIsModalOpen(false);
+      setEditNIC(null);
+    }
+  };
+
+  const handleRemoveNIC = async (nicName: string) => {
+    try {
+      await axios.delete(
+        `${API_BASE}/vm/${node}/qemu/${vm.vmid}/network`,
+        {
+          params: {
+            csrf_token: auth.csrf_token,
+            ticket: auth.ticket,
+            nic: nicName
+          }
+        }
+      );
+      addAlert(`Removed NIC ${nicName}`, 'success');
+      fetchNetworking(true);
+      refreshVMs();
+    } catch (err: any) {
+      const msg = err.response?.data?.detail || err.message;
+      addAlert(`Failed to remove NIC ${nicName}: ${msg}`, 'error');
+    }
+  };
+
+  const handleEditNIC = (nic: NetworkInterface) => {
+    setEditNIC(nic);
+    setIsModalOpen(true);
+  };
+
+  const handleCopyMac = (mac: string) => {
+    navigator.clipboard.writeText(mac).then(() => {
+      addAlert(`Copied MAC address: ${mac}`, 'success');
+    });
+  };
+
   return (
     <div className="w-full flex-1 min-h-[300px] p-4 bg-white border border-gray-200 rounded-lg shadow-sm sm:p-6 dark:bg-gray-800 dark:border-gray-700">
-      <NetworkingHeader loading={loading} onRefresh={handleRefreshClick} />
+      <NetworkingHeader
+        loading={loading}
+        onRefresh={handleRefreshClick}
+        onAddNIC={handleAddNIC}
+      />
+
       {loading && <p className="text-sm text-gray-500">Loading networking...</p>}
       {error && <p className="text-sm text-red-500">{error}</p>}
       {!loading && !error && interfaces.length === 0 && (
         <p className="text-sm text-gray-500">No network interfaces found.</p>
       )}
-      {!loading && !error && interfaces.length > 0 && <NetworkingList interfaces={interfaces} />}
+      {!loading && !error && interfaces.length > 0 && (
+        <NetworkingList
+          interfaces={interfaces}
+          onRemove={handleRemoveNIC}
+          onEdit={handleEditNIC}
+          onCopyMac={handleCopyMac}
+        />
+      )}
+
+      <NetworkingModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSubmit={handleNICSubmit}
+        editNIC={editNIC}
+      />
     </div>
   );
 };
