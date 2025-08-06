@@ -1,12 +1,10 @@
 // types.ts
 
-// Authentication
 export interface Auth {
   ticket: string;
   csrf_token: string;
 }
 
-// Virtual Machine
 export interface VM {
   vmid: number;
   name: string;
@@ -21,20 +19,17 @@ export interface VM {
   config?: Record<string, string>;
 }
 
-// Snapshot
 export interface Snapshot {
   name: string;
   description?: string;
   snaptime?: number;
 }
 
-// Task Status
 export interface TaskStatus {
   status: string;
   exitstatus?: string;
 }
 
-// Create / Update VM
 export interface VMCreate {
   name: string;
   cpus: number;
@@ -50,19 +45,12 @@ export interface VMUpdate {
   source?: string;
 }
 
-// **New**: Clone VM request (matches backend VMCloneRequest)
 export interface VMCloneRequest {
-  /** Name for the new cloned VM */
   name: string;
-  /** Full clone (true) or linked clone (false) */
   full: boolean;
-  /** Target node on which to create the clone */
   target: string;
-  /** Optional storage identifier for the clone */
   storage?: string;
 }
-
-// Additional types you might need for a Proxmox frontend:
 
 export interface Node {
   node: string;
@@ -154,7 +142,6 @@ export interface VNCInfo {
   user: string;
 }
 
-// API Response wrappers
 export interface ApiResponse<T> {
   data: T;
 }
@@ -163,7 +150,6 @@ export interface ApiError {
   errors: Record<string, string>;
 }
 
-// Form interfaces
 export interface LoginForm {
   username: string;
   password: string;
@@ -171,19 +157,13 @@ export interface LoginForm {
 }
 
 export interface VMCloneForm {
-  /** The newly allocated VMID: usually fetched from /cluster/nextid */
   newid: number;
-  /** Name for the clone */
   name?: string;
-  /** Optional description */
   description?: string;
-  /** Target node (same as VMCloneRequest.target) */
   target?: string;
-  /** Full clone? */
   full?: boolean;
 }
 
-// Utility types
 export type VMStatus = 'running' | 'stopped' | 'suspended' | 'paused';
 export type TaskType =
   | 'start'
@@ -195,7 +175,6 @@ export type TaskType =
   | 'clone'
   | 'migrate';
 
-// React Query keys
 export const QueryKeys = {
   VMS: 'vms',
   VM_DETAIL: 'vm-detail',
@@ -207,3 +186,39 @@ export const QueryKeys = {
   USERS: 'users',
   PERMISSIONS: 'permissions',
 } as const;
+
+export interface ProxmoxVMConfig {
+  // NICs: net0, net1, net2, ... unlimited
+  [key: `net${number}`]: string | undefined;
+
+  // Common VM hardware settings
+  name?: string;
+  cores?: number;
+  memory?: number;
+  ostype?: string;
+  agent?: number;
+
+  // Disks
+  [key: `scsi${number}`]: string | undefined;
+  [key: `virtio${number}`]: string | undefined;
+  [key: `sata${number}`]: string | undefined;
+  [key: `ide${number}`]: string | undefined;
+
+  // Fallback for any other Proxmox config keys
+  [key: string]: any;
+}
+
+export interface VMConfigResponse {
+  vmid: number;
+  name: string;
+  cores: number;
+  memory: number;
+  ostype: string;
+  hdd_sizes: string;
+  num_hdd: number;
+  hdd_free: string;
+  ip_address: string;
+  status: string;
+  config: ProxmoxVMConfig;
+}
+
