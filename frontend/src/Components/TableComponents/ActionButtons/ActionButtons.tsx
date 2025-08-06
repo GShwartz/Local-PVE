@@ -212,6 +212,7 @@ const ActionButtons = ({
         />
         <SuspendResumeButton
           vm={vm}
+          node={PROXMOX_NODE} // <-- added this line
           auth={auth}
           vmMutation={vmMutation}
           addAlert={addAlert}

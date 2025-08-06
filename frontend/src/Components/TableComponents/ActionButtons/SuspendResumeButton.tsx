@@ -4,6 +4,7 @@ import { UseMutationResult } from '@tanstack/react-query';
 
 interface SuspendResumeButtonProps {
   vm: VM;
+  node: string; // Added node prop
   auth: Auth;
   vmMutation: UseMutationResult<
     string,
@@ -20,6 +21,7 @@ interface SuspendResumeButtonProps {
 
 const SuspendResumeButton: React.FC<SuspendResumeButtonProps> = ({
   vm,
+  node,
   auth,
   vmMutation,
   addAlert,
@@ -37,7 +39,8 @@ const SuspendResumeButton: React.FC<SuspendResumeButtonProps> = ({
   const shouldDisableDueToState =
     vm.ip_address === 'N/A' && vm.status !== 'running';
 
-  const isButtonDisabled = disabled || isPending || shouldDisableDueToState || forceDelay;
+  const isButtonDisabled =
+    disabled || isPending || shouldDisableDueToState || forceDelay;
 
   const action = localSuspended ? 'resume' : 'suspend';
   const targetStatus = localSuspended ? 'running' : 'paused';
@@ -46,7 +49,10 @@ const SuspendResumeButton: React.FC<SuspendResumeButtonProps> = ({
     if (isButtonDisabled) return;
 
     setSuspending(true);
-    addAlert(`${action === 'suspend' ? 'Suspending' : 'Resuming'} VM "${vm.name}"...`, 'info');
+    addAlert(
+      `${action === 'suspend' ? 'Suspending' : 'Resuming'} VM "${vm.name}"...`,
+      'info'
+    );
 
     vmMutation.mutate(
       { vmid: vm.vmid, action },
@@ -59,7 +65,7 @@ const SuspendResumeButton: React.FC<SuspendResumeButtonProps> = ({
           for (let i = 0; i < maxRetries; i++) {
             try {
               const response = await fetch(
-                `${API_BASE_URL}/vm/pve/qemu/${vm.vmid}/status?csrf_token=${encodeURIComponent(
+                `${API_BASE_URL}/vm/${node}/qemu/${vm.vmid}/status?csrf_token=${encodeURIComponent(
                   auth.csrf_token
                 )}&ticket=${encodeURIComponent(auth.ticket)}`
               );
