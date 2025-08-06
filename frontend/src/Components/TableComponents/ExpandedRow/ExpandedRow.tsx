@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import SnapshotsView from './SnapshotsComponents/SnapshotsView';
 import DisksView from './DiskModal/DiskView';
+import NetworkingView from './Networking/NetworkingView';
 import { VM, Snapshot } from '../../../types';
 import { UseMutationResult } from '@tanstack/react-query';
 import styles from '../../../CSS/ExpandedArea.module.css';
@@ -46,6 +47,7 @@ const ExpandedRow = ({
     <tr className="border-b border-gray-700 bg-gray-900">
       <td colSpan={11} className="px-6 py-4 align-top">
         <div className={styles.container}>
+          {/* Disks card */}
           <div className={styles.column}>
             <DisksView
               vm={vm}
@@ -59,6 +61,19 @@ const ExpandedRow = ({
               isAddingDisk={isAddingDisk}
             />
           </div>
+
+          {/* Networking card */}
+          <div className={styles.column}>
+            <NetworkingView
+              vm={vm}
+              node={node}
+              auth={auth}
+              addAlert={addAlert}
+              refreshVMs={refreshVMs}
+            />
+          </div>
+
+          {/* Snapshots card */}
           {snapshotView.has(vm.vmid) && (
             <div className={styles.column}>
               <SnapshotsView
