@@ -1,7 +1,8 @@
 import { UseMutationResult } from '@tanstack/react-query';
 import { VM, Snapshot } from '../../../../types';
 import { useState } from 'react';
-import styles from '..//../../../CSS/Loader.module.css';
+import styles from '../../../../CSS/Loader.module.css';
+import buttonStyles from '../../../../CSS/ExpandedArea.module.css';
 
 interface SnapshotsViewProps {
   vm: VM;
@@ -35,16 +36,14 @@ const Popconfirm: React.FC<PopconfirmProps> = ({ isOpen, onConfirm, onCancel, me
             <div className="flex justify-end space-x-2">
               <button
                 onClick={onCancel}
-                className="px-3 py-1 text-sm font-medium text-gray-900 bg-gray-200 rounded-md hover:bg-gray-300 dark:bg-gray-600 dark:text-white dark:hover:bg-gray-500"
+                className={`${buttonStyles.button} ${buttonStyles['button-disabled']}`}
               >
                 Cancel
               </button>
               <button
                 onClick={onConfirm}
-                className={`px-3 py-1 text-sm font-medium text-white rounded-md ${
-                  action === 'revert'
-                    ? 'bg-purple-600 hover:bg-purple-700'
-                    : 'bg-red-600 hover:bg-red-700'
+                className={`${buttonStyles.button} ${
+                  action === 'revert' ? buttonStyles['button-purple'] : buttonStyles['button-red']
                 }`}
               >
                 {action === 'revert' ? 'Revert' : 'Remove'}
@@ -121,10 +120,10 @@ const SnapshotsView = ({
           <button
             onClick={() => openModal(vm.vmid)}
             disabled={isCreatingSnapshot || isRevertingSnapshot || isAddingDisk}
-            className={`text-white font-medium rounded-lg text-sm px-3 py-1 text-center ${
+            className={`${buttonStyles.button} ${
               isCreatingSnapshot || isRevertingSnapshot || isAddingDisk
-                ? 'bg-gray-600 cursor-not-allowed'
-                : 'bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800'
+                ? buttonStyles['button-disabled']
+                : buttonStyles['button-blue']
             }`}
           >
             Take Snapshot
@@ -158,13 +157,13 @@ const SnapshotsView = ({
                           isCreatingSnapshot ||
                           pendingActions[vm.vmid]?.includes(`delete-${snapshot.name}`)
                         }
-                        className={`px-3 py-1 text-sm font-medium rounded-md active:scale-95 transition-transform duration-100 ${
+                        className={`${buttonStyles.button} ${
                           isRevertingSnapshot ||
                           isCreatingSnapshot ||
                           pendingActions[vm.vmid]?.includes(`delete-${snapshot.name}`)
-                            ? 'bg-gray-600 cursor-not-allowed'
-                            : 'bg-purple-600 hover:bg-purple-700'
-                        } text-white`}
+                            ? buttonStyles['button-disabled']
+                            : buttonStyles['button-purple']
+                        }`}
                       >
                         Revert
                       </button>
@@ -178,13 +177,13 @@ const SnapshotsView = ({
                           isCreatingSnapshot ||
                           pendingActions[vm.vmid]?.includes(`revert-${snapshot.name}`)
                         }
-                        className={`px-3 py-1 text-sm font-medium rounded-md active:scale-95 transition-transform duration-100 ${
+                        className={`${buttonStyles.button} ${
                           pendingActions[vm.vmid]?.includes(`delete-${snapshot.name}`) ||
                           isCreatingSnapshot ||
                           pendingActions[vm.vmid]?.includes(`revert-${snapshot.name}`)
-                            ? 'bg-gray-600 cursor-not-allowed'
-                            : 'bg-red-600 hover:bg-red-700'
-                        } text-white`}
+                            ? buttonStyles['button-disabled']
+                            : buttonStyles['button-red']
+                        }`}
                       >
                         Remove
                       </button>

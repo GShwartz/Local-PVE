@@ -272,3 +272,24 @@ class VMService:
             raise HTTPException(status_code=response.status_code, detail=response.text)
         
         return response.json().get("data")
+    
+    def modify_vm_network(self, node: str, vmid: int, net: Optional[dict], delete: Optional[str], csrf_token: str, ticket: str) -> str:
+        self.logger.info(f"Modifying network for VM {vmid} on node {node} with net={net}, delete={delete}")
+        headers = self.set_auth_headers(csrf_token, ticket)
+
+        params = {}
+        if delete:
+            params["delete"] = delete
+        if net:
+            params.update(net)
+
+        response = self.session.put(
+            f"{PROXMOX_BASE_URL}/nodes/{node}/qemu/{vmid}/config",
+            data=params,
+            headers=headers
+        )
+
+        self.logger.info(f"Modify network response status code: {response.status_code}")
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code, detail=response.text)
+        return response.json().get("data")

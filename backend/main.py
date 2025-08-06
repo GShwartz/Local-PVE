@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 from urllib.parse import quote_plus
 from pydantic import BaseModel
@@ -126,24 +126,40 @@ async def get_vm_config(
 ):
     try:
         config = svc.get_vm_config(node, vmid, ticket)
+
+        # ✅ Sort NICs and Disks by their numeric suffix
+        def sort_key(item):
+            key = item[0]
+            # Patterns to sort: net0, scsi0, virtio1, sata2, ide3
+            patterns = ("net", "scsi", "virtio", "sata", "ide")
+            for p in patterns:
+                if key.startswith(p) and key[len(p):].isdigit():
+                    return (0, p, int(key[len(p):]))
+            return (1, key, 0)  # Non-matching keys go later, sorted by name
+
+        sorted_config = dict(sorted(config.items(), key=sort_key))
+
+        # HDD sizes for summary
         disks = []
-        for key, value in config.items():
-            if any(key.startswith(prefix) for prefix in ("ide", "sata", "scsi", "virtio")) and "cdrom" not in value:
-                m = re.search(r'size=(\d+[KMGT]?)', value)
-                if m:
-                    disks.append(m.group(1))
+        for key, value in sorted_config.items():
+            if any(key.startswith(prefix) for prefix in ("ide", "sata", "scsi", "virtio")) and isinstance(value, str):
+                if "cdrom" not in value:
+                    m = re.search(r'size=(\d+[KMGT]?)', value)
+                    if m:
+                        disks.append(m.group(1))
+
         return {
             "vmid": vmid,
-            "name": config.get("name", f"VM {vmid}"),
-            "cores": config.get("cores", 0),
-            "memory": config.get("memory", 0),
-            "ostype": config.get("ostype", "unknown"),
+            "name": sorted_config.get("name", f"VM {vmid}"),
+            "cores": sorted_config.get("cores", 0),
+            "memory": sorted_config.get("memory", 0),
+            "ostype": sorted_config.get("ostype", "unknown"),
             "hdd_sizes": ", ".join(disks) if disks else "N/A",
             "num_hdd": len(disks),
             "hdd_free": "N/A",
             "ip_address": "N/A",
             "status": svc.get_vm_status(node, vmid, csrf_token, ticket),
-            "config": config,
+            "config": sorted_config,
         }
     except HTTPException as e:
         raise HTTPException(status_code=e.status_code, detail=f"Failed to fetch VM config: {e.detail}")
@@ -379,6 +395,36 @@ async def expand_disk(
 ):
     return svc.expand_disk(node, vmid, disk_key, req.new_size, csrf_token, ticket)
 
+@app.delete("/vm/{node}/qemu/{vmid}/network")
+async def remove_network_interface(
+    node: str,
+    vmid: int,
+    nic: str = Query(...),
+    csrf_token: str = Query(...),
+    ticket: str = Query(...),
+    svc: VMService = Depends(get_vm_service)
+):
+    if not nic:
+        raise HTTPException(status_code=400, detail="NIC name is required")
+    try:
+        return svc.modify_vm_network(node, vmid, net=None, delete=nic, csrf_token=csrf_token, ticket=ticket)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
+@app.put("/vm/{node}/qemu/{vmid}/network")
+async def update_network_interface(
+    node: str,
+    vmid: int,
+    config: dict = Body(...),
+    csrf_token: str = Query(...),
+    ticket: str = Query(...),
+    svc: VMService = Depends(get_vm_service)
+):
+    try:
+        return svc.modify_vm_network(node, vmid, net=config, delete=None, csrf_token=csrf_token, ticket=ticket)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
+    
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

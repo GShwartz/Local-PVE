@@ -4,6 +4,7 @@ import DiskModal from '../DiskModal/DiskModal';
 import DiskList from '../DiskModal/DiskList';
 import useDiskConfig from '../DiskModal/useDiskConfig';
 import Loader from '../DiskModal/Loader';
+import styles from '../../../../CSS/ExpandedArea.module.css';
 
 interface DisksViewProps {
   vm: VM;
@@ -49,10 +50,10 @@ const DisksView = ({
         <button
           onClick={openModal}
           disabled={isAddingDisk || deletingDiskKey !== null}
-          className={`text-white font-medium rounded-lg text-sm px-3 py-1 text-center whitespace-nowrap ${
+          className={`${styles.button} ${
             isAddingDisk || deletingDiskKey
-              ? 'bg-gray-600 cursor-not-allowed'
-              : 'bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800'
+              ? styles['button-disabled']
+              : styles['button-blue']
           }`}
         >
           {isAddingDisk
