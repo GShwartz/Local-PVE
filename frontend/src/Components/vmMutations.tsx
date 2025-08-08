@@ -153,18 +153,21 @@ export const useVMMutation = (
           );
           if (status.status === 'stopped') {
             if (status.exitstatus !== 'OK') {
+              // Always show failures
               addAlert(`VM ${name || ''} (${vmid}) ${action} failed: ${status.exitstatus}`, 'error');
             } else {
+              // Success handling:
+              // - For update_config: keep granular success alerts.
+              // - For control actions (start/stop/shutdown/reboot/suspend/resume/clone/...): suppress here
+              //   and let the UI/component own the success toast to avoid doubles.
               if (action === 'update_config') {
                 if (cpus !== undefined) addAlert(`VM (${vmid}) CPU updated to ${cpus}`, 'success');
                 if (ram !== undefined) addAlert(`VM (${vmid}) RAM updated to ${ram}MB`, 'success');
                 if (name) addAlert(`VM (${vmid}) renamed to "${name}"`, 'success');
-              } else {
-                addAlert(`VM ${name || ''} (${vmid}) ${action} succeeded`, 'success');
               }
             }
 
-            // ✅ Always refresh VM list after any action (start, stop, suspend, etc.)
+            // ✅ Always refresh VM list after any action
             queryClient.invalidateQueries(['vms']);
 
             setPendingActions(prev => ({
@@ -187,7 +190,8 @@ export const useVMMutation = (
 
     onError: (error, vars) => {
       const { vmid, action, name } = vars;
-      const msg = error.response?.data?.detail || error.message;
+      const msg = error?.response?.data?.detail || error.message;
+      // Keep error alerts – users need to see failures regardless of who owns success
       addAlert(`VM ${name || ''} (${vmid}) ${action} error: ${msg}`, 'error');
       setPendingActions(prev => ({
         ...prev,
@@ -246,7 +250,7 @@ export const useSnapshotMutation = (
       poll();
     },
     onError: (error, { vmid, snapname, name }) => {
-      const msg = error.response?.data?.detail || error.message;
+      const msg = error?.response?.data?.detail || error.message;
       addAlert(`Snapshot revert error for VM ${name || ''} (${vmid}): ${msg}`, 'error');
       setPendingActions(prev => ({
         ...prev,
@@ -305,7 +309,7 @@ export const useDeleteSnapshotMutation = (
       poll();
     },
     onError: (error, { vmid, snapname, name }) => {
-      const msg = error.response?.data?.detail || error.message;
+      const msg = error?.response?.data?.detail || error.message;
       addAlert(`Snapshot delete error for VM ${name || ''} (${vmid}): ${msg}`, 'error');
       setPendingActions(prev => ({
         ...prev,
@@ -371,7 +375,7 @@ export const useCreateSnapshotMutation = (
     },
     onError: (error, { vmid, snapname, name }) => {
       closeModal();
-      const msg = error.response?.data?.detail || error.message;
+      const msg = error?.response?.data?.detail || error.message;
       addAlert(`Snapshot create error for VM ${name || ''} (${vmid}): ${msg}`, 'error');
       setPendingActions(prev => ({
         ...prev,
