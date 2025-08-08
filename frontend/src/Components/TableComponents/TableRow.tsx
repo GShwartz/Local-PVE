@@ -8,12 +8,12 @@ import axios from 'axios';
 import VMNameCell from './Row/VMNameCell';
 import CPUCell from './Row/CPUCell';
 import RAMCell from './Row/RAMCell';
-import ActionButtons from './ActionButtons/ActionButtons';
-import ApplyButton from './ActionButtons/ApplyButton';
+import IPAddressCell from './Row/IPAddressCell';
 import HDDCell from './Row/HDDCell';
 import StatusBadge from './Row/StatusBadge';
+import ActionButtons from './ActionButtons/ActionButtons';
+import ApplyButton from './ActionButtons/ApplyButton';
 import ExpandedRow from './ExpandedRow/ExpandedRow';
-
 
 interface TableRowProps {
   vm: VM;
@@ -36,6 +36,7 @@ interface TableRowProps {
   refreshVMs: () => void;
   openConsole: (vmid: number) => void;
   hasRowAboveExpanded: boolean;
+  isApplying: boolean;
 }
 
 const getSnapshots = async ({
@@ -75,6 +76,7 @@ const TableRow = ({
   addAlert,
   setTableApplying,
   refreshVMs,
+  isApplying,
 }: TableRowProps) => {
   const queryClient = useQueryClient();
 
@@ -95,11 +97,20 @@ const TableRow = ({
     ram: null,
   });
 
-  const [isApplying] = useState(false);
+  // 5s cooldown so Apply disables immediately
+  const [cooldownActive, setCooldownActive] = useState(false);
+  const startCooldown = () => {
+    if (cooldownActive) return;
+    setCooldownActive(true);
+    setTimeout(() => setCooldownActive(false), 5000);
+  };
+  const isApplyingOrCooldown = isApplying || cooldownActive;
+
   const hasChanges =
     changesToApply.vmname !== null ||
     changesToApply.cpu !== null ||
     changesToApply.ram !== null;
+
   const requiresVMStopped =
     (changesToApply.cpu !== null || changesToApply.ram !== null) &&
     vm.status === 'running';
@@ -116,6 +127,25 @@ const TableRow = ({
     addAlert,
   });
 
+  const vmWithNode: VM = { ...vm, node };
+
+  // 🔗 Real-time hints from the actual Resume button (coming from ActionButtons)
+  const [resumeHints, setResumeHints] = useState<{ resumeShowing: boolean; resumeEnabled: boolean }>({
+    resumeShowing: false,
+    resumeEnabled: false,
+  });
+
+  // Start is disabled whenever VM isn't stopped (matches your UI)
+  const startDisabled = vm.status !== 'stopped';
+
+  // Displayed IP string exactly as the IP cell gets it
+  const ipAddress = vm.ip_address || 'N/A';
+
+  const handleApplyWithCooldown = (e: React.MouseEvent<HTMLButtonElement>) => {
+    startCooldown();
+    applyChanges(e);
+  };
+
   return (
     <>
       {requiresVMStopped && (
@@ -129,36 +159,6 @@ const TableRow = ({
       )}
 
       <tr className="bg-gray-900 border-b border-gray-700 hover:bg-gray-700 text-xs sm:text-sm">
-        <td className="px-2 sm:px-6 py-2 sm:py-4 text-center">{vm.vmid}</td>
-        <VMNameCell {...{ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply, isApplying }} />
-        <td className="px-2 sm:px-6 py-2 sm:py-4 text-center">{vm.ip_address}</td>
-        <td className="px-2 sm:px-6 py-2 sm:py-4 text-center">{vm.os}</td>
-        <CPUCell {...{ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply, isApplying }} />
-        <RAMCell {...{ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply, isApplying }} />
-        <HDDCell hdd_sizes={vm.hdd_sizes} />
-        <td className="px-2 sm:px-6 py-2 sm:py-4 text-center narrow-col border-gray-700">
-          <StatusBadge status={vm.status} />
-        </td>
-        <td className="px-2 py-1 text-center">
-          <ApplyButton
-            onClick={applyChanges}
-            hasChanges={hasChanges}
-            requiresVMStopped={requiresVMStopped}
-            isApplying={isApplying}
-          />
-        </td>
-        <ActionButtons
-          vm={vm}
-          pendingActions={pendingActions}
-          vmMutation={vmMutation}
-          showSnapshots={showSnapshots}
-          onToggleRow={() => toggleRow(vm.vmid)}
-          auth={auth}
-          addAlert={addAlert}
-          refreshVMs={refreshVMs}
-          queryClient={queryClient}
-          isApplying={isApplying}
-        />
         <td
           className="px-2 py-4 text-center cursor-pointer"
           onClick={() => toggleRow(vm.vmid)}
@@ -169,6 +169,60 @@ const TableRow = ({
             <FiChevronDown className="inline text-lg" />
           )}
         </td>
+
+        <td className="px-2 sm:px-6 py-2 sm:py-4 text-center">{vm.vmid}</td>
+
+        <VMNameCell
+          {...{ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply, isApplying: isApplyingOrCooldown }}
+        />
+
+        <IPAddressCell vm={vmWithNode} />
+
+        <td className="px-2 sm:px-6 py-2 sm:py-4 text-center">{vm.os}</td>
+
+        <CPUCell
+          {...{ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply, isApplying: isApplyingOrCooldown }}
+        />
+
+        <RAMCell
+          {...{ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply, isApplying: isApplyingOrCooldown }}
+        />
+
+        <HDDCell hdd_sizes={vm.hdd_sizes} />
+
+        <td className="px-2 py-1 text-center">
+          <ApplyButton
+            onClick={handleApplyWithCooldown}
+            hasChanges={hasChanges}
+            requiresVMStopped={requiresVMStopped}
+            isApplying={isApplyingOrCooldown}
+          />
+        </td>
+
+        <td className="px-2 sm:px-6 py-2 sm:py-4 text-center narrow-col border-gray-700">
+          <StatusBadge
+            status={vm.status}
+            resumeShowing={resumeHints.resumeShowing}
+            resumeEnabled={resumeHints.resumeEnabled}
+            startDisabled={startDisabled}
+            ipAddress={ipAddress}
+          />
+        </td>
+
+        <ActionButtons
+          vm={vm}
+          pendingActions={pendingActions}
+          vmMutation={vmMutation}
+          showSnapshots={showSnapshots}
+          onToggleRow={() => toggleRow(vm.vmid)}
+          auth={auth}
+          addAlert={addAlert}
+          refreshVMs={refreshVMs}
+          queryClient={queryClient}
+          isApplying={isApplyingOrCooldown}
+          /** 👇 this is the key: feed real Resume button state up */
+          onResumeHintsChange={setResumeHints}
+        />
       </tr>
 
       <ExpandedRow

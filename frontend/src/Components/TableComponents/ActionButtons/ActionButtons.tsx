@@ -29,7 +29,7 @@ interface ActionButtonsProps {
   refreshVMs: () => void;
   queryClient: QueryClient;
   isApplying: boolean;
-  
+  onResumeHintsChange?: (hints: { resumeShowing: boolean; resumeEnabled: boolean }) => void;
 }
 
 const PROXMOX_NODE = 'pve';
@@ -45,6 +45,7 @@ const ActionButtons = ({
   refreshVMs,
   queryClient,
   isApplying,
+  onResumeHintsChange,
 }: ActionButtonsProps) => {
   const [isStarting, setIsStarting] = useState(false);
   const [isHalting, setIsHalting] = useState(false);
@@ -55,6 +56,9 @@ const ActionButtons = ({
   const [isRemoving, setIsRemoving] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const [isSuspending, setIsSuspending] = useState(false);
+
+  // Track if Resume button is showing
+  const [resumeShowing, setResumeShowing] = useState(false);
 
   const hasPendingActions = pendingActions[vm.vmid]?.length > 0;
   const isCreatingSnapshot = pendingActions[vm.vmid]?.some((a) => a.startsWith('create-'));
@@ -183,7 +187,7 @@ const ActionButtons = ({
       <div className={styles.buttonGroup} style={{ height: '48px' }}>
         <StartButton
           vm={vm}
-          disabled={disableAll}
+          disabled={disableAll || resumeShowing}
           isStarting={isStarting}
           setIsStarting={setIsStarting}
           vmMutation={vmMutation}
@@ -191,28 +195,28 @@ const ActionButtons = ({
         />
         <StopButton
           vm={vm}
-          disabled={disableAll}
+          disabled={disableAll || resumeShowing}
           setIsHalting={setIsHalting}
           vmMutation={vmMutation}
           addAlert={addAlert}
         />
         <ShutdownButton
           vm={vm}
-          disabled={disableAll || isSuspended}
+          disabled={disableAll || resumeShowing}
           setIsHalting={setIsHalting}
           vmMutation={vmMutation}
           addAlert={addAlert}
         />
         <RebootButton
           vm={vm}
-          disabled={disableAll || isSuspended}
+          disabled={disableAll || resumeShowing}
           setIsRebooting={setIsRebooting}
           vmMutation={vmMutation}
           addAlert={addAlert}
         />
         <SuspendResumeButton
           vm={vm}
-          node={PROXMOX_NODE} // <-- added this line
+          node={PROXMOX_NODE}
           auth={auth}
           vmMutation={vmMutation}
           addAlert={addAlert}
@@ -220,16 +224,20 @@ const ActionButtons = ({
           disabled={disableAll}
           isPending={pendingActions[vm.vmid]?.some((a) => a === 'suspend' || a === 'resume')}
           setSuspending={setIsSuspending}
+          onHintsChange={(hints) => {
+            setResumeShowing(hints.resumeShowing);
+            onResumeHintsChange?.(hints);
+          }}
         />
         <ConsoleButton
           onClick={(e) => {
             e.stopPropagation();
             openProxmoxConsole(PROXMOX_NODE, vm.vmid, auth.csrf_token, auth.ticket);
           }}
-          disabled={disableConsole}
+          disabled={disableConsole || resumeShowing}
         />
         <CloneButton
-          disabled={disableAll || isSuspended}
+          disabled={disableAll || resumeShowing}
           showCloningLabel={showCloningLabel}
           isCloning={isCloning}
           cloneName={cloneName}
@@ -247,7 +255,7 @@ const ActionButtons = ({
           onCancel={handleCancelClone}
         />
         <RemoveButton
-          disabled={vm.status === 'running' || disableAll}
+          disabled={disableAll || resumeShowing || vm.status === 'running'}
           onConfirm={handleRemove}
           showConfirm={showRemoveConfirm}
           setShowConfirm={setShowRemoveConfirm}

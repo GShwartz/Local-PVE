@@ -39,7 +39,7 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: 
       newSnapshotView.delete(vmid);
     } else {
       newExpanded.add(vmid);
-      newSnapshotView.add(vmid); // ✅ Show snapshots when expanding
+      newSnapshotView.add(vmid);
     }
 
     setExpandedRows(newExpanded);
@@ -147,6 +147,7 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: 
                     setTableApplying={setIsApplying}
                     openConsole={openConsole}
                     refreshVMs={refreshVMs}
+                    isApplying={isApplying}
                   />
                 );
               })}

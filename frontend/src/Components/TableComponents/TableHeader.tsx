@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { VM } from '../../types';
 
 interface TableHeaderProps {
@@ -16,6 +17,20 @@ const TableHeader = ({ sortConfig, handleSort, isApplying }: TableHeaderProps) =
     { key: 'ram', label: 'RAM' },
     { key: 'hdd_sizes', label: 'HDD' },
   ];
+
+  // Keep the loader visible for at least 5 seconds after apply is triggered
+  const [showMinWindow, setShowMinWindow] = useState(false);
+
+  useEffect(() => {
+    if (!isApplying) return;
+
+    setShowMinWindow(true);
+    const t = setTimeout(() => setShowMinWindow(false), 5000);
+
+    return () => clearTimeout(t);
+  }, [isApplying]);
+
+  const showLoader = isApplying || showMinWindow;
 
   return (
     <>
@@ -44,46 +59,17 @@ const TableHeader = ({ sortConfig, handleSort, isApplying }: TableHeaderProps) =
               linear-gradient(#D1D5DB 5px, transparent 0);
           }
           @keyframes pgfill {
-            0% {
-              background-image: 
-                linear-gradient(#4B5563 5px, transparent 0), 
-                linear-gradient(#4B5563 5px, transparent 0), 
-                linear-gradient(#4B5563 5px, transparent 0), 
-                linear-gradient(#4B5563 5px, transparent 0);
-            }
-            25% {
-              background-image: 
-                linear-gradient(#FF3D00 5px, transparent 0), 
-                linear-gradient(#4B5563 5px, transparent 0), 
-                linear-gradient(#4B5563 5px, transparent 0), 
-                linear-gradient(#4B5563 5px, transparent 0);
-            }
-            50% {
-              background-image: 
-                linear-gradient(#4B5563 5px, transparent 0), 
-                linear-gradient(#FF3D00 5px, transparent 0), 
-                linear-gradient(#4B5563 5px, transparent 0), 
-                linear-gradient(#4B5563 5px, transparent 0);
-            }
-            75% {
-              background-image: 
-                linear-gradient(#4B5563 5px, transparent 0), 
-                linear-gradient(#4B5563 5px, transparent 0), 
-                linear-gradient(#FF3D00 5px, transparent 0), 
-                linear-gradient(#4B5563 5px, transparent 0);
-            }
-            100% {
-              background-image: 
-                linear-gradient(#4B5563 5px, transparent 0), 
-                linear-gradient(#4B5563 5px, transparent 0), 
-                linear-gradient(#4B5563 5px, transparent 0), 
-                linear-gradient(#FF3D00 5px, transparent 0);
-            }
+            0% { background-position: 0 0, 10px 0, 20px 0, 30px 0; }
+            25% { background-position: 10px 0, 20px 0, 30px 0, 0 0; }
+            50% { background-position: 20px 0, 30px 0, 0 0, 10px 0; }
+            75% { background-position: 30px 0, 0 0, 10px 0, 20px 0; }
+            100% { background-position: 0 0, 10px 0, 20px 0, 30px 0; }
           }
         `}
       </style>
       <thead className="table-header">
         <tr className="h-12 text-xs sm:text-sm">
+          <th className="px-2 py-3"></th>{/* Chevron column */}
           {headers.map(({ key, label }) => (
             <th
               key={key}
@@ -94,13 +80,11 @@ const TableHeader = ({ sortConfig, handleSort, isApplying }: TableHeaderProps) =
               {label} {sortConfig.key === key && (sortConfig.direction === 'asc' ? '↑' : '↓')}
             </th>
           ))}
-          <th scope="col" className="px-2 sm:px-6 py-3 narrow-col">State</th>
           <th scope="col" className="px-2 py-3 border-gray-700">
-            {isApplying ? <div className="header-loader"></div> : 'VM Config'}
+            {showLoader ? <div className="header-loader"></div> : 'VM Config'}
           </th>
-          <th scope="col" className="px-2 py-3">
-            Actions
-          </th>
+          <th scope="col" className="px-2 sm:px-6 py-3 narrow-col">State</th>
+          <th scope="col" className="px-2 py-3">Actions</th>
         </tr>
       </thead>
     </>

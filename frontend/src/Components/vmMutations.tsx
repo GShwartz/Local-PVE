@@ -1,4 +1,3 @@
-// vmMutations.tsx
 import { useMutation } from '@tanstack/react-query';
 import { Auth, TaskStatus, VMCloneRequest } from '../types';
 import axios from 'axios';
@@ -164,7 +163,10 @@ export const useVMMutation = (
                 addAlert(`VM ${name || ''} (${vmid}) ${action} succeeded`, 'success');
               }
             }
+
+            // ✅ Always refresh VM list after any action (start, stop, suspend, etc.)
             queryClient.invalidateQueries(['vms']);
+
             setPendingActions(prev => ({
               ...prev,
               [vmid]: (prev[vmid] || []).filter(a => a !== action),
