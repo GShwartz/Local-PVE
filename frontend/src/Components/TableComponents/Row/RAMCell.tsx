@@ -22,6 +22,12 @@ const RAMCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply
   const [editRAM, setEditRAM] = useState(formatRAMToString(vm.ram));
   const [oldRAM, setOldRAM] = useState<string | null>(null);
   const ramCellRef = useRef<HTMLTableCellElement>(null);
+
+  const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [tooltipMessage, setTooltipMessage] = useState('');
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [tooltipPosition, setTooltipPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+
   const validRAMs = ['512MB', '1GB', '2GB', '4GB', '8GB'];
 
   const parseRAMToNumber = (ram: string): number => {
@@ -52,7 +58,6 @@ const RAMCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply
   }, [isEditingRAM, vm.ram, cancelEdit, setChangesToApply]);
 
   useEffect(() => {
-    // Reset oldRAM when VM data changes (e.g., after successful apply)
     setEditRAM(formatRAMToString(vm.ram));
     setOldRAM(null);
     setChangesToApply((prev) => ({ ...prev, ram: null }));
@@ -72,11 +77,35 @@ const RAMCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply
     cancelEdit();
   };
 
+  const handleMouseEnter = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (isEditingRAM || isApplying) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    setTooltipPosition({
+      top: rect.top - 30,
+      left: rect.left + rect.width / 2,
+    });
+
+    hoverTimerRef.current = setTimeout(() => {
+      setTooltipMessage('Edit RAM size');
+      setShowTooltip(true);
+    }, 1000);
+  };
+
+  const handleMouseLeave = () => {
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+    setShowTooltip(false);
+  };
+
   return (
     <td
       className="px-6 py-4 text-center narrow-col"
       ref={ramCellRef}
       style={{ height: '48px', verticalAlign: 'middle', position: 'relative' }}
+      onClick={(e) => e.stopPropagation()}
     >
       <div className="flex flex-col items-center justify-center space-y-1" style={{ height: '48px' }}>
         <div className="flex items-center justify-center" style={{ height: '32px', lineHeight: '1' }}>
@@ -97,24 +126,51 @@ const RAMCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply
               </select>
             </div>
           ) : (
-            <span
-              className={`px-2 py-1 rounded ${!isApplying ? 'cursor-pointer hover:bg-gray-900 hover:scale-110 transition-all duration-200' : 'cursor-not-allowed'}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (!isApplying) {
-                  setIsEditingRAM(true);
-                  openEditModal(vm);
-                }
-              }}
-            >
-              {editRAM}
-            </span>
+            <>
+              <span className="px-2 py-1 rounded">{editRAM}</span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!isApplying) {
+                    setIsEditingRAM(true);
+                    setShowTooltip(false);
+                    if (hoverTimerRef.current) {
+                      clearTimeout(hoverTimerRef.current);
+                      hoverTimerRef.current = null;
+                    }
+                    openEditModal(vm);
+                  }
+                }}
+                onMouseEnter={handleMouseEnter}
+                onMouseLeave={handleMouseLeave}
+                disabled={isApplying}
+                className={`ml-2 text-gray-400 hover:text-white ${isApplying ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+              </button>
+            </>
           )}
         </div>
         {oldRAM !== null && (
           <span className="text-xs text-gray-400">Old RAM: {oldRAM}</span>
         )}
       </div>
+
+      {showTooltip && !isEditingRAM && (
+        <div
+          className="note-tooltip show absolute z-10 bg-black text-white text-xs rounded px-2 py-1"
+          style={{
+            top: `${tooltipPosition.top}px`,
+            left: `${tooltipPosition.left}px`,
+            transform: 'translate(-50%, -100%)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {tooltipMessage}
+        </div>
+      )}
     </td>
   );
 };
