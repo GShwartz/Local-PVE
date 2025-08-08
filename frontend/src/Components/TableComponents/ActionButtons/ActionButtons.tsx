@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { VM, Auth, TaskStatus } from '../../../types';
 import { UseMutationResult, QueryClient } from '@tanstack/react-query';
 
@@ -30,6 +30,7 @@ interface ActionButtonsProps {
   queryClient: QueryClient;
   isApplying: boolean;
   onResumeHintsChange?: (hints: { resumeShowing: boolean; resumeEnabled: boolean }) => void;
+  loaderMinDuration?: number;
 }
 
 const PROXMOX_NODE = 'pve';
@@ -46,6 +47,7 @@ const ActionButtons = ({
   queryClient,
   isApplying,
   onResumeHintsChange,
+  loaderMinDuration = 5000,
 }: ActionButtonsProps) => {
   const [isStarting, setIsStarting] = useState(false);
   const [isHalting, setIsHalting] = useState(false);
@@ -56,28 +58,100 @@ const ActionButtons = ({
   const [isRemoving, setIsRemoving] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const [isSuspending, setIsSuspending] = useState(false);
-
-  // Track if Resume button is showing
   const [resumeShowing, setResumeShowing] = useState(false);
 
-  const hasPendingActions = pendingActions[vm.vmid]?.length > 0;
-  const isCreatingSnapshot = pendingActions[vm.vmid]?.some((a) => a.startsWith('create-'));
-  const isClonePending = pendingActions[vm.vmid]?.includes('clone');
-  const showCloningLabel = isCloningInProgress || isClonePending;
+  const [isCoolingDown, setIsCoolingDown] = useState(false);
+  const [lastAction, setLastAction] = useState<null | 'start'>(null);
+  const cooldownTimer = useRef<number | null>(null);
 
+  const [minElapsed, setMinElapsed] = useState(false);
+  const [settled, setSettled] = useState(false);
+  const minTimer = useRef<number | null>(null);
+  const maxGuardTimer = useRef<number | null>(null);
+
+  // add gradient animation keyframes
+  const styleInjectedRef = useRef(false);
+  useEffect(() => {
+    if (styleInjectedRef.current) return;
+    const styleTag = document.createElement('style');
+    styleTag.type = 'text/css';
+    styleTag.textContent = `
+      @keyframes abtn_bar_sweep {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(300%); }
+      }
+      @keyframes abtn_bar_gradient {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+      }
+    `;
+    document.head.appendChild(styleTag);
+    styleInjectedRef.current = true;
+  }, []);
+
+  const clearTimers = () => {
+    if (cooldownTimer.current) {
+      window.clearTimeout(cooldownTimer.current);
+      cooldownTimer.current = null;
+    }
+    if (minTimer.current) {
+      window.clearTimeout(minTimer.current);
+      minTimer.current = null;
+    }
+    if (maxGuardTimer.current) {
+      window.clearTimeout(maxGuardTimer.current);
+      maxGuardTimer.current = null;
+    }
+  };
+
+  const clearCooldown = () => {
+    clearTimers();
+    setIsCoolingDown(false);
+    setLastAction(null);
+    setMinElapsed(false);
+    setSettled(false);
+  };
+
+  const triggerCooldown = (action: 'start') => {
+    setLastAction(action);
+    setIsCoolingDown(true);
+    setMinElapsed(false);
+    setSettled(false);
+
+    clearTimers();
+    minTimer.current = window.setTimeout(() => setMinElapsed(true), loaderMinDuration);
+    maxGuardTimer.current = window.setTimeout(() => {
+      setMinElapsed(true);
+      setSettled(true);
+    }, 30000);
+  };
+
+  useEffect(() => {
+    return () => {
+      clearTimers();
+    };
+  }, []);
+
+  const actionsForVm = pendingActions[vm.vmid] || [];
+  const hasPendingActions = actionsForVm.length > 0;
+  const isCreatingSnapshot = actionsForVm.some((a) => a.startsWith('create-'));
+  const isClonePending = actionsForVm.includes('clone');
+  const showCloningLabel = isCloningInProgress || isClonePending;
   const isSuspended = vm.status === 'paused';
 
   const disableAll =
-    hasPendingActions ||
-    isStarting ||
-    isHalting ||
-    isCloningInProgress ||
-    isRemoving ||
-    isApplying ||
-    isSuspending;
+    hasPendingActions || isStarting || isHalting || isCloningInProgress || isRemoving || isApplying || isSuspending;
+
+  const hasBlockingPendingForStop = actionsForVm.some((a) => a !== 'resume' && a !== 'suspend');
+  const disableStop = hasBlockingPendingForStop || isStarting || isHalting || isCloningInProgress || isRemoving || isApplying || isSuspending;
 
   const disableConsole =
     isSuspended || (!isRebooting && !isStarting && (isCreatingSnapshot || isHalting || hasPendingActions || isSuspending));
+
+  const hasBlockingPendingForStart = actionsForVm.some((a) => a !== 'stop' && a !== 'shutdown' && a !== 'resume' && a !== 'suspend');
+  const disableStart =
+    hasBlockingPendingForStart || isStarting || isHalting || isCloningInProgress || isRemoving || isApplying || isSuspending || resumeShowing;
 
   useEffect(() => {
     if (isStarting && vm.status === 'running') setIsStarting(false);
@@ -88,6 +162,19 @@ const ActionButtons = ({
       setIsHalting(false);
     }
   }, [vm.status, isHalting]);
+
+  useEffect(() => {
+    if (lastAction !== 'start') return;
+    const startStillPending = actionsForVm.includes('start');
+    const nowSettled = vm.status === 'running' || (!isStarting && !startStillPending);
+    setSettled(nowSettled);
+  }, [lastAction, vm.status, isStarting, actionsForVm]);
+
+  useEffect(() => {
+    if (lastAction === 'start' && isCoolingDown && minElapsed && settled) {
+      clearCooldown();
+    }
+  }, [lastAction, isCoolingDown, minElapsed, settled]);
 
   const handleConfirmClone = () => {
     setIsCloning(false);
@@ -120,9 +207,7 @@ const ActionButtons = ({
     addAlert(`Initiating deletion process for VM "${vm.name}"...`, 'warning');
 
     const previousVms = queryClient.getQueryData<VM[]>(['vms']);
-    queryClient.setQueryData<VM[]>(['vms'], (oldVms) =>
-      oldVms?.filter((v) => v.vmid !== vm.vmid) || []
-    );
+    queryClient.setQueryData<VM[]>(['vms'], (oldVms) => oldVms?.filter((v) => v.vmid !== vm.vmid) || []);
 
     try {
       const response = await fetch(
@@ -132,9 +217,7 @@ const ActionButtons = ({
         { method: 'DELETE' }
       );
 
-      if (!response.ok) {
-        throw new Error(`Failed to initiate VM deletion: ${await response.text()}`);
-      }
+      if (!response.ok) throw new Error(`Failed to initiate VM deletion: ${await response.text()}`);
 
       let upid = await response.text();
       upid = upid.trim().replace(/^"|"$/g, '');
@@ -146,20 +229,13 @@ const ActionButtons = ({
             upid
           )}?csrf_token=${encodeURIComponent(auth.csrf_token)}&ticket=${encodeURIComponent(auth.ticket)}`
         );
-
-        if (!taskResponse.ok) {
-          throw new Error(`Failed to get task status: ${await taskResponse.text()}`);
-        }
+        if (!taskResponse.ok) throw new Error(`Failed to get task status: ${await taskResponse.text()}`);
 
         taskStatus = await taskResponse.json();
-        if (taskStatus.status !== 'stopped') {
-          await new Promise((resolve) => setTimeout(resolve, 500));
-        }
+        if (taskStatus.status !== 'stopped') await new Promise((resolve) => setTimeout(resolve, 500));
       } while (taskStatus.status !== 'stopped');
 
-      if (taskStatus.exitstatus !== 'OK') {
-        throw new Error(`Deletion task failed: ${taskStatus.exitstatus}`);
-      }
+      if (taskStatus.exitstatus !== 'OK') throw new Error(`Deletion task failed: ${taskStatus.exitstatus}`);
 
       addAlert(`VM "${vm.name}" has been successfully deleted.`, 'success');
       refreshVMs();
@@ -170,6 +246,8 @@ const ActionButtons = ({
       setIsRemoving(false);
     }
   };
+
+  const vmMutationPassthrough = vmMutation;
 
   return (
     <td
@@ -184,82 +262,46 @@ const ActionButtons = ({
       }}
       onClick={onToggleRow}
     >
-      <div className={styles.buttonGroup} style={{ height: '48px' }}>
-        <StartButton
-          vm={vm}
-          disabled={disableAll || resumeShowing}
-          isStarting={isStarting}
-          setIsStarting={setIsStarting}
-          vmMutation={vmMutation}
-          addAlert={addAlert}
-        />
-        <StopButton
-          vm={vm}
-          disabled={disableAll || resumeShowing}
-          setIsHalting={setIsHalting}
-          vmMutation={vmMutation}
-          addAlert={addAlert}
-        />
-        <ShutdownButton
-          vm={vm}
-          disabled={disableAll || resumeShowing}
-          setIsHalting={setIsHalting}
-          vmMutation={vmMutation}
-          addAlert={addAlert}
-        />
-        <RebootButton
-          vm={vm}
-          disabled={disableAll || resumeShowing}
-          setIsRebooting={setIsRebooting}
-          vmMutation={vmMutation}
-          addAlert={addAlert}
-        />
-        <SuspendResumeButton
-          vm={vm}
-          node={PROXMOX_NODE}
-          auth={auth}
-          vmMutation={vmMutation}
-          addAlert={addAlert}
-          refreshVMs={refreshVMs}
-          disabled={disableAll}
-          isPending={pendingActions[vm.vmid]?.some((a) => a === 'suspend' || a === 'resume')}
-          setSuspending={setIsSuspending}
-          onHintsChange={(hints) => {
-            setResumeShowing(hints.resumeShowing);
-            onResumeHintsChange?.(hints);
-          }}
-        />
-        <ConsoleButton
-          onClick={(e) => {
-            e.stopPropagation();
-            openProxmoxConsole(PROXMOX_NODE, vm.vmid, auth.csrf_token, auth.ticket);
-          }}
-          disabled={disableConsole || resumeShowing}
-        />
-        <CloneButton
-          disabled={disableAll || resumeShowing}
-          showCloningLabel={showCloningLabel}
-          isCloning={isCloning}
-          cloneName={cloneName}
-          onToggle={() => {
-            if (!isCloningInProgress) {
-              setIsCloning((prev) => {
-                const next = !prev;
-                if (next) setCloneName(vm.name);
-                return next;
-              });
-            }
-          }}
-          onChange={setCloneName}
-          onConfirm={handleConfirmClone}
-          onCancel={handleCancelClone}
-        />
-        <RemoveButton
-          disabled={disableAll || resumeShowing || vm.status === 'running'}
-          onConfirm={handleRemove}
-          showConfirm={showRemoveConfirm}
-          setShowConfirm={setShowRemoveConfirm}
-        />
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', width: '100%' }}>
+        <div className={styles.buttonGroup} style={{ height: '48px' }}>
+          <StartButton vm={vm} disabled={disableStart} isStarting={isStarting} setIsStarting={setIsStarting} vmMutation={vmMutationPassthrough} addAlert={addAlert} onSent={() => triggerCooldown('start')} />
+          <StopButton vm={vm} disabled={disableStop} setIsHalting={setIsHalting} vmMutation={vmMutationPassthrough} addAlert={addAlert} />
+          <ShutdownButton vm={vm} disabled={disableAll || resumeShowing} setIsHalting={setIsHalting} vmMutation={vmMutationPassthrough} addAlert={addAlert} />
+          <RebootButton vm={vm} disabled={disableAll || resumeShowing} setIsRebooting={setIsRebooting} vmMutation={vmMutationPassthrough} addAlert={addAlert} />
+          <SuspendResumeButton vm={vm} node={PROXMOX_NODE} auth={auth} vmMutation={vmMutationPassthrough} addAlert={addAlert} refreshVMs={refreshVMs} disabled={disableAll} isPending={actionsForVm.some((a) => a === 'suspend' || a === 'resume')} setSuspending={setIsSuspending} onHintsChange={(hints) => { setResumeShowing(hints.resumeShowing); onResumeHintsChange?.(hints); }} />
+          <ConsoleButton onClick={(e) => { e.stopPropagation(); openProxmoxConsole(PROXMOX_NODE, vm.vmid, auth.csrf_token, auth.ticket); }} disabled={disableConsole || resumeShowing} />
+          <CloneButton disabled={disableAll || resumeShowing} showCloningLabel={showCloningLabel} isCloning={isCloning} cloneName={cloneName} onToggle={() => { if (!isCloningInProgress) { setIsCloning((prev) => { const next = !prev; if (next) setCloneName(vm.name); return next; }); } }} onChange={setCloneName} onConfirm={handleConfirmClone} onCancel={handleCancelClone} />
+          <RemoveButton disabled={disableAll || resumeShowing || vm.status === 'running'} onConfirm={handleRemove} showConfirm={showRemoveConfirm} setShowConfirm={setShowRemoveConfirm} />
+        </div>
+
+        {isCoolingDown && lastAction === 'start' && (
+          <div
+            aria-live="polite"
+            style={{
+              width: '100%',
+              height: '6px',
+              marginTop: '8px',
+              borderRadius: '9999px',
+              background: 'rgba(255,255,255,0.25)',
+              overflow: 'hidden',
+              position: 'relative',
+            }}
+          >
+            <div
+              style={{
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                height: '100%',
+                width: '30%',
+                background: 'linear-gradient(270deg, #ff6b6b, #ffd93d, #6bcb77, #4d96ff, #b15cff, #ff6b6b)',
+                backgroundSize: '600% 600%',
+                borderRadius: '9999px',
+                animation: 'abtn_bar_sweep 1200ms ease-in-out infinite, abtn_bar_gradient 6s ease infinite',
+              }}
+            />
+          </div>
+        )}
       </div>
     </td>
   );

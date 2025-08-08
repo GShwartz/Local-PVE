@@ -37,6 +37,7 @@ interface TableRowProps {
   openConsole: (vmid: number) => void;
   hasRowAboveExpanded: boolean;
   isApplying: boolean;
+  loaderMinDuration: number;
 }
 
 const getSnapshots = async ({
@@ -77,6 +78,7 @@ const TableRow = ({
   setTableApplying,
   refreshVMs,
   isApplying,
+  loaderMinDuration,
 }: TableRowProps) => {
   const queryClient = useQueryClient();
 
@@ -97,12 +99,12 @@ const TableRow = ({
     ram: null,
   });
 
-  // 5s cooldown so Apply disables immediately
+  // Cooldown so Apply disables immediately (duration provided by MachinesTable)
   const [cooldownActive, setCooldownActive] = useState(false);
   const startCooldown = () => {
     if (cooldownActive) return;
     setCooldownActive(true);
-    setTimeout(() => setCooldownActive(false), 5000);
+    setTimeout(() => setCooldownActive(false), loaderMinDuration);
   };
   const isApplyingOrCooldown = isApplying || cooldownActive;
 
@@ -220,7 +222,6 @@ const TableRow = ({
           refreshVMs={refreshVMs}
           queryClient={queryClient}
           isApplying={isApplyingOrCooldown}
-          /** 👇 this is the key: feed real Resume button state up */
           onResumeHintsChange={setResumeHints}
         />
       </tr>

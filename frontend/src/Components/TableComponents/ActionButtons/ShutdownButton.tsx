@@ -8,6 +8,9 @@ interface ShutdownButtonProps {
   setIsHalting: React.Dispatch<React.SetStateAction<boolean>>;
   vmMutation: UseMutationResult<any, any, { vmid: number; action: string; name?: string }>;
   addAlert: (msg: string, type: string) => void;
+
+  /** Called right after the shutdown action is sent */
+  onSent?: () => void;
 }
 
 const ShutdownButton = ({
@@ -16,11 +19,13 @@ const ShutdownButton = ({
   setIsHalting,
   vmMutation,
   addAlert,
+  onSent,
 }: ShutdownButtonProps) => {
   const handleShutdown = (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsHalting(true);
     addAlert(`Sending shutdown signal to VM "${vm.name}"...`, 'info');
+
     vmMutation.mutate(
       { vmid: vm.vmid, action: 'shutdown', name: vm.name },
       {
@@ -28,6 +33,9 @@ const ShutdownButton = ({
         onError: () => addAlert(`Failed to shutdown VM "${vm.name}".`, 'error'),
       }
     );
+
+    // Inform parent to show the wide loader
+    onSent?.();
   };
 
   const isInactive = vm.status !== 'running' || disabled;
