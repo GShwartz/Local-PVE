@@ -60,13 +60,15 @@ const ActionButtons = ({
   // Track if Resume button is showing
   const [resumeShowing, setResumeShowing] = useState(false);
 
-  const hasPendingActions = pendingActions[vm.vmid]?.length > 0;
-  const isCreatingSnapshot = pendingActions[vm.vmid]?.some((a) => a.startsWith('create-'));
-  const isClonePending = pendingActions[vm.vmid]?.includes('clone');
+  const actionsForVm = pendingActions[vm.vmid] || [];
+  const hasPendingActions = actionsForVm.length > 0;
+  const isCreatingSnapshot = actionsForVm.some((a) => a.startsWith('create-'));
+  const isClonePending = actionsForVm.includes('clone');
   const showCloningLabel = isCloningInProgress || isClonePending;
 
   const isSuspended = vm.status === 'paused';
 
+  // Global disable for most buttons
   const disableAll =
     hasPendingActions ||
     isStarting ||
@@ -76,8 +78,24 @@ const ActionButtons = ({
     isApplying ||
     isSuspending;
 
+  // ✅ Stop should ignore harmless "resume/suspend" pending and only disable for blocking stuff
+  const hasBlockingPendingForStop = actionsForVm.some(
+    (a) => a !== 'resume' && a !== 'suspend'
+  );
+  const disableStop =
+    hasBlockingPendingForStop ||
+    isStarting ||
+    isHalting ||
+    isCloningInProgress ||
+    isRemoving ||
+    isApplying ||
+    isSuspending; // still disable if a resume/suspend is actively in progress
+
   const disableConsole =
-    isSuspended || (!isRebooting && !isStarting && (isCreatingSnapshot || isHalting || hasPendingActions || isSuspending));
+    isSuspended ||
+    (!isRebooting &&
+      !isStarting &&
+      (isCreatingSnapshot || isHalting || hasPendingActions || isSuspending));
 
   useEffect(() => {
     if (isStarting && vm.status === 'running') setIsStarting(false);
@@ -195,7 +213,7 @@ const ActionButtons = ({
         />
         <StopButton
           vm={vm}
-          disabled={disableAll || resumeShowing}
+          disabled={disableStop}
           setIsHalting={setIsHalting}
           vmMutation={vmMutation}
           addAlert={addAlert}
@@ -222,7 +240,7 @@ const ActionButtons = ({
           addAlert={addAlert}
           refreshVMs={refreshVMs}
           disabled={disableAll}
-          isPending={pendingActions[vm.vmid]?.some((a) => a === 'suspend' || a === 'resume')}
+          isPending={actionsForVm.some((a) => a === 'suspend' || a === 'resume')}
           setSuspending={setIsSuspending}
           onHintsChange={(hints) => {
             setResumeShowing(hints.resumeShowing);

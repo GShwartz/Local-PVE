@@ -30,7 +30,15 @@ const StopButton = ({
     );
   };
 
-  const isInactive = vm.status !== 'running' || disabled;
+  const normalizedStatus = (vm.status || '').trim().toLowerCase();
+  // Allow Stop when VM is running OR paused/hibernate/suspended (when Resume would show)
+  const canStop =
+    normalizedStatus === 'running' ||
+    normalizedStatus === 'paused' ||
+    normalizedStatus === 'hibernate' ||
+    normalizedStatus === 'suspended';
+
+  const isInactive = disabled || !canStop;
 
   return (
     <ActionButton
