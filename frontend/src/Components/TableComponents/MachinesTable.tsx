@@ -119,7 +119,12 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: 
       <div className="overflow-x-auto mb-10">
         <div className="min-w-[640px] sm:min-w-full">
           <table className="w-full text-xs sm:text-sm text-gray-200 border-collapse">
-            <TableHeader sortConfig={sortConfig} handleSort={handleSort} isApplying={isApplying} />
+            <TableHeader
+              sortConfig={sortConfig}
+              handleSort={handleSort}
+              isApplying={isApplying}
+              loaderMinDuration={5000}
+            />
             <tbody>
               {sortedVms.map((vm, idx) => {
                 const prevVm = sortedVms[idx - 1];
