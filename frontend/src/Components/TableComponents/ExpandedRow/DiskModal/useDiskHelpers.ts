@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { VM, Auth, VMStatus } from '../../types';
+import { VM, Auth, VMStatus } from '../../../../types';
 
 export const getUsedBusNumbers = (vm: VM, controller: string): number[] => {
   const config = vm.config;

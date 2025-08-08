@@ -2,8 +2,8 @@ module.exports = {
   darkMode: 'class',
   content: [
     './index.html',
-    './src/**/*.{js,ts,jsx,tsx}', // Covers your React files
-    './src/**/*.css', // Includes index.css in the root
+    './src/**/*.{js,ts,jsx,tsx}',
+    './src/**/*.css',
   ],
   theme: { extend: {} },
   plugins: [],

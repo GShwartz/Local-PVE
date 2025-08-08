@@ -1,5 +1,5 @@
 import DiskListItem from './DiskListItem';
-import { VM } from '../../../types';
+import { VM } from '../../../../types';
 
 interface DiskListProps {
   config: VM['config'] | null;

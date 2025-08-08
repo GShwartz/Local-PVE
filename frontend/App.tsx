@@ -32,7 +32,7 @@ function App() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [alertHistory, setAlertHistory] = useState<Alert[]>([]);
-  const [selectedVMId, setSelectedVMId] = useState<number | null>(null);
+  const [_selectedVMId, setSelectedVMId] = useState<number | null>(null);
 
   const addAlert = (message: string, type: string): void => {
     const id: string = `${Date.now()}-${Math.random()}`;

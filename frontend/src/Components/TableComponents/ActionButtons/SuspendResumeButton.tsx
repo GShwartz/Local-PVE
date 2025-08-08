@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { VM, Auth } from '../../../types';
 import { UseMutationResult } from '@tanstack/react-query';
 
 interface SuspendResumeButtonProps {
   vm: VM;
-  node: string; // Added node prop
+  node: string;
   auth: Auth;
   vmMutation: UseMutationResult<
     string,
@@ -17,6 +17,7 @@ interface SuspendResumeButtonProps {
   disabled: boolean;
   isPending: boolean;
   setSuspending: (state: boolean) => void;
+  onHintsChange?: (hints: { resumeShowing: boolean; resumeEnabled: boolean }) => void;
 }
 
 const SuspendResumeButton: React.FC<SuspendResumeButtonProps> = ({
@@ -29,6 +30,7 @@ const SuspendResumeButton: React.FC<SuspendResumeButtonProps> = ({
   disabled,
   isPending,
   setSuspending,
+  onHintsChange,
 }) => {
   const [forceDelay, setForceDelay] = useState(false);
   const [localSuspended, setLocalSuspended] = useState(
@@ -97,6 +99,13 @@ const SuspendResumeButton: React.FC<SuspendResumeButtonProps> = ({
       setSuspending(false);
     }, 10000);
   };
+
+  // 🔗 Send live hints to parent for StatusBadge
+  useEffect(() => {
+    const resumeShowing = localSuspended;
+    const resumeEnabled = resumeShowing && !isButtonDisabled;
+    onHintsChange?.({ resumeShowing, resumeEnabled });
+  }, [localSuspended, isButtonDisabled, onHintsChange]);
 
   return (
     <button

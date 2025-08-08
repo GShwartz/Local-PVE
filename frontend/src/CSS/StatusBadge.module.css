@@ -1,0 +1,26 @@
+/* StatusBadge.module.css */
+
+.badge {
+  @apply inline-block px-2 py-1.5 rounded-md text-sm font-medium whitespace-nowrap text-center;
+  width: 90px;
+  height: 34px;
+  line-height: 1.375rem;
+  font-family: inherit;
+}
+
+/* Status Colors */
+.running {
+  @apply bg-green-800 text-white;
+}
+
+.stopped {
+  @apply bg-red-600 text-white;
+}
+
+.suspendedOverride {
+  @apply bg-violet-600 text-white;
+}
+
+.unknown {
+  @apply bg-gray-600 text-white;
+}

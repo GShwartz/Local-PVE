@@ -17,6 +17,7 @@ export interface VM {
   ip_address: string;
   hdd_free: string;
   config?: Record<string, string>;
+  node: string;
 }
 
 export interface Snapshot {

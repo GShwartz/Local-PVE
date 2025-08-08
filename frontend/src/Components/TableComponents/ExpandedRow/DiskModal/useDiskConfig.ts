@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { VM } from '../../types';
+import { VM } from '../../../../types';
 
 interface VMConfigResponse {
   config: VM['config'];

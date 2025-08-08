@@ -424,7 +424,7 @@ async def update_network_interface(
         return svc.modify_vm_network(node, vmid, net=config, delete=None, csrf_token=csrf_token, ticket=ticket)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-    
-    
+
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

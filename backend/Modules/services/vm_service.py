@@ -134,7 +134,7 @@ class VMService:
         response = self.session.post(
             f"{PROXMOX_BASE_URL}/nodes/{node}/qemu/{vmid}/status/{action}",
             headers=headers,
-            data={}  # <-- Added empty body so Proxmox accepts POST
+            data={}
         )
         self.logger.info(f"VM action response status code: {response.status_code}")
 
@@ -143,7 +143,6 @@ class VMService:
             raise HTTPException(status_code=response.status_code, detail=response.text)
 
         return response.json().get("data")
-
 
     def create_vm(self, node: str, vm_create: VMCreateRequest, csrf_token: str, ticket: str) -> Any:
         self.logger.info(f"Creating VM on node {node} with request: {vm_create}")
@@ -164,7 +163,6 @@ class VMService:
             "ostype": "l26",
             "scsi0": "local-lvm:32"
         }
-        self.logger.info(f"VM creation data: {data}")
 
         if vm_create.source == "ISO":
             data["ide2"] = "local:iso/ubuntu-22.04.3-live-server-amd64.iso,media=cdrom"
@@ -203,7 +201,6 @@ class VMService:
         if not data:
             raise HTTPException(status_code=400, detail="No valid updates provided")
 
-        self.logger.info(f"VM update data: {data}")
         response = self.session.post(
             f"{PROXMOX_BASE_URL}/nodes/{node}/qemu/{vmid}/config",
             data=data,
@@ -217,8 +214,6 @@ class VMService:
                 err = response.json().get("errors", {}).get("data", err)
             except ValueError:
                 pass
-
-            self.logger.error(f"Failed to update VM {vmid}: {err}")
             raise HTTPException(status_code=response.status_code, detail=err)
         
         return response.json().get("data")
@@ -237,7 +232,6 @@ class VMService:
             "full": int(clone_req.full),
             "target": clone_req.target
         }
-        self.logger.info(f"Clone payload: {payload}")
         if clone_req.storage:
             payload["storage"] = clone_req.storage
 
@@ -246,11 +240,8 @@ class VMService:
             data=payload,
             headers={"CSRFPreventionToken": csrf_token}
         )
-        self.logger.info(f"Clone response status code: {response.status_code}")
-
         try:
             response.raise_for_status()
-            self.logger.info(f"Clone successful, new VMID: {new_id}")
             return response.json().get("data")
         except requests.exceptions.HTTPError:
             self.logger.error(f"Failed to clone VM {vmid}: {response.text}")
@@ -265,14 +256,11 @@ class VMService:
             params={"purge": 1, "destroy-unreferenced-disks": 1},
             headers=headers
         )
-        self.logger.info(f"VM deletion response status code: {response.status_code}")
-
         if response.status_code != 200:
-            self.logger.error(f"Failed to delete VM {vmid}: {response.text}")
             raise HTTPException(status_code=response.status_code, detail=response.text)
         
         return response.json().get("data")
-    
+
     def modify_vm_network(self, node: str, vmid: int, net: Optional[dict], delete: Optional[str], csrf_token: str, ticket: str) -> str:
         self.logger.info(f"Modifying network for VM {vmid} on node {node} with net={net}, delete={delete}")
         headers = self.set_auth_headers(csrf_token, ticket)
@@ -289,7 +277,6 @@ class VMService:
             headers=headers
         )
 
-        self.logger.info(f"Modify network response status code: {response.status_code}")
         if response.status_code != 200:
             raise HTTPException(status_code=response.status_code, detail=response.text)
         return response.json().get("data")
