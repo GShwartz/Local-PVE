@@ -11,6 +11,9 @@ interface StopButtonProps {
 
   /** Called right after the stop action is sent */
   onSent?: () => void;
+
+  /** Optional: delay duration (ms) passed from ActionButtons */
+  loaderMinDuration?: number;
 }
 
 const StopButton = ({
@@ -34,7 +37,7 @@ const StopButton = ({
       }
     );
 
-    // Inform parent to show the wide loader
+    // Inform parent to show any loaders it manages
     onSent?.();
   };
 

@@ -162,7 +162,7 @@ const TableRow = ({
 
       <tr className="bg-gray-900 border-b border-gray-700 hover:bg-gray-700 text-xs sm:text-sm">
         <td
-          className="px-2 py-4 text-center cursor-pointer"
+          className="px-2 py-8 text-center cursor-pointer"
           onClick={() => toggleRow(vm.vmid)}
         >
           {expandedRows.has(vm.vmid) ? (

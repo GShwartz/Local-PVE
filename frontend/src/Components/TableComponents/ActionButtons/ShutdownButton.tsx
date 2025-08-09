@@ -11,6 +11,9 @@ interface ShutdownButtonProps {
 
   /** Called right after the shutdown action is sent */
   onSent?: () => void;
+
+  /** Optional: delay duration (ms) passed from ActionButtons */
+  loaderMinDuration?: number;
 }
 
 const ShutdownButton = ({
@@ -34,7 +37,7 @@ const ShutdownButton = ({
       }
     );
 
-    // Inform parent to show the wide loader
+    // Inform parent to show any loaders it manages
     onSent?.();
   };
 

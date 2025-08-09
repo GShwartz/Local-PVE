@@ -32,20 +32,24 @@ const SuspendResumeButton: React.FC<SuspendResumeButtonProps> = ({
   setSuspending,
   onHintsChange,
 }) => {
-  const [forceDelay, setForceDelay] = useState(false);
-  const [localSuspended, setLocalSuspended] = useState(
-    vm.status === 'paused' || (vm.status === 'running' && vm.ip_address === 'N/A')
-  );
   const API_BASE_URL = 'http://localhost:8000';
 
-  // Keep localSuspended in sync with real VM state so parent hints are accurate.
-  useEffect(() => {
-    const shouldBeSuspended =
-      vm.status === 'paused' || (vm.status === 'running' && vm.ip_address === 'N/A');
-    setLocalSuspended(shouldBeSuspended);
-  }, [vm.status, vm.ip_address]);
+  // Visual loader under the button (does NOT flip any state on its own)
+  const [forceDelay, setForceDelay] = useState(false);
+  const guardTimerRef = useRef<number | null>(null);
 
-  // inject animation keyframes
+  // Only treat "suspended" when status says so or while we optimistically wait for suspend to land.
+  const isActuallyPaused = vm.status === 'paused';
+  const [isOptimisticSuspend, setIsOptimisticSuspend] = useState(false);
+
+  // Keep optimistic flag sane when backend updates land.
+  useEffect(() => {
+    if (isActuallyPaused) {
+      setIsOptimisticSuspend(false);
+    }
+  }, [isActuallyPaused]);
+
+  // Inject animation keyframes (one-time)
   const styleInjectedRef = useRef(false);
   useEffect(() => {
     if (styleInjectedRef.current) return;
@@ -66,14 +70,26 @@ const SuspendResumeButton: React.FC<SuspendResumeButtonProps> = ({
     styleInjectedRef.current = true;
   }, []);
 
-  const shouldDisableDueToState =
-    vm.ip_address === 'N/A' && vm.status !== 'running';
+  // Button disabled logic (unchanged baseline + loader guard)
+  const shouldDisableDueToState = vm.ip_address === 'N/A' && vm.status !== 'running';
+  const isButtonDisabled = disabled || isPending || shouldDisableDueToState || forceDelay;
 
-  const isButtonDisabled =
-    disabled || isPending || shouldDisableDueToState || forceDelay;
+  // Current display state + next action
+  const suspendedNow = isActuallyPaused || isOptimisticSuspend;
+  const action = suspendedNow ? 'resume' : 'suspend';
+  const targetStatus = suspendedNow ? 'running' : 'paused';
 
-  const action = localSuspended ? 'resume' : 'suspend';
-  const targetStatus = localSuspended ? 'running' : 'paused';
+  const clearGuard = () => {
+    if (guardTimerRef.current) {
+      window.clearTimeout(guardTimerRef.current);
+      guardTimerRef.current = null;
+    }
+  };
+
+  const stopLoader = () => {
+    clearGuard();
+    setForceDelay(false);
+  };
 
   const handleClick = () => {
     if (isButtonDisabled) return;
@@ -84,16 +100,29 @@ const SuspendResumeButton: React.FC<SuspendResumeButtonProps> = ({
       'info'
     );
 
+    // Enter optimistic "suspending" only for suspend clicks
+    if (action === 'suspend') setIsOptimisticSuspend(true);
+
+    // Show the loader; auto-stop after 10s if backend is slow
+    setForceDelay(true);
+    clearGuard();
+    guardTimerRef.current = window.setTimeout(() => {
+      stopLoader();
+      setSuspending(false);
+      // keep isOptimisticSuspend as-is; backend refresh will reconcile visual state
+    }, 10000);
+
     vmMutation.mutate(
       { vmid: vm.vmid, action },
       {
         onSuccess: async () => {
+          // Poll for the target status briefly so UI doesn't flicker
           const maxRetries = 10;
           const delay = 1000;
           let currentStatus = vm.status;
 
-          for (let i = 0; i < maxRetries; i++) {
-            try {
+          try {
+            for (let i = 0; i < maxRetries; i++) {
               const response = await fetch(
                 `${API_BASE_URL}/vm/${node}/qemu/${vm.vmid}/status?csrf_token=${encodeURIComponent(
                   auth.csrf_token
@@ -103,10 +132,10 @@ const SuspendResumeButton: React.FC<SuspendResumeButtonProps> = ({
               const data = await response.json();
               currentStatus = data.status;
               if (currentStatus === targetStatus) break;
-            } catch {
-              break;
+              await new Promise((r) => setTimeout(r, delay));
             }
-            await new Promise((r) => setTimeout(r, delay));
+          } catch {
+            // swallow; fall through to finalize
           }
 
           if (currentStatus === targetStatus) {
@@ -116,24 +145,29 @@ const SuspendResumeButton: React.FC<SuspendResumeButtonProps> = ({
         },
         onError: () => {
           addAlert(`Failed to ${action} VM "${vm.name}".`, 'error');
+          // Revert optimistic suspension if suspend failed
+          if (action === 'suspend') setIsOptimisticSuspend(false);
+        },
+        onSettled: () => {
+          stopLoader();
+          setSuspending(false);
+          // If we resumed, we definitely shouldn't appear suspended anymore
+          if (action === 'resume') setIsOptimisticSuspend(false);
         },
       }
     );
-
-    setForceDelay(true);
-    setTimeout(() => {
-      setLocalSuspended((prev) => !prev);
-      setForceDelay(false);
-      setSuspending(false);
-    }, 10000);
   };
 
-  // 🔗 Send live hints to parent for StatusBadge
+  // 🔗 Live hints for StatusBadge and parent controls
   useEffect(() => {
-    const resumeShowing = localSuspended;
+    const resumeShowing = suspendedNow;
     const resumeEnabled = resumeShowing && !isButtonDisabled;
     onHintsChange?.({ resumeShowing, resumeEnabled });
-  }, [localSuspended, isButtonDisabled, onHintsChange]);
+  }, [suspendedNow, isButtonDisabled, onHintsChange]);
+
+  useEffect(() => {
+    return () => clearGuard();
+  }, []);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', width: '100%' }}>
@@ -150,10 +184,9 @@ const SuspendResumeButton: React.FC<SuspendResumeButtonProps> = ({
         }`}
         style={{ height: '34px', lineHeight: '1.5' }}
       >
-        {localSuspended ? 'Resume' : 'Suspend'}
+        {suspendedNow ? 'Resume' : 'Suspend'}
       </button>
 
-      {/* Loader bar spans full group width */}
       {forceDelay && (
         <div
           aria-live="polite"
@@ -165,7 +198,7 @@ const SuspendResumeButton: React.FC<SuspendResumeButtonProps> = ({
             background: 'rgba(255,255,255,0.25)',
             overflow: 'hidden',
             position: 'relative',
-            flexShrink: 0
+            flexShrink: 0,
           }}
         >
           <div

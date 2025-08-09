@@ -8,6 +8,9 @@ interface RebootButtonProps {
   setIsRebooting: React.Dispatch<React.SetStateAction<boolean>>;
   vmMutation: UseMutationResult<any, any, { vmid: number; action: string; name?: string }>;
   addAlert: (msg: string, type: string) => void;
+
+  /** Optional: delay duration (ms) passed from ActionButtons */
+  loaderMinDuration?: number;
 }
 
 const RebootButton = ({
@@ -20,7 +23,7 @@ const RebootButton = ({
   const handleReboot = (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsRebooting(true);
-    addAlert(`Rebooting VM "${vm.name}"...`, 'info');
+    addAlert(`Rebooting VM "${vm.name}".`, 'info');
     vmMutation.mutate(
       { vmid: vm.vmid, action: 'reboot', name: vm.name },
       {
