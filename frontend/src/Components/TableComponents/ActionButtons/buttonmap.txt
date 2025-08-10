@@ -1,0 +1,31 @@
+
+* start button: 
+enabled if machine is off. when enabled - only enable the remove and console buttons. - badge showing off.
+disabled - enabled stop, shutdown, reboot, console, clone, suspend. badge showing play.
+
+* stop button:
+enabled only if machine is on, start button is disabled, badge shows play, resume button enabled.
+if clicked then disabled all but start, clone, console, remove buttons.
+
+* shutdown:
+enabled only if machine is on, start is disabled, badge shows play.
+if clicked then enables start, console, clone, remove buttons and disables the rest.
+
+reboot: enabled only if start is disabled and machine is on, badge shows play.
+if clicked then disables the clone, suspend buttons.
+
+suspend:
+enabled only if the start button is disabled, badge showing play, machine is running.
+if clicked then enables the stop button and disables the start, shutdown, reboot, console, clone, remove buttons. - badge flips to pause. 
+
+resume: 
+showing only if the machine is running, badge showing pause, start button is disabled.
+
+console:
+enabled always unless 'resume' is enabled.
+
+clone:
+enabled when start button enabled or machine is running, badge showing play/stop.
+
+remove:
+enabled if badge shows stop, start button enabled.

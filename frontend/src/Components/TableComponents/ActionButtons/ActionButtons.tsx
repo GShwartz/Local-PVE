@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { VM, Auth, TaskStatus } from '../../../types';
+import { VM, Auth } from '../../../types';
 import { UseMutationResult, QueryClient } from '@tanstack/react-query';
 
 import StartButton from './StartButton';
@@ -22,14 +22,12 @@ interface ActionButtonsProps {
     { vmid: number; action: string; name?: string; cpus?: number },
     unknown
   >;
-  showSnapshots: (vmid: number) => void;
   onToggleRow: () => void;
   auth: Auth;
   addAlert: (message: string, type: string) => void;
   refreshVMs: () => void;
   queryClient: QueryClient;
   isApplying: boolean;
-  onResumeHintsChange?: (hints: { resumeShowing: boolean; resumeEnabled: boolean }) => void;
 }
 
 const PROXMOX_NODE = 'pve';
@@ -45,82 +43,142 @@ const ActionButtons = ({
   refreshVMs,
   queryClient,
   isApplying,
-  onResumeHintsChange,
 }: ActionButtonsProps) => {
-  const [isStarting, setIsStarting] = useState(false);
-  const [isHalting, setIsHalting] = useState(false);
-  const [isRebooting, setIsRebooting] = useState(false);
+  // Only essential UI states
   const [isCloning, setIsCloning] = useState(false);
-  const [isCloningInProgress, setIsCloningInProgress] = useState(false);
   const [cloneName, setCloneName] = useState(vm.name);
-  const [isRemoving, setIsRemoving] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+  const [activeOperation, setActiveOperation] = useState<string | null>(null);
   const [isSuspending, setIsSuspending] = useState(false);
 
-  // Track if Resume button is showing
-  const [resumeShowing, setResumeShowing] = useState(false);
-
-  const hasPendingActions = pendingActions[vm.vmid]?.length > 0;
-  const isCreatingSnapshot = pendingActions[vm.vmid]?.some((a) => a.startsWith('create-'));
-  const isClonePending = pendingActions[vm.vmid]?.includes('clone');
-  const showCloningLabel = isCloningInProgress || isClonePending;
-
-  const isSuspended = vm.status === 'paused';
-
-  const disableAll =
-    hasPendingActions ||
-    isStarting ||
-    isHalting ||
-    isCloningInProgress ||
-    isRemoving ||
-    isApplying ||
-    isSuspending;
-
-  const disableConsole =
-    isSuspended || (!isRebooting && !isStarting && (isCreatingSnapshot || isHalting || hasPendingActions || isSuspending));
-
+  // Inject animation keyframes for the loader
   useEffect(() => {
-    if (isStarting && vm.status === 'running') setIsStarting(false);
-  }, [vm.status, isStarting]);
+    const styleTag = document.createElement('style');
+    styleTag.type = 'text/css';
+    styleTag.textContent = `
+      @keyframes abtn_bar_sweep {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(300%); }
+      }
+    `;
+    document.head.appendChild(styleTag);
+    return () => {
+      if (document.head.contains(styleTag)) {
+        document.head.removeChild(styleTag);
+      }
+    };
+  }, []);
 
+  // Hide loader when VM status changes appropriately
   useEffect(() => {
-    if (isHalting && vm.status !== 'running') {
-      setIsHalting(false);
+    if (!activeOperation) return;
+    
+    // Clear operation state when status reaches expected state
+    if (
+      (activeOperation === 'start' && vm.status === 'running') ||
+      (activeOperation === 'stop' && vm.status === 'stopped') ||
+      (activeOperation === 'shutdown' && vm.status === 'stopped') ||
+      (activeOperation === 'reboot' && vm.status === 'running')
+    ) {
+      setActiveOperation(null);
     }
-  }, [vm.status, isHalting]);
+  }, [activeOperation, vm.status]);
 
-  const handleConfirmClone = () => {
-    setIsCloning(false);
-    setIsCloningInProgress(true);
-    addAlert(`Cloning process for VM ${vm.name} has started. Target name: "${cloneName}".`, 'info');
+  // Fallback timer for each operation to prevent getting stuck
+  useEffect(() => {
+    if (!activeOperation) return;
+    
+    const timer = setTimeout(() => {
+      setActiveOperation(null);
+      refreshVMs();
+    }, 15000); // 15 seconds fallback
+    
+    return () => clearTimeout(timer);
+  }, [activeOperation, refreshVMs]);
+
+  // Get pending actions for this VM
+  const actionsForVm = pendingActions[vm.vmid] || [];
+  const hasPendingAction = actionsForVm.length > 0;
+  const isOperationActive = activeOperation !== null || isSuspending;
+
+  // Simple status-based logic (mirror Proxmox behavior)
+  const status = vm.status?.toLowerCase() || '';
+  const isRunning = status === 'running';
+  const isStopped = status === 'stopped';
+  const isPaused = status === 'paused' || status === 'suspended';
+
+  // Enhanced suspended detection
+  const isSuspended = 
+    status === 'paused' || 
+    status === 'suspended' ||
+    isPaused ||
+    (isRunning && vm.ip_address === 'N/A');
+
+  // Button states - account for reboot masking and suspended state
+  const isRebooting = activeOperation === 'reboot';
+  const effectivelyRunning = isRunning || isRebooting; // treat rebooting as running
+  const effectivelyStopped = isStopped && !isRebooting; // don't treat as stopped during reboot
+  
+  const canStart = effectivelyStopped && !hasPendingAction && !isApplying && !isOperationActive;
+  const canStop = (effectivelyRunning || isPaused) && !hasPendingAction && !isApplying && !isOperationActive;
+  // Disable shutdown/reboot if suspended - user must resume first
+  const canShutdown = effectivelyRunning && !isSuspended && !hasPendingAction && !isApplying && !isOperationActive;
+  const canReboot = effectivelyRunning && !isSuspended && !hasPendingAction && !isApplying && !isOperationActive;
+  const canConsole = effectivelyRunning && !isSuspended && !hasPendingAction && !isApplying && !isOperationActive;
+  const canClone = !hasPendingAction && !isApplying && !isOperationActive;
+  const canRemove = effectivelyStopped && !hasPendingAction && !isApplying && !isOperationActive;
+  const canSuspendResume = (effectivelyRunning || isPaused) && !hasPendingAction && !isApplying && !isOperationActive;
+
+  // Generic operation handler with loader until status changes
+  const handleOperation = (action: string, alertMessage: string, alertType: 'info' | 'warning' = 'info') => {
+    setActiveOperation(action);
+    addAlert(alertMessage, alertType);
+    
     vmMutation.mutate(
-      { vmid: vm.vmid, action: 'clone', name: cloneName },
+      { vmid: vm.vmid, action, name: vm.name },
       {
-        onSuccess: () => {
-          setIsCloningInProgress(false);
-          addAlert(`Cloning of VM "${vm.name}" to "${cloneName}" successfully initiated.`, 'success');
-        },
+        onSuccess: () => addAlert(`VM "${vm.name}" ${action} initiated.`, 'success'),
         onError: () => {
-          setIsCloningInProgress(false);
-          addAlert(`Cloning of VM "${vm.name}" failed.`, 'error');
+          setActiveOperation(null);
+          addAlert(`Failed to ${action} VM "${vm.name}".`, 'error');
         },
       }
     );
   };
 
-  const handleCancelClone = () => {
+  // Simple action handlers
+  const handleStop = () => {
+    handleOperation('stop', `Force stopping VM "${vm.name}"...`, 'warning');
+  };
+
+  const handleShutdown = () => {
+    handleOperation('shutdown', `Shutting down VM "${vm.name}"...`);
+  };
+
+  const handleReboot = () => {
+    handleOperation('reboot', `Rebooting VM "${vm.name}"...`);
+  };
+
+  const handleCloneConfirm = () => {
     setIsCloning(false);
-    setCloneName(vm.name);
-    addAlert(`Clone operation for VM "${vm.name}" was cancelled.`, 'info');
+    addAlert(`Cloning VM "${vm.name}" to "${cloneName}"...`, 'info');
+    
+    vmMutation.mutate(
+      { vmid: vm.vmid, action: 'clone', name: cloneName },
+      {
+        onSuccess: () => addAlert(`VM "${vm.name}" clone initiated.`, 'success'),
+        onError: () => addAlert(`Failed to clone VM "${vm.name}".`, 'error'),
+      }
+    );
   };
 
   const handleRemove = async () => {
-    setIsRemoving(true);
     setShowRemoveConfirm(false);
-    addAlert(`Initiating deletion process for VM "${vm.name}"...`, 'warning');
+    addAlert(`Removing VM "${vm.name}"...`, 'warning');
 
-    const previousVms = queryClient.getQueryData<VM[]>(['vms']);
-    queryClient.setQueryData<VM[]>(['vms'], (oldVms) =>
+    // Optimistic update
+    const previousVms = queryClient.getQueryData(['vms']);
+    queryClient.setQueryData(['vms'], (oldVms: VM[]) => 
       oldVms?.filter((v) => v.vmid !== vm.vmid) || []
     );
 
@@ -132,42 +190,14 @@ const ActionButtons = ({
         { method: 'DELETE' }
       );
 
-      if (!response.ok) {
-        throw new Error(`Failed to initiate VM deletion: ${await response.text()}`);
-      }
+      if (!response.ok) throw new Error('Failed to delete VM');
 
-      let upid = await response.text();
-      upid = upid.trim().replace(/^"|"$/g, '');
-
-      let taskStatus: TaskStatus;
-      do {
-        const taskResponse = await fetch(
-          `${API_BASE_URL}/task/${PROXMOX_NODE}/${encodeURIComponent(
-            upid
-          )}?csrf_token=${encodeURIComponent(auth.csrf_token)}&ticket=${encodeURIComponent(auth.ticket)}`
-        );
-
-        if (!taskResponse.ok) {
-          throw new Error(`Failed to get task status: ${await taskResponse.text()}`);
-        }
-
-        taskStatus = await taskResponse.json();
-        if (taskStatus.status !== 'stopped') {
-          await new Promise((resolve) => setTimeout(resolve, 500));
-        }
-      } while (taskStatus.status !== 'stopped');
-
-      if (taskStatus.exitstatus !== 'OK') {
-        throw new Error(`Deletion task failed: ${taskStatus.exitstatus}`);
-      }
-
-      addAlert(`VM "${vm.name}" has been successfully deleted.`, 'success');
+      addAlert(`VM "${vm.name}" removed successfully.`, 'success');
       refreshVMs();
     } catch (error: any) {
-      queryClient.setQueryData<VM[]>(['vms'], previousVms);
-      addAlert(`Failed to delete VM "${vm.name}": ${error.message}`, 'error');
-    } finally {
-      setIsRemoving(false);
+      // Revert optimistic update
+      queryClient.setQueryData(['vms'], previousVms);
+      addAlert(`Failed to remove VM "${vm.name}": ${error.message}`, 'error');
     }
   };
 
@@ -175,7 +205,7 @@ const ActionButtons = ({
     <td
       className="px-2 py-1 text-center action-buttons-cell"
       style={{
-        height: '48px',
+        height: '34px',
         verticalAlign: 'middle',
         position: 'relative',
         display: 'flex',
@@ -184,36 +214,44 @@ const ActionButtons = ({
       }}
       onClick={onToggleRow}
     >
-      <div className={styles.buttonGroup} style={{ height: '48px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', width: '100%' }}>
+        <div className={styles.buttonGroup} style={{ height: '40px', marginBottom: '4px' }}>
+        
         <StartButton
           vm={vm}
-          disabled={disableAll || resumeShowing}
-          isStarting={isStarting}
-          setIsStarting={setIsStarting}
+          disabled={!canStart}
+          isStarting={activeOperation === 'start'}
+          setIsStarting={() => {}} // StartButton handles its own state
           vmMutation={vmMutation}
           addAlert={addAlert}
+          onSent={() => {
+            // StartButton already sent the request, just handle UI state
+            setActiveOperation('start');
+            // Fallback: clear after 30 seconds if status never changes
+            setTimeout(() => {
+              if (activeOperation === 'start') {
+                setActiveOperation(null);
+                refreshVMs();
+              }
+            }, 30000);
+          }}
         />
+
         <StopButton
-          vm={vm}
-          disabled={disableAll || resumeShowing}
-          setIsHalting={setIsHalting}
-          vmMutation={vmMutation}
-          addAlert={addAlert}
+          disabled={!canStop}
+          onClick={handleStop}
         />
+
         <ShutdownButton
-          vm={vm}
-          disabled={disableAll || resumeShowing}
-          setIsHalting={setIsHalting}
-          vmMutation={vmMutation}
-          addAlert={addAlert}
+          disabled={!canShutdown}
+          onClick={handleShutdown}
         />
+
         <RebootButton
-          vm={vm}
-          disabled={disableAll || resumeShowing}
-          setIsRebooting={setIsRebooting}
-          vmMutation={vmMutation}
-          addAlert={addAlert}
+          disabled={!canReboot}
+          onClick={handleReboot}
         />
+
         <SuspendResumeButton
           vm={vm}
           node={PROXMOX_NODE}
@@ -221,45 +259,71 @@ const ActionButtons = ({
           vmMutation={vmMutation}
           addAlert={addAlert}
           refreshVMs={refreshVMs}
-          disabled={disableAll}
-          isPending={pendingActions[vm.vmid]?.some((a) => a === 'suspend' || a === 'resume')}
+          disabled={!canSuspendResume}
+          isPending={actionsForVm.includes('suspend') || actionsForVm.includes('resume')}
           setSuspending={setIsSuspending}
-          onHintsChange={(hints) => {
-            setResumeShowing(hints.resumeShowing);
-            onResumeHintsChange?.(hints);
-          }}
+          onHintsChange={() => {}} // Not used in ActionButtons, but required by SuspendResumeButton
         />
+
         <ConsoleButton
           onClick={(e) => {
             e.stopPropagation();
             openProxmoxConsole(PROXMOX_NODE, vm.vmid, auth.csrf_token, auth.ticket);
           }}
-          disabled={disableConsole || resumeShowing}
+          disabled={!canConsole}
         />
+
         <CloneButton
-          disabled={disableAll || resumeShowing}
-          showCloningLabel={showCloningLabel}
+          disabled={!canClone}
+          showCloningLabel={actionsForVm.includes('clone')}
           isCloning={isCloning}
           cloneName={cloneName}
-          onToggle={() => {
-            if (!isCloningInProgress) {
-              setIsCloning((prev) => {
-                const next = !prev;
-                if (next) setCloneName(vm.name);
-                return next;
-              });
-            }
-          }}
+          onToggle={() => setIsCloning(!isCloning)}
           onChange={setCloneName}
-          onConfirm={handleConfirmClone}
-          onCancel={handleCancelClone}
+          onConfirm={handleCloneConfirm}
+          onCancel={() => {
+            setIsCloning(false);
+            setCloneName(vm.name);
+          }}
         />
+
         <RemoveButton
-          disabled={disableAll || resumeShowing || vm.status === 'running'}
+          disabled={!canRemove}
           onConfirm={handleRemove}
           showConfirm={showRemoveConfirm}
           setShowConfirm={setShowRemoveConfirm}
         />
+
+        </div>
+
+        {/* Operation loader effect */}
+        {(activeOperation || isSuspending) && (
+          <div
+            aria-live="polite"
+            style={{
+              width: '100%',
+              height: '6px',
+              marginTop: 0,
+              borderRadius: '9999px',
+              background: 'rgba(255,255,255,0.25)',
+              overflow: 'hidden',
+              position: 'relative',
+            }}
+          >
+            <div
+              style={{
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                height: '100%',
+                width: '30%',
+                background: 'rgba(255,255,255,0.9)',
+                borderRadius: '9999px',
+                animation: 'abtn_bar_sweep 1200ms ease-in-out infinite',
+              }}
+            />
+          </div>
+        )}
       </div>
     </td>
   );

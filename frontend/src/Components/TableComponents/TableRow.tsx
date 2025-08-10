@@ -37,6 +37,7 @@ interface TableRowProps {
   openConsole: (vmid: number) => void;
   hasRowAboveExpanded: boolean;
   isApplying: boolean;
+  loaderMinDuration: number;
 }
 
 const getSnapshots = async ({
@@ -77,6 +78,7 @@ const TableRow = ({
   setTableApplying,
   refreshVMs,
   isApplying,
+  loaderMinDuration,
 }: TableRowProps) => {
   const queryClient = useQueryClient();
 
@@ -97,12 +99,12 @@ const TableRow = ({
     ram: null,
   });
 
-  // 5s cooldown so Apply disables immediately
+  // Cooldown so Apply disables immediately (duration provided by MachinesTable)
   const [cooldownActive, setCooldownActive] = useState(false);
   const startCooldown = () => {
     if (cooldownActive) return;
     setCooldownActive(true);
-    setTimeout(() => setCooldownActive(false), 5000);
+    setTimeout(() => setCooldownActive(false), loaderMinDuration);
   };
   const isApplyingOrCooldown = isApplying || cooldownActive;
 
@@ -129,11 +131,15 @@ const TableRow = ({
 
   const vmWithNode: VM = { ...vm, node };
 
-  // 🔗 Real-time hints from the actual Resume button (coming from ActionButtons)
+  // 🔗 Real-time hints from Resume + Reboot
   const [resumeHints, setResumeHints] = useState<{ resumeShowing: boolean; resumeEnabled: boolean }>({
     resumeShowing: false,
     resumeEnabled: false,
   });
+
+  // NEW: keep hint booleans to influence the badge
+  const [rebootingHint, setRebootingHint] = useState(false);
+  const [stoppingHint, setStoppingHint] = useState(false);
 
   // Start is disabled whenever VM isn't stopped (matches your UI)
   const startDisabled = vm.status !== 'stopped';
@@ -206,6 +212,10 @@ const TableRow = ({
             resumeEnabled={resumeHints.resumeEnabled}
             startDisabled={startDisabled}
             ipAddress={ipAddress}
+            /** Dumb hint: show play icon if reboot is in progress (no logic inside the badge) */
+            forcePlay={rebootingHint}
+            /** NEW hint: show stop icon once shutdown is sent (no logic inside the badge) */
+            forceStop={stoppingHint}
           />
         </td>
 
@@ -220,8 +230,11 @@ const TableRow = ({
           refreshVMs={refreshVMs}
           queryClient={queryClient}
           isApplying={isApplyingOrCooldown}
-          /** 👇 this is the key: feed real Resume button state up */
           onResumeHintsChange={setResumeHints}
+          /** Receive “isRebooting” from the button layer; store as a simple hint boolean */
+          onRebootingHintChange={setRebootingHint}
+          /** Receive “shutdown sent” hint; badge shows stop */
+          onStoppingHintChange={setStoppingHint}
         />
       </tr>
 

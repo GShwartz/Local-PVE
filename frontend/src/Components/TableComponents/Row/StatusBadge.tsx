@@ -1,72 +1,89 @@
 import React from 'react';
-import styles from '../../../CSS/StatusBadge.module.css';
+import { FaPlay, FaStop, FaPause, FaQuestion } from 'react-icons/fa';
 
 interface StatusBadgeProps {
   status: string;
-  /** true if the Suspend/Resume button label is "Resume" */
-  resumeShowing: boolean;
-  /** true if that "Resume" button is enabled (not disabled) */
-  resumeEnabled: boolean;
-  /** true if the Start button is disabled */
-  startDisabled: boolean;
-  /** IP address string; pass the literal "N/A" if none */
-  ipAddress: string;
+  resumeShowing?: boolean;   // optional
+  startDisabled?: boolean;   // optional
+  ipAddress?: string;        // optional
+  /** NEW: presentational hints. No logic inside. */
+  forcePlay?: boolean;
+  forceStop?: boolean;
+  // Additional Proxmox-specific fields for better detection
+  qmpstatus?: string;        // QEMU Monitor Protocol status
+  lock?: string;             // VM lock state
+  suspended?: boolean;       // Direct suspended flag from API
 }
 
 const StatusBadge: React.FC<StatusBadgeProps> = ({
   status,
-  resumeShowing,
-  resumeEnabled,
-  startDisabled,
-  ipAddress,
+  resumeShowing = false,
+  startDisabled = false,
+  ipAddress = 'N/A',
+  forcePlay = false,
+  forceStop = false,
+  qmpstatus,
+  lock,
+  suspended,
 }) => {
   const normalizedStatus = (status || '').trim().toLowerCase();
+  const normalizedQmpStatus = (qmpstatus || '').trim().toLowerCase();
   const ipIsNA = (ipAddress || '').trim().toUpperCase() === 'N/A';
 
-  // Your exact rules:
-  // 1) Suspended if resumeShowing && resumeEnabled && ipIsNA && startDisabled
-  const showSuspended =
-    resumeShowing && resumeEnabled && ipIsNA && startDisabled;
+  // Enhanced suspended detection using multiple indicators
+  const isSuspended = 
+    // Direct suspended flag from API
+    suspended === true ||
+    // Explicit status indicators
+    normalizedStatus === 'paused' || 
+    normalizedStatus === 'suspended' ||
+    normalizedStatus === 'hibernate' ||
+    // QEMU Monitor Protocol status
+    normalizedQmpStatus === 'paused' ||
+    normalizedQmpStatus === 'suspended' ||
+    // Lock state indicates suspension
+    lock === 'suspended' ||
+    // SuspendResumeButton hints
+    resumeShowing ||
+    // Running with no IP (common suspended state pattern)
+    (normalizedStatus === 'running' && ipIsNA && startDisabled);
 
-  // 2) Running if startDisabled && ipIsNA && resumeShowing && !resumeEnabled
-  const showRunningFromUi =
-    startDisabled && ipIsNA && resumeShowing && !resumeEnabled;
+  let Icon: React.ReactNode = <FaQuestion color="gray" />;
 
-  let label = '';
-  let className = styles.badge;
-
-  if (showSuspended) {
-    label = 'Suspended';
-    className += ` ${styles.suspendedOverride}`;
-  } else if (showRunningFromUi) {
-    label = 'Running';
-    className += ` ${styles.running}`;
+  if (forcePlay) {
+    Icon = <FaPlay color="green" />;
+  } else if (forceStop) {
+    Icon = <FaStop color="red" />;
+  } else if (isSuspended) {
+    Icon = <FaPause color="orange" />;
   } else {
-    // Fallback to backend-reported status
     switch (normalizedStatus) {
       case 'running':
-        label = 'Running';
-        className += ` ${styles.running}`;
+        Icon = <FaPlay color="green" />;
         break;
       case 'stopped':
-        label = 'Stopped';
-        className += ` ${styles.stopped}`;
-        break;
-      case 'paused':
-      case 'hibernate':
-      case 'suspended':
-        label = 'Suspended';
-        className += ` ${styles.suspended}`;
+        Icon = <FaStop color="red" />;
         break;
       default:
-        label = normalizedStatus
-          ? normalizedStatus.charAt(0).toUpperCase() + normalizedStatus.slice(1)
-          : 'Unknown';
-        className += ` ${styles.unknown}`;
+        Icon = <FaQuestion color="gray" />;
     }
   }
 
-  return <span className={className}>{label}</span>;
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '30px',
+        height: '30px',
+        fontSize: '1rem',
+      }}
+      title={`Status: ${status}${qmpstatus ? ` (QMP: ${qmpstatus})` : ''}${lock ? ` [${lock}]` : ''}${suspended ? ' [suspended]' : ''}`}
+    >
+      {Icon}
+    </span>
+  );
 };
 
 export default StatusBadge;
