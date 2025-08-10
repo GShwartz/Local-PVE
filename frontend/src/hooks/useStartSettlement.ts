@@ -1,11 +1,13 @@
-import { MutableRefObject, useEffect } from 'react';
+import { useEffect } from 'react';
+import { MutableRefObject } from 'react';
 
-interface Params {
-  lastAction: 'start' | null;
+interface UseStartSettlementParams {
+  lastAction: string | null;
   actionsForVm: string[];
   vmStatus: string;
   isStarting: boolean;
-  minTimerRef: MutableRefObject<number | null>;
+  isHalting: boolean;
+  minTimerRef: MutableRefObject<NodeJS.Timeout | null>;
   clearCooldown: () => void;
 }
 
@@ -14,25 +16,38 @@ export const useStartSettlement = ({
   actionsForVm,
   vmStatus,
   isStarting,
+  isHalting,
   minTimerRef,
   clearCooldown,
-}: Params) => {
+}: UseStartSettlementParams) => {
   useEffect(() => {
-    if (lastAction !== 'start') return;
-
-    const startStillPending = actionsForVm.includes('start');
-    const nowSettled = vmStatus === 'running' || (!isStarting && !startStillPending);
-
-    if (nowSettled) {
-      // respect minimum visibility — defer clear until the min timer has elapsed
-      if (minTimerRef.current == null) {
-        clearCooldown();
-      } else {
-        const t = window.setTimeout(() => {
-          clearCooldown();
-          window.clearTimeout(t);
-        }, 0);
-      }
+    // Clear cooldown when the VM reaches the expected state or pending actions are resolved
+    if (lastAction === 'start' && vmStatus === 'running' && !isStarting) {
+      clearCooldown();
+    } else if (
+      lastAction === 'stop' &&
+      vmStatus === 'stopped' &&
+      !isHalting &&
+      !actionsForVm.includes('stop')
+    ) {
+      clearCooldown();
+    } else if (
+      !actionsForVm.length &&
+      !isStarting &&
+      !isHalting &&
+      vmStatus !== 'suspended'
+    ) {
+      clearCooldown();
     }
-  }, [lastAction, actionsForVm, vmStatus, isStarting, minTimerRef, clearCooldown]);
+  }, [lastAction, actionsForVm, vmStatus, isStarting, isHalting, clearCooldown]);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (minTimerRef.current) {
+        clearTimeout(minTimerRef.current);
+        minTimerRef.current = null;
+      }
+    };
+  }, [minTimerRef]);
 };

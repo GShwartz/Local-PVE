@@ -10,9 +10,6 @@ interface CloneButtonProps {
   onChange: (name: string) => void;
   onConfirm: () => void;
   onCancel: () => void;
-
-  /** Called right after the user confirms the clone (action will be sent by parent) */
-  onSent?: () => void;
 }
 
 const CloneButton = ({
@@ -24,7 +21,6 @@ const CloneButton = ({
   onChange,
   onConfirm,
   onCancel,
-  onSent,
 }: CloneButtonProps) => {
   return (
     <div className="flex-1 min-w-[5rem] text-center relative">
@@ -36,7 +32,7 @@ const CloneButton = ({
         disabled={disabled}
         className={disabled ? 'bg-gray-600 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}
       >
-        {showCloningLabel ? 'Clone' : 'Clone'}
+        {showCloningLabel ? 'Cloning...' : 'Clone'}
       </ActionButton>
 
       {isCloning && (
@@ -44,11 +40,7 @@ const CloneButton = ({
           <ClonePopover
             cloneName={cloneName}
             onChange={onChange}
-            onConfirm={() => {
-              // Delegate action to parent, then signal loader
-              onConfirm();
-              onSent?.();
-            }}
+            onConfirm={onConfirm}
             onCancel={onCancel}
           />
         </div>

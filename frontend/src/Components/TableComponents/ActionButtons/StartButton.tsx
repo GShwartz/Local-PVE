@@ -21,9 +21,11 @@ interface StartButtonProps {
 const StartButton = ({
   vm,
   disabled,
+  isStarting, // kept for parity
   setIsStarting,
   vmMutation,
   addAlert,
+  showLoader, // kept but unused
   onSent,
 }: StartButtonProps) => {
   const handleStart = (e: React.MouseEvent) => {

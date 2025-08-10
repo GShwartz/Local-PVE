@@ -3,51 +3,59 @@ import { FaPlay, FaStop, FaPause, FaQuestion } from 'react-icons/fa';
 
 interface StatusBadgeProps {
   status: string;
-  resumeShowing?: boolean;   // made optional
-  resumeEnabled?: boolean;   // made optional
-  startDisabled?: boolean;   // made optional
-  ipAddress?: string;        // made optional
+  resumeShowing?: boolean;   // optional
+  startDisabled?: boolean;   // optional
+  ipAddress?: string;        // optional
+  /** NEW: presentational hints. No logic inside. */
+  forcePlay?: boolean;
+  forceStop?: boolean;
+  // Additional Proxmox-specific fields for better detection
+  qmpstatus?: string;        // QEMU Monitor Protocol status
+  lock?: string;             // VM lock state
+  suspended?: boolean;       // Direct suspended flag from API
 }
 
 const StatusBadge: React.FC<StatusBadgeProps> = ({
   status,
   resumeShowing = false,
-  resumeEnabled = false,
   startDisabled = false,
   ipAddress = 'N/A',
+  forcePlay = false,
+  forceStop = false,
+  qmpstatus,
+  lock,
+  suspended,
 }) => {
   const normalizedStatus = (status || '').trim().toLowerCase();
+  const normalizedQmpStatus = (qmpstatus || '').trim().toLowerCase();
   const ipIsNA = (ipAddress || '').trim().toUpperCase() === 'N/A';
 
-  // ✅ If the row tells us "Resume" is showing, reflect a paused state immediately.
-  // This removes the race between multiple fast suspends.
-  if (resumeShowing) {
-    return (
-      <span
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: '30px',
-          height: '30px',
-          fontSize: '1rem',
-        }}
-      >
-        <FaPause color="orange" />
-      </span>
-    );
-  }
-
-  // Legacy UI-derived hints (kept, but resumeShowing now dominates)
-  const showSuspended = resumeShowing && resumeEnabled && ipIsNA && startDisabled;
-  const showRunningFromUi = startDisabled && ipIsNA && resumeShowing && !resumeEnabled;
+  // Enhanced suspended detection using multiple indicators
+  const isSuspended = 
+    // Direct suspended flag from API
+    suspended === true ||
+    // Explicit status indicators
+    normalizedStatus === 'paused' || 
+    normalizedStatus === 'suspended' ||
+    normalizedStatus === 'hibernate' ||
+    // QEMU Monitor Protocol status
+    normalizedQmpStatus === 'paused' ||
+    normalizedQmpStatus === 'suspended' ||
+    // Lock state indicates suspension
+    lock === 'suspended' ||
+    // SuspendResumeButton hints
+    resumeShowing ||
+    // Running with no IP (common suspended state pattern)
+    (normalizedStatus === 'running' && ipIsNA && startDisabled);
 
   let Icon: React.ReactNode = <FaQuestion color="gray" />;
 
-  if (showSuspended) {
-    Icon = <FaPause color="orange" />;
-  } else if (showRunningFromUi) {
+  if (forcePlay) {
     Icon = <FaPlay color="green" />;
+  } else if (forceStop) {
+    Icon = <FaStop color="red" />;
+  } else if (isSuspended) {
+    Icon = <FaPause color="orange" />;
   } else {
     switch (normalizedStatus) {
       case 'running':
@@ -55,11 +63,6 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({
         break;
       case 'stopped':
         Icon = <FaStop color="red" />;
-        break;
-      case 'paused':
-      case 'hibernate':
-      case 'suspended':
-        Icon = <FaPause color="orange" />;
         break;
       default:
         Icon = <FaQuestion color="gray" />;
@@ -76,6 +79,7 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({
         height: '30px',
         fontSize: '1rem',
       }}
+      title={`Status: ${status}${qmpstatus ? ` (QMP: ${qmpstatus})` : ''}${lock ? ` [${lock}]` : ''}${suspended ? ' [suspended]' : ''}`}
     >
       {Icon}
     </span>

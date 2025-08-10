@@ -131,11 +131,15 @@ const TableRow = ({
 
   const vmWithNode: VM = { ...vm, node };
 
-  // 🔗 Real-time hints from the actual Resume button (coming from ActionButtons)
+  // 🔗 Real-time hints from Resume + Reboot
   const [resumeHints, setResumeHints] = useState<{ resumeShowing: boolean; resumeEnabled: boolean }>({
     resumeShowing: false,
     resumeEnabled: false,
   });
+
+  // NEW: keep hint booleans to influence the badge
+  const [rebootingHint, setRebootingHint] = useState(false);
+  const [stoppingHint, setStoppingHint] = useState(false);
 
   // Start is disabled whenever VM isn't stopped (matches your UI)
   const startDisabled = vm.status !== 'stopped';
@@ -162,7 +166,7 @@ const TableRow = ({
 
       <tr className="bg-gray-900 border-b border-gray-700 hover:bg-gray-700 text-xs sm:text-sm">
         <td
-          className="px-2 py-8 text-center cursor-pointer"
+          className="px-2 py-4 text-center cursor-pointer"
           onClick={() => toggleRow(vm.vmid)}
         >
           {expandedRows.has(vm.vmid) ? (
@@ -208,6 +212,10 @@ const TableRow = ({
             resumeEnabled={resumeHints.resumeEnabled}
             startDisabled={startDisabled}
             ipAddress={ipAddress}
+            /** Dumb hint: show play icon if reboot is in progress (no logic inside the badge) */
+            forcePlay={rebootingHint}
+            /** NEW hint: show stop icon once shutdown is sent (no logic inside the badge) */
+            forceStop={stoppingHint}
           />
         </td>
 
@@ -223,6 +231,10 @@ const TableRow = ({
           queryClient={queryClient}
           isApplying={isApplyingOrCooldown}
           onResumeHintsChange={setResumeHints}
+          /** Receive “isRebooting” from the button layer; store as a simple hint boolean */
+          onRebootingHintChange={setRebootingHint}
+          /** Receive “shutdown sent” hint; badge shows stop */
+          onStoppingHintChange={setStoppingHint}
         />
       </tr>
 

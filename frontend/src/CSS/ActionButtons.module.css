@@ -1,9 +1,7 @@
 .buttonGroup {
   display: flex;
   gap: 0.625rem;
-  align-items: center; /* vertical centering */
-  justify-content: center; /* horizontal centering if needed */
-  margin-top: 40px; /* remove large offset */
+  margin-top: 3rem;
 }
 
 .buttonGroup > * {
@@ -12,7 +10,6 @@
   width: 100%;
   min-width: 5rem;
   position: relative;
-  margin-bottom: 0; /* no bottom margin — loader sits separately */
 }
 
 .buttonGroup > * > *:first-child {
