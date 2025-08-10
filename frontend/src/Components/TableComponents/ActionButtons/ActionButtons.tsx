@@ -302,26 +302,62 @@ const ActionButtons = ({
             aria-live="polite"
             style={{
               width: '100%',
-              height: '6px',
+              height: '8px',
               marginTop: 0,
-              borderRadius: '9999px',
-              background: 'rgba(255,255,255,0.25)',
+              borderRadius: '12px',
               overflow: 'hidden',
               position: 'relative',
+              animation: 'abtn_glow_pulse 3s ease-in-out infinite',
+              backdropFilter: 'blur(4px)',
             }}
           >
+            {/* Primary energy beam */}
             <div
               style={{
                 position: 'absolute',
                 left: 0,
                 top: 0,
                 height: '100%',
-                width: '30%',
-                background: 'rgba(255,255,255,0.9)',
-                borderRadius: '9999px',
-                animation: 'abtn_bar_sweep 1200ms ease-in-out infinite',
+                width: '50%',
+                background: `
+                  linear-gradient(90deg, 
+                    transparent 0%,
+                    rgba(0, 247, 255, 0.2) 10%,
+                    rgba(0, 247, 255, 0.8) 30%,
+                    rgba(59, 130, 246, 1) 50%,
+                    rgba(147, 51, 234, 1) 70%,
+                    rgba(236, 72, 153, 0.8) 90%,
+                    transparent 100%
+                  )
+                `,
+                borderRadius: '12px',
+                animation: 'abtn_bar_sweep 2.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite',
+                boxShadow: `
+                  0 0 20px rgba(0, 247, 255, 0.6),
+                  0 0 40px rgba(147, 51, 234, 0.4),
+                  0 0 60px rgba(236, 72, 153, 0.2)
+                `,
               }}
             />
+
+            {/* Particle effects */}
+            {[...Array(5)].map((_, i) => (
+              <div
+                key={i}
+                style={{
+                  position: 'absolute',
+                  left: `${15 + i * 20}%`,
+                  top: '50%',
+                  width: '2px',
+                  height: '2px',
+                  background: 'rgba(0, 247, 255, 0.8)',
+                  borderRadius: '50%',
+                  transform: 'translateY(-50%)',
+                  animation: `abtn_particle_float 1.5s ease-in-out infinite ${i * 0.3}s`,
+                  boxShadow: '0 0 4px rgba(0, 247, 255, 0.8)',
+                }}
+              />
+            ))}
           </div>
         )}
       </div>
