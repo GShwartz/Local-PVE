@@ -1,6 +1,6 @@
 import { FiChevronUp, FiChevronDown } from 'react-icons/fi';
 import { useQuery, useQueryClient, UseMutationResult } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { VM, Auth, Snapshot } from '../../types';
 import { useApplyChanges } from '../../hooks/useApplyChanges';
 import axios from 'axios';
@@ -32,11 +32,9 @@ interface TableRowProps {
   editingVmid: number | null;
   cancelEdit: () => void;
   addAlert: (message: string, type: string) => void;
-  setTableApplying: (isApplying: boolean) => void;
   refreshVMs: () => void;
   openConsole: (vmid: number) => void;
   hasRowAboveExpanded: boolean;
-  isApplying: boolean;
   loaderMinDuration: number;
 }
 
@@ -63,7 +61,6 @@ const TableRow = ({
   expandedRows,
   toggleRow,
   snapshotView,
-  showSnapshots,
   openModal,
   pendingActions,
   vmMutation,
@@ -75,12 +72,13 @@ const TableRow = ({
   editingVmid,
   cancelEdit,
   addAlert,
-  setTableApplying,
   refreshVMs,
-  isApplying,
   loaderMinDuration,
 }: TableRowProps) => {
   const queryClient = useQueryClient();
+
+  // Move applying state to individual row level
+  const [isApplying, setIsApplying] = useState(false);
 
   const { data: snapshots, isLoading: snapshotsLoading, error: snapshotsError } = useQuery({
     queryKey: ['snapshots', node, vm.vmid, auth.csrf_token, auth.ticket],
@@ -125,27 +123,76 @@ const TableRow = ({
     vmMutation,
     cancelEdit,
     setChangesToApply,
-    setTableApplying,
+    setTableApplying: setIsApplying, // Now uses local state
     addAlert,
   });
 
-  const vmWithNode: VM = { ...vm, node };
-
-  // 🔗 Real-time hints from Resume + Reboot
+  // Status badge hints - properly connected to ActionButtons
   const [resumeHints, setResumeHints] = useState<{ resumeShowing: boolean; resumeEnabled: boolean }>({
     resumeShowing: false,
     resumeEnabled: false,
   });
-
-  // NEW: keep hint booleans to influence the badge
   const [rebootingHint, setRebootingHint] = useState(false);
   const [stoppingHint, setStoppingHint] = useState(false);
 
-  // Start is disabled whenever VM isn't stopped (matches your UI)
-  const startDisabled = vm.status !== 'stopped';
+  // Log hint changes
+  useEffect(() => {
+    console.log('📡 TableRow VM', vm.vmid, 'received hints:', {
+      rebootingHint,
+      stoppingHint,
+      vmStatus: vm.status
+    });
+  }, [rebootingHint, stoppingHint, vm.vmid, vm.status]);
 
-  // Displayed IP string exactly as the IP cell gets it
-  const ipAddress = vm.ip_address || 'N/A';
+  // Create a masked VM object for components that need consistent status
+  const maskedVM = useMemo(() => {
+    // Get pending actions for this VM
+    const actionsForVm = pendingActions[vm.vmid] || [];
+    const hasRebootPending = actionsForVm.includes('reboot') || rebootingHint;
+    const hasStopPending = actionsForVm.includes('stop') || actionsForVm.includes('shutdown') || stoppingHint;
+    const hasStartPending = actionsForVm.includes('start');
+    
+    let maskedStatus = vm.status;
+    
+    // Apply masking logic - during reboot, always show as running
+    if (hasRebootPending) {
+      maskedStatus = 'running';  // Force running status during reboot
+    } else if (hasStopPending && vm.status !== 'stopped') {
+      maskedStatus = 'running';  // Keep showing running until actually stopped
+    } else if (hasStartPending && vm.status !== 'running') {
+      maskedStatus = 'stopped';  // Keep showing stopped until actually running
+    }
+    
+    console.log('🎭 TableRow VM', vm.vmid, 'masking status:', {
+      originalStatus: vm.status,
+      maskedStatus,
+      hasRebootPending,
+      hasStopPending,
+      hasStartPending,
+      rebootingHint,
+      stoppingHint,
+      pendingActions: actionsForVm,
+      willPassToStatusBadge: maskedStatus,
+      willPassToIPAddress: maskedStatus,
+      FULL_PENDING_ACTIONS_OBJECT: pendingActions // Show entire pendingActions state
+    });
+    
+    const result = {
+      ...vm,
+      status: maskedStatus,
+      node
+    };
+    
+    // Additional logging for StatusBadge props
+    console.log('🟢 StatusBadge VM', vm.vmid, 'props:', {
+      originalVMStatus: vm.status,
+      maskedVMStatus: result.status,
+      forcePlay: rebootingHint,
+      forceStop: stoppingHint
+    });
+    
+    return result;
+  }, [vm, pendingActions, rebootingHint, stoppingHint, node]);
 
   const handleApplyWithCooldown = (e: React.MouseEvent<HTMLButtonElement>) => {
     startCooldown();
@@ -182,7 +229,8 @@ const TableRow = ({
           {...{ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply, isApplying: isApplyingOrCooldown }}
         />
 
-        <IPAddressCell vm={vmWithNode} />
+        {/* Use masked VM for IP address display */}
+        <IPAddressCell vm={maskedVM} />
 
         <td className="px-2 sm:px-6 py-2 sm:py-4 text-center">{vm.os}</td>
 
@@ -206,15 +254,11 @@ const TableRow = ({
         </td>
 
         <td className="px-2 sm:px-6 py-2 sm:py-4 text-center narrow-col border-gray-700">
+          {/* Use masked status for StatusBadge */}
           <StatusBadge
-            status={vm.status}
+            status={maskedVM.status}
             resumeShowing={resumeHints.resumeShowing}
-            resumeEnabled={resumeHints.resumeEnabled}
-            startDisabled={startDisabled}
-            ipAddress={ipAddress}
-            /** Dumb hint: show play icon if reboot is in progress (no logic inside the badge) */
             forcePlay={rebootingHint}
-            /** NEW hint: show stop icon once shutdown is sent (no logic inside the badge) */
             forceStop={stoppingHint}
           />
         </td>
@@ -223,17 +267,14 @@ const TableRow = ({
           vm={vm}
           pendingActions={pendingActions}
           vmMutation={vmMutation}
-          showSnapshots={showSnapshots}
           onToggleRow={() => toggleRow(vm.vmid)}
           auth={auth}
           addAlert={addAlert}
           refreshVMs={refreshVMs}
           queryClient={queryClient}
-          isApplying={isApplyingOrCooldown}
+          isApplying={isApplying} // Pass the local applying state
           onResumeHintsChange={setResumeHints}
-          /** Receive “isRebooting” from the button layer; store as a simple hint boolean */
           onRebootingHintChange={setRebootingHint}
-          /** Receive “shutdown sent” hint; badge shows stop */
           onStoppingHintChange={setStoppingHint}
         />
       </tr>

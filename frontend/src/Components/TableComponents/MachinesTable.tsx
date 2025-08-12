@@ -28,7 +28,6 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: 
   const [snapshotName, setSnapshotName] = useState('');
   const [currentVmid, setCurrentVmid] = useState<number | null>(null);
   const [editingVmid, setEditingVmid] = useState<number | null>(null);
-  const [isApplying, setIsApplying] = useState<boolean>(false);
 
   const LOADER_MIN_DURATION = 5000;
 
@@ -124,8 +123,6 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: 
             <TableHeader
               sortConfig={sortConfig}
               handleSort={handleSort}
-              isApplying={isApplying}
-              loaderMinDuration={LOADER_MIN_DURATION}
             />
             <tbody>
               {sortedVms.map((vm, idx) => {
@@ -151,10 +148,8 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: 
                     cancelEdit={cancelEdit}
                     hasRowAboveExpanded={hasRowAboveExpanded}
                     addAlert={addAlert}
-                    setTableApplying={setIsApplying}
                     openConsole={openConsole}
                     refreshVMs={refreshVMs}
-                    isApplying={isApplying}
                     loaderMinDuration={LOADER_MIN_DURATION}
                   />
                 );
