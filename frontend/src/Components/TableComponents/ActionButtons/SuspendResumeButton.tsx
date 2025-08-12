@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { VM, Auth } from '../../../types';
 import { UseMutationResult } from '@tanstack/react-query';
 
@@ -37,6 +37,9 @@ const SuspendResumeButton: React.FC<SuspendResumeButtonProps> = ({
     vm.status === 'paused' || (vm.status === 'running' && vm.ip_address === 'N/A')
   );
   const API_BASE_URL = 'http://localhost:8000';
+
+  // Use ref to track the last sent hints to prevent unnecessary calls
+  const lastHintsRef = useRef<{ resumeShowing: boolean; resumeEnabled: boolean } | null>(null);
 
   const shouldDisableDueToState =
     vm.ip_address === 'N/A' && vm.status !== 'running';
@@ -100,12 +103,26 @@ const SuspendResumeButton: React.FC<SuspendResumeButtonProps> = ({
     }, 10000);
   };
 
-  // 🔗 Send live hints to parent for StatusBadge
-  useEffect(() => {
+  // Memoized hint calculation to prevent unnecessary re-renders
+  const calculateHints = useCallback(() => {
     const resumeShowing = localSuspended;
     const resumeEnabled = resumeShowing && !isButtonDisabled;
-    onHintsChange?.({ resumeShowing, resumeEnabled });
-  }, [localSuspended, isButtonDisabled, onHintsChange]);
+    return { resumeShowing, resumeEnabled };
+  }, [localSuspended, isButtonDisabled]);
+
+  // 🔗 Send live hints to parent for StatusBadge - but only when they actually change
+  useEffect(() => {
+    const newHints = calculateHints();
+    
+    // Only call onHintsChange if the hints actually changed
+    if (!lastHintsRef.current || 
+        lastHintsRef.current.resumeShowing !== newHints.resumeShowing ||
+        lastHintsRef.current.resumeEnabled !== newHints.resumeEnabled) {
+      
+      lastHintsRef.current = newHints;
+      onHintsChange?.(newHints);
+    }
+  }, [calculateHints]);
 
   return (
     <button

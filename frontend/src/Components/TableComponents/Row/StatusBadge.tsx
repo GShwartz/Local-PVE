@@ -4,8 +4,6 @@ import { FaPlay, FaStop, FaPause, FaQuestion } from 'react-icons/fa';
 interface StatusBadgeProps {
   status: string;
   resumeShowing?: boolean;   // optional
-  startDisabled?: boolean;   // optional
-  ipAddress?: string;        // optional
   /** NEW: presentational hints. No logic inside. */
   forcePlay?: boolean;
   forceStop?: boolean;
@@ -18,8 +16,6 @@ interface StatusBadgeProps {
 const StatusBadge: React.FC<StatusBadgeProps> = ({
   status,
   resumeShowing = false,
-  startDisabled = false,
-  ipAddress = 'N/A',
   forcePlay = false,
   forceStop = false,
   qmpstatus,
@@ -28,25 +24,18 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({
 }) => {
   const normalizedStatus = (status || '').trim().toLowerCase();
   const normalizedQmpStatus = (qmpstatus || '').trim().toLowerCase();
-  const ipIsNA = (ipAddress || '').trim().toUpperCase() === 'N/A';
 
-  // Enhanced suspended detection using multiple indicators
+  // Simplified and more accurate suspended detection
   const isSuspended = 
-    // Direct suspended flag from API
+    // Direct explicit indicators only - don't guess based on IP
     suspended === true ||
-    // Explicit status indicators
     normalizedStatus === 'paused' || 
     normalizedStatus === 'suspended' ||
     normalizedStatus === 'hibernate' ||
-    // QEMU Monitor Protocol status
     normalizedQmpStatus === 'paused' ||
     normalizedQmpStatus === 'suspended' ||
-    // Lock state indicates suspension
     lock === 'suspended' ||
-    // SuspendResumeButton hints
-    resumeShowing ||
-    // Running with no IP (common suspended state pattern)
-    (normalizedStatus === 'running' && ipIsNA && startDisabled);
+    resumeShowing; // Trust the SuspendResumeButton hints
 
   let Icon: React.ReactNode = <FaQuestion color="gray" />;
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
 import { VM, Auth } from '../../../types';
 import { UseMutationResult, QueryClient } from '@tanstack/react-query';
 
@@ -28,6 +28,9 @@ interface ActionButtonsProps {
   refreshVMs: () => void;
   queryClient: QueryClient;
   isApplying: boolean;
+  onResumeHintsChange?: (hints: { resumeShowing: boolean; resumeEnabled: boolean }) => void;
+  onRebootingHintChange?: (isRebooting: boolean) => void;
+  onStoppingHintChange?: (isStopping: boolean) => void;
 }
 
 const PROXMOX_NODE = 'pve';
@@ -43,22 +46,63 @@ const ActionButtons = ({
   refreshVMs,
   queryClient,
   isApplying,
+  onResumeHintsChange,
+  onRebootingHintChange,
+  onStoppingHintChange,
 }: ActionButtonsProps) => {
-  // Only essential UI states
+  // Simplified state management
+  const [activeOperations, setActiveOperations] = useState<Set<string>>(new Set());
+  
+  // UI-specific states
   const [isCloning, setIsCloning] = useState(false);
   const [cloneName, setCloneName] = useState(vm.name);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
-  const [activeOperation, setActiveOperation] = useState<string | null>(null);
   const [isSuspending, setIsSuspending] = useState(false);
+  const [initialVmCount, setInitialVmCount] = useState<number | null>(null);
 
-  // Inject animation keyframes for the loader
+  // Inject animation keyframes for the futuristic loader
   useEffect(() => {
     const styleTag = document.createElement('style');
     styleTag.type = 'text/css';
     styleTag.textContent = `
       @keyframes abtn_bar_sweep {
-        0% { transform: translateX(-100%); }
-        100% { transform: translateX(300%); }
+        0% { 
+          transform: translateX(-120%) skewX(-15deg);
+          opacity: 0;
+          filter: blur(2px);
+        }
+        10% {
+          opacity: 0.3;
+          filter: blur(1px);
+        }
+        20% {
+          opacity: 1;
+          filter: blur(0px);
+        }
+        80% {
+          opacity: 1;
+          filter: blur(0px);
+        }
+        90% {
+          opacity: 0.3;
+          filter: blur(1px);
+        }
+        100% { 
+          transform: translateX(320%) skewX(-15deg);
+          opacity: 0;
+          filter: blur(2px);
+        }
+      }
+      
+      @keyframes abtn_particle_float {
+        0%, 100% { 
+          transform: translateY(0px) scale(1);
+          opacity: 0.6;
+        }
+        50% { 
+          transform: translateY(-2px) scale(1.1);
+          opacity: 1;
+        }
       }
     `;
     document.head.appendChild(styleTag);
@@ -69,69 +113,135 @@ const ActionButtons = ({
     };
   }, []);
 
-  // Hide loader when VM status changes appropriately
-  useEffect(() => {
-    if (!activeOperation) return;
+  // Simplified operation completion detection
+  useLayoutEffect(() => {
+    const completedOperations = new Set<string>();
     
-    // Clear operation state when status reaches expected state
-    if (
-      (activeOperation === 'start' && vm.status === 'running') ||
-      (activeOperation === 'stop' && vm.status === 'stopped') ||
-      (activeOperation === 'shutdown' && vm.status === 'stopped') ||
-      (activeOperation === 'reboot' && vm.status === 'running')
-    ) {
-      setActiveOperation(null);
+    activeOperations.forEach(operation => {
+      const currentStatus = vm.status?.toLowerCase() || '';
+      
+      if (
+        (operation === 'start' && currentStatus === 'running') ||
+        (operation === 'stop' && currentStatus === 'stopped') ||
+        (operation === 'shutdown' && currentStatus === 'stopped')
+      ) {
+        completedOperations.add(operation);
+      }
+    });
+    
+    if (completedOperations.size > 0) {
+      setActiveOperations(prev => {
+        const next = new Set(prev);
+        completedOperations.forEach(op => next.delete(op));
+        return next;
+      });
     }
-  }, [activeOperation, vm.status]);
+  }, [vm.status, activeOperations]);
 
-  // Fallback timer for each operation to prevent getting stuck
+  // Clone operation tracking
   useEffect(() => {
-    if (!activeOperation) return;
+    if (activeOperations.has('clone') && initialVmCount === null) {
+      const currentVms = queryClient.getQueryData(['vms']) as VM[] | undefined;
+      setInitialVmCount(currentVms?.length || 0);
+    }
     
-    const timer = setTimeout(() => {
-      setActiveOperation(null);
-      refreshVMs();
-    }, 15000); // 15 seconds fallback
+    if (activeOperations.has('clone') && initialVmCount !== null) {
+      const currentVms = queryClient.getQueryData(['vms']) as VM[] | undefined;
+      const currentCount = currentVms?.length || 0;
+      
+      if (currentCount > initialVmCount) {
+        setActiveOperations(prev => {
+          const next = new Set(prev);
+          next.delete('clone');
+          return next;
+        });
+        setInitialVmCount(null);
+      }
+    }
+  }, [activeOperations, initialVmCount, queryClient.getQueryData(['vms'])]);
+
+  // Fallback timers to prevent stuck operations
+  useEffect(() => {
+    const timers: NodeJS.Timeout[] = [];
     
-    return () => clearTimeout(timer);
-  }, [activeOperation, refreshVMs]);
+    activeOperations.forEach(operation => {
+      if (operation !== 'remove') {
+        const timer = setTimeout(() => {
+          setActiveOperations(prev => {
+            const next = new Set(prev);
+            next.delete(operation);
+            return next;
+          });
+          refreshVMs();
+        }, 30000); // 30 seconds fallback
+        
+        timers.push(timer);
+      }
+    });
+    
+    return () => timers.forEach(clearTimeout);
+  }, [activeOperations, refreshVMs]);
 
-  // Get pending actions for this VM
-  const actionsForVm = pendingActions[vm.vmid] || [];
-  const hasPendingAction = actionsForVm.length > 0;
-  const isOperationActive = activeOperation !== null || isSuspending;
-
-  // Simple status-based logic (mirror Proxmox behavior)
+  // Simple status logic
   const status = vm.status?.toLowerCase() || '';
   const isRunning = status === 'running';
   const isStopped = status === 'stopped';
   const isPaused = status === 'paused' || status === 'suspended';
 
+  // Suspend hints tracking
+  const [suspendHints, setSuspendHints] = useState<{ resumeShowing: boolean; resumeEnabled: boolean }>({
+    resumeShowing: false,
+    resumeEnabled: false,
+  });
+
   // Enhanced suspended detection
   const isSuspended = 
-    status === 'paused' || 
-    status === 'suspended' ||
     isPaused ||
-    (isRunning && vm.ip_address === 'N/A');
+    suspendHints.resumeShowing;
 
-  // Button states - account for reboot masking and suspended state
-  const isRebooting = activeOperation === 'reboot';
-  const effectivelyRunning = isRunning || isRebooting; // treat rebooting as running
-  const effectivelyStopped = isStopped && !isRebooting; // don't treat as stopped during reboot
-  
-  const canStart = effectivelyStopped && !hasPendingAction && !isApplying && !isOperationActive;
-  const canStop = (effectivelyRunning || isPaused) && !hasPendingAction && !isApplying && !isOperationActive;
-  // Disable shutdown/reboot if suspended - user must resume first
-  const canShutdown = effectivelyRunning && !isSuspended && !hasPendingAction && !isApplying && !isOperationActive;
-  const canReboot = effectivelyRunning && !isSuspended && !hasPendingAction && !isApplying && !isOperationActive;
-  const canConsole = effectivelyRunning && !isSuspended && !hasPendingAction && !isApplying && !isOperationActive;
-  const canClone = !hasPendingAction && !isApplying && !isOperationActive;
-  const canRemove = effectivelyStopped && !hasPendingAction && !isApplying && !isOperationActive;
-  const canSuspendResume = (effectivelyRunning || isPaused) && !hasPendingAction && !isApplying && !isOperationActive;
+  // Get pending actions for this VM
+  const actionsForVm = pendingActions[vm.vmid] || [];
+  const hasPendingAction = actionsForVm.length > 0;
+  const isOperationActive = activeOperations.size > 0 || isSuspending;
 
-  // Generic operation handler with loader until status changes
-  const handleOperation = (action: string, alertMessage: string, alertType: 'info' | 'warning' = 'info') => {
-    setActiveOperation(action);
+  // Simplified button state calculations
+  const buttonStates = useMemo(() => {
+    const hasRebootPending = actionsForVm.includes('reboot');
+    
+    return {
+      canStart: isStopped && !hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending,
+      canStop: (isRunning || isPaused) && !hasPendingAction && !isApplying && !isSuspending,
+      canShutdown: isRunning && !isSuspended && !hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending,
+      canReboot: isRunning && !isSuspended && !hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending,
+      canConsole: isRunning && !isSuspended && !hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending,
+      canClone: (!hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending),
+      canRemove: isStopped && !hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending,
+      canSuspendResume: (isRunning || isPaused) && !hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending
+    };
+  }, [isRunning, isStopped, isPaused, isSuspended, hasPendingAction, isApplying, isOperationActive, isSuspending, actionsForVm]);
+
+  // Send hint updates synchronously to prevent timing issues
+  useLayoutEffect(() => {
+    const hasRebootPending = actionsForVm.includes('reboot');
+    
+    console.log('🔧 ActionButtons VM', vm.vmid, 'sending hints:', {
+      vmStatus: vm.status,
+      pendingActions: actionsForVm,
+      hasRebootPending,
+      rebootingHint: hasRebootPending,
+      stoppingHint: activeOperations.has('stop') || activeOperations.has('shutdown'),
+      activeOperations: Array.from(activeOperations),
+      DETAILED_PENDING_ACTIONS: pendingActions // Show the entire pendingActions object
+    });
+    
+    onRebootingHintChange?.(hasRebootPending);
+    onStoppingHintChange?.(activeOperations.has('stop') || activeOperations.has('shutdown'));
+  }, [actionsForVm, activeOperations, onRebootingHintChange, onStoppingHintChange, vm.vmid, vm.status, pendingActions]);
+
+  // Optimized operation handler with atomic state updates
+  const handleOperation = useCallback((action: string, alertMessage: string, alertType: 'info' | 'warning' = 'info') => {
+    // Atomic state update to prevent timing issues
+    setActiveOperations(prev => new Set([...prev, action]));
     addAlert(alertMessage, alertType);
     
     vmMutation.mutate(
@@ -139,48 +249,80 @@ const ActionButtons = ({
       {
         onSuccess: () => addAlert(`VM "${vm.name}" ${action} initiated.`, 'success'),
         onError: () => {
-          setActiveOperation(null);
+          // Remove operation on error
+          setActiveOperations(prev => {
+            const next = new Set(prev);
+            next.delete(action);
+            return next;
+          });
           addAlert(`Failed to ${action} VM "${vm.name}".`, 'error');
         },
       }
     );
-  };
+  }, [vm.vmid, vm.name, vmMutation, addAlert]);
 
   // Simple action handlers
-  const handleStop = () => {
+  const handleStop = useCallback(() => {
     handleOperation('stop', `Force stopping VM "${vm.name}"...`, 'warning');
-  };
+  }, [handleOperation, vm.name]);
 
-  const handleShutdown = () => {
+  const handleShutdown = useCallback(() => {
     handleOperation('shutdown', `Shutting down VM "${vm.name}"...`);
-  };
+  }, [handleOperation, vm.name]);
 
-  const handleReboot = () => {
-    handleOperation('reboot', `Rebooting VM "${vm.name}"...`);
-  };
+  // Simple reboot handler using existing pendingActions system
+  const handleReboot = useCallback(() => {
+    console.log('🚀 REBOOT CLICKED for VM', vm.vmid, {
+      currentStatus: vm.status,
+      currentPendingActions: actionsForVm,
+      aboutToMutate: 'reboot'
+    });
+    
+    addAlert(`Rebooting VM "${vm.name}"...`, 'info');
+    
+    vmMutation.mutate(
+      { vmid: vm.vmid, action: 'reboot', name: vm.name },
+      {
+        onSuccess: () => {
+          console.log('✅ REBOOT SUCCESS for VM', vm.vmid, {
+            pendingActionsAfterSuccess: pendingActions[vm.vmid] || []
+          });
+          addAlert(`VM "${vm.name}" reboot initiated.`, 'success');
+        },
+        onError: (error) => {
+          console.log('❌ REBOOT ERROR for VM', vm.vmid, error);
+          addAlert(`Failed to reboot VM "${vm.name}".`, 'error');
+        },
+      }
+    );
+  }, [vm.vmid, vm.name, vmMutation, addAlert, vm.status, actionsForVm, pendingActions]);
 
-  const handleCloneConfirm = () => {
+  const handleCloneConfirm = useCallback(() => {
     setIsCloning(false);
+    setActiveOperations(prev => new Set([...prev, 'clone']));
     addAlert(`Cloning VM "${vm.name}" to "${cloneName}"...`, 'info');
     
     vmMutation.mutate(
       { vmid: vm.vmid, action: 'clone', name: cloneName },
       {
-        onSuccess: () => addAlert(`VM "${vm.name}" clone initiated.`, 'success'),
-        onError: () => addAlert(`Failed to clone VM "${vm.name}".`, 'error'),
+        onSuccess: () => {
+          addAlert(`VM "${vm.name}" clone initiated.`, 'success');
+        },
+        onError: () => {
+          setActiveOperations(prev => {
+            const next = new Set(prev);
+            next.delete('clone');
+            return next;
+          });
+          addAlert(`Failed to clone VM "${vm.name}".`, 'error');
+        },
       }
     );
-  };
+  }, [vm.vmid, vm.name, cloneName, vmMutation, addAlert]);
 
-  const handleRemove = async () => {
+  const handleRemove = useCallback(async () => {
     setShowRemoveConfirm(false);
     addAlert(`Removing VM "${vm.name}"...`, 'warning');
-
-    // Optimistic update
-    const previousVms = queryClient.getQueryData(['vms']);
-    queryClient.setQueryData(['vms'], (oldVms: VM[]) => 
-      oldVms?.filter((v) => v.vmid !== vm.vmid) || []
-    );
 
     try {
       const response = await fetch(
@@ -193,13 +335,11 @@ const ActionButtons = ({
       if (!response.ok) throw new Error('Failed to delete VM');
 
       addAlert(`VM "${vm.name}" removed successfully.`, 'success');
-      refreshVMs();
+      await refreshVMs();
     } catch (error: any) {
-      // Revert optimistic update
-      queryClient.setQueryData(['vms'], previousVms);
       addAlert(`Failed to remove VM "${vm.name}": ${error.message}`, 'error');
     }
-  };
+  }, [vm.vmid, vm.name, auth.csrf_token, auth.ticket, addAlert, refreshVMs]);
 
   return (
     <td
@@ -219,36 +359,28 @@ const ActionButtons = ({
         
         <StartButton
           vm={vm}
-          disabled={!canStart}
-          isStarting={activeOperation === 'start'}
+          disabled={!buttonStates.canStart}
+          isStarting={activeOperations.has('start')}
           setIsStarting={() => {}} // StartButton handles its own state
           vmMutation={vmMutation}
           addAlert={addAlert}
           onSent={() => {
-            // StartButton already sent the request, just handle UI state
-            setActiveOperation('start');
-            // Fallback: clear after 30 seconds if status never changes
-            setTimeout(() => {
-              if (activeOperation === 'start') {
-                setActiveOperation(null);
-                refreshVMs();
-              }
-            }, 30000);
+            setActiveOperations(prev => new Set([...prev, 'start']));
           }}
         />
 
         <StopButton
-          disabled={!canStop}
+          disabled={!buttonStates.canStop || activeOperations.has('stop')}
           onClick={handleStop}
         />
 
         <ShutdownButton
-          disabled={!canShutdown}
+          disabled={!buttonStates.canShutdown}
           onClick={handleShutdown}
         />
 
         <RebootButton
-          disabled={!canReboot}
+          disabled={!buttonStates.canReboot}
           onClick={handleReboot}
         />
 
@@ -259,10 +391,13 @@ const ActionButtons = ({
           vmMutation={vmMutation}
           addAlert={addAlert}
           refreshVMs={refreshVMs}
-          disabled={!canSuspendResume}
+          disabled={!buttonStates.canSuspendResume}
           isPending={actionsForVm.includes('suspend') || actionsForVm.includes('resume')}
           setSuspending={setIsSuspending}
-          onHintsChange={() => {}} // Not used in ActionButtons, but required by SuspendResumeButton
+          onHintsChange={(hints) => {
+            setSuspendHints(hints);
+            onResumeHintsChange?.(hints);
+          }}
         />
 
         <ConsoleButton
@@ -270,11 +405,11 @@ const ActionButtons = ({
             e.stopPropagation();
             openProxmoxConsole(PROXMOX_NODE, vm.vmid, auth.csrf_token, auth.ticket);
           }}
-          disabled={!canConsole}
+          disabled={!buttonStates.canConsole}
         />
 
         <CloneButton
-          disabled={!canClone}
+          disabled={!buttonStates.canClone}
           showCloningLabel={actionsForVm.includes('clone')}
           isCloning={isCloning}
           cloneName={cloneName}
@@ -288,7 +423,7 @@ const ActionButtons = ({
         />
 
         <RemoveButton
-          disabled={!canRemove}
+          disabled={!buttonStates.canRemove}
           onConfirm={handleRemove}
           showConfirm={showRemoveConfirm}
           setShowConfirm={setShowRemoveConfirm}
@@ -296,32 +431,92 @@ const ActionButtons = ({
 
         </div>
 
-        {/* Operation loader effect */}
-        {(activeOperation || isSuspending) && (
+        {/* Clean futuristic loader effect */}
+        {(activeOperations.size > 0 || isSuspending || actionsForVm.includes('reboot')) && (
           <div
             aria-live="polite"
             style={{
               width: '100%',
-              height: '6px',
+              height: '8px',
               marginTop: 0,
-              borderRadius: '9999px',
-              background: 'rgba(255,255,255,0.25)',
+              borderRadius: '12px',
               overflow: 'hidden',
               position: 'relative',
+              background: 'linear-gradient(90deg, rgba(15,23,42,0.8), rgba(30,41,59,0.9), rgba(15,23,42,0.8))',
+              backdropFilter: 'blur(4px)',
             }}
           >
+            {/* Primary energy beam */}
             <div
               style={{
                 position: 'absolute',
                 left: 0,
                 top: 0,
                 height: '100%',
-                width: '30%',
-                background: 'rgba(255,255,255,0.9)',
-                borderRadius: '9999px',
-                animation: 'abtn_bar_sweep 1200ms ease-in-out infinite',
+                width: '50%',
+                background: `
+                  linear-gradient(90deg, 
+                    transparent 0%,
+                    rgba(0, 247, 255, 0.2) 10%,
+                    rgba(0, 247, 255, 0.8) 30%,
+                    rgba(59, 130, 246, 1) 50%,
+                    rgba(147, 51, 234, 1) 70%,
+                    rgba(236, 72, 153, 0.8) 90%,
+                    transparent 100%
+                  )
+                `,
+                borderRadius: '12px',
+                animation: 'abtn_bar_sweep 2.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite',
+                boxShadow: `
+                  0 0 20px rgba(0, 247, 255, 0.6),
+                  0 0 40px rgba(147, 51, 234, 0.4),
+                  0 0 60px rgba(236, 72, 153, 0.2)
+                `,
               }}
             />
+            
+            {/* Secondary plasma trail */}
+            <div
+              style={{
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                height: '100%',
+                width: '25%',
+                background: `
+                  linear-gradient(90deg, 
+                    transparent 0%,
+                    rgba(255, 255, 255, 0.4) 20%,
+                    rgba(255, 255, 255, 0.9) 50%,
+                    rgba(255, 255, 255, 0.4) 80%,
+                    transparent 100%
+                  )
+                `,
+                borderRadius: '12px',
+                animation: 'abtn_bar_sweep 2.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite 300ms',
+                filter: 'blur(0.5px)',
+                opacity: 0.8,
+              }}
+            />
+            
+            {/* Particle effects */}
+            {[...Array(5)].map((_, i) => (
+              <div
+                key={i}
+                style={{
+                  position: 'absolute',
+                  left: `${15 + i * 20}%`,
+                  top: '50%',
+                  width: '2px',
+                  height: '2px',
+                  background: 'rgba(0, 247, 255, 0.8)',
+                  borderRadius: '50%',
+                  transform: 'translateY(-50%)',
+                  animation: `abtn_particle_float 1.5s ease-in-out infinite ${i * 0.3}s`,
+                  boxShadow: '0 0 4px rgba(0, 247, 255, 0.8)',
+                }}
+              />
+            ))}
           </div>
         )}
       </div>

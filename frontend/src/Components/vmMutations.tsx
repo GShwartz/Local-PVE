@@ -137,6 +137,7 @@ export const useVMMutation = (
 
     onMutate: (vars) => {
       const { vmid, action } = vars;
+      console.log('🏁 onMutate: Adding', action, 'to pendingActions for VM', vmid);
       setPendingActions(prev => ({
         ...prev,
         [vmid]: [...(prev[vmid] || []), action],
@@ -145,12 +146,17 @@ export const useVMMutation = (
 
     onSuccess: (upid, vars) => {
       const { vmid, action, name, cpus, ram } = vars;
+      console.log('🏃 onSuccess: Starting polling for', action, 'on VM', vmid, 'with upid', upid);
+      
       const pollTask = async () => {
         try {
           const { data: status } = await axios.get<TaskStatus>(
             `${API_BASE}/task/${node}/${upid}`,
             { params: { csrf_token: auth.csrf_token, ticket: auth.ticket } }
           );
+          
+          console.log('📊 Poll result for VM', vmid, action, ':', status);
+          
           if (status.status === 'stopped') {
             if (status.exitstatus !== 'OK') {
               // Always show failures
@@ -170,15 +176,31 @@ export const useVMMutation = (
             // ✅ Always refresh VM list after any action
             queryClient.invalidateQueries(['vms']);
 
-            setPendingActions(prev => ({
-              ...prev,
-              [vmid]: (prev[vmid] || []).filter(a => a !== action),
-            }));
+            // 🔧 SPECIAL HANDLING FOR REBOOT: Keep it in pendingActions for 15 seconds
+            if (action === 'reboot' && status.exitstatus === 'OK') {
+              console.log('⏰ Reboot completed, keeping in pendingActions for 15 seconds for VM', vmid);
+              // Don't remove reboot immediately - wait 15 seconds for UI stability
+              setTimeout(() => {
+                console.log('🧹 Removing reboot from pendingActions after 15s delay for VM', vmid);
+                setPendingActions(prev => ({
+                  ...prev,
+                  [vmid]: (prev[vmid] || []).filter(a => a !== action),
+                }));
+              }, 15000);
+            } else {
+              // For all other actions, remove immediately as before
+              console.log('🧹 Immediately removing', action, 'from pendingActions for VM', vmid);
+              setPendingActions(prev => ({
+                ...prev,
+                [vmid]: (prev[vmid] || []).filter(a => a !== action),
+              }));
+            }
           } else {
             setTimeout(pollTask, 1000);
           }
         } catch {
           addAlert(`Polling task for VM ${vmid} ${action} failed`, 'error');
+          console.log('❌ Polling failed, removing', action, 'from pendingActions for VM', vmid);
           setPendingActions(prev => ({
             ...prev,
             [vmid]: (prev[vmid] || []).filter(a => a !== action),
@@ -193,6 +215,7 @@ export const useVMMutation = (
       const msg = error?.response?.data?.detail || error.message;
       // Keep error alerts – users need to see failures regardless of who owns success
       addAlert(`VM ${name || ''} (${vmid}) ${action} error: ${msg}`, 'error');
+      console.log('❌ onError: Removing', action, 'from pendingActions for VM', vmid);
       setPendingActions(prev => ({
         ...prev,
         [vmid]: (prev[vmid] || []).filter(a => a !== action),
