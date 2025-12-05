@@ -1,20 +1,16 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Navbar from './src/Components/Layout/Navbar';
 import Footer from './src/Components/Layout/Footer';
 import MachinesTable from './src/Components/TableComponents/MachinesTable';
 import LoginError from './src/Components/LoginError';
-import Loading from './src/Components/Loading';
+import Login from './src/Components/Login';
 import CreateVMModal from './src/Components/Layout/CreateVMModal';
 import Alerts, { Alert } from './src/Components/Alerts';
 import { Auth, VM } from './src/types';
 
 // Define types for API responses and state
-interface Credentials {
-  username: string;
-  password: string;
-}
 
 const API_BASE = 'http://localhost:8000'; // Backend URL (env var in prod)
 const NODE = 'pve'; // Fixed node name
@@ -25,7 +21,6 @@ const fetchVMs = async ({ node, csrf, ticket }: { node: string; csrf: string; ti
 };
 
 function App() {
-  const credentials: Credentials = { username: 'app@pve', password: 'Pass12344321!!' }; // Replace with actual credentials
   const [auth, setAuth] = useState<Auth | null>(null);
   const [loginError, setLoginError] = useState<string | null>(null);
   const queryClient = useQueryClient();
@@ -53,26 +48,6 @@ function App() {
     addAlert(`Opening console for VM ${vmid}`, 'info');
   };
 
-  const loginMutation = useMutation({
-    mutationFn: async (): Promise<Auth> => {
-      const { data } = await axios.post<Auth>(`${API_BASE}/login`, credentials);
-      setAuth(data);
-      return data;
-    },
-    onError: (error: any) => {
-      const errorMessage = error?.response?.data?.detail || 'Invalid credentials or server error. Check backend logs.';
-      console.error('Login failed:', errorMessage);
-      setLoginError(errorMessage);
-    },
-    retry: 0,
-  });
-
-  useEffect(() => {
-    if (!auth && !loginMutation.isPending && !loginError) {
-      loginMutation.mutate();
-    }
-  }, [auth, loginMutation, loginError]);
-
   const { data: vms, error: vmsError, isLoading } = useQuery({
     queryKey: ['vms', NODE, auth?.csrf_token, auth?.ticket],
     queryFn: () => fetchVMs({ node: NODE, csrf: auth?.csrf_token || '', ticket: auth?.ticket || '' }),
@@ -86,42 +61,62 @@ function App() {
   }, [vms]);
 
   if (loginError) {
-    return <LoginError error={loginError} onRetry={() => { setLoginError(null); loginMutation.mutate(); }} />;
+    return <LoginError error={loginError} onRetry={() => setLoginError(null)} />;
   }
 
   if (!auth) {
-    return <Loading />;
+    return <Login onLoginSuccess={setAuth} />;
   }
 
   return (
     <>
-      <Navbar
-        onCreateClick={() => setIsCreateModalOpen(true)}
-        alertHistory={alertHistory}
-      />
-      <div className="flex flex-1">
-        <div className="flex-1 flex flex-col">
-          <Alerts alerts={alerts} dismissAlert={dismissAlert} />
-          <main className="flex-1 p-8 overflow-y-auto">
-            <div className="w-full">
-              {vmsError && <p className="text-red-500 mb-4 text-center">Error fetching machines: {vmsError.message}</p>}
-              {isLoading && <p className="mb-4 text-gray-400 text-center">Loading...</p>}
-              {!isLoading && !vms?.length && <p className="mb-4 text-gray-400 text-center">No machines available.</p>}
-              {vms && vms.length > 0 && (
-                <MachinesTable 
-                  vms={vms} 
-                  auth={auth} 
-                  queryClient={queryClient} 
-                  node={NODE} 
-                  addAlert={addAlert} 
-                  openConsole={openConsole}
-                />
-              )}
-            </div>
-          </main>
+      {/* Global Background Ambience */}
+      <div className="fixed inset-0 bg-gray-900 -z-20" />
+      <div className="fixed top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-blue-600/20 blur-[120px] pointer-events-none -z-10" />
+      <div className="fixed bottom-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full bg-purple-600/20 blur-[120px] pointer-events-none -z-10" />
+
+      <div className="flex flex-col min-h-screen">
+        <Navbar
+          onCreateClick={() => setIsCreateModalOpen(true)}
+          onLogout={() => setAuth(null)}
+          alertHistory={alertHistory}
+        />
+
+        <div className="flex flex-1 relative z-10">
+          <div className="flex-1 flex flex-col">
+            <Alerts alerts={alerts} dismissAlert={dismissAlert} />
+            <main className="flex-1 p-4 sm:p-8 overflow-y-auto w-full">
+              <div className="w-full">
+                {vmsError && <p className="text-red-400 mb-4 text-center bg-red-900/20 p-4 rounded-lg border border-red-500/20">Error fetching machines: {vmsError.message}</p>}
+                {isLoading && (
+                  <div className="flex justify-center items-center py-20">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+                  </div>
+                )}
+                {!isLoading && !vms?.length && (
+                  <p className="mb-4 text-gray-400 text-center py-20 bg-gray-800/40 rounded-xl border border-white/5">
+                    No machines available. Create one to get started.
+                  </p>
+                )}
+                {vms && vms.length > 0 && (
+                  <div className="animate-fade-in-up">
+                    <MachinesTable
+                      vms={vms!}
+                      auth={auth!}
+                      queryClient={queryClient}
+                      node={NODE}
+                      addAlert={addAlert}
+                      openConsole={openConsole}
+                    />
+                  </div>
+                )}
+              </div>
+            </main>
+          </div>
         </div>
+        <Footer />
       </div>
-      <Footer />
+
       <CreateVMModal
         isOpen={isCreateModalOpen}
         closeModal={() => setIsCreateModalOpen(false)}

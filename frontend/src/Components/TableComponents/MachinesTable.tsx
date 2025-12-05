@@ -117,12 +117,13 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: 
 
   return (
     <>
-      <div className="overflow-x-auto mb-10">
+      <div className="overflow-x-auto mb-10 glass-panel rounded-xl border border-white/10 shadow-2xl backdrop-blur-md">
         <div className="min-w-[640px] sm:min-w-full">
           <table className="w-full text-xs sm:text-sm text-gray-200 border-collapse">
             <TableHeader
               sortConfig={sortConfig}
               handleSort={handleSort}
+              isSticky={expandedRows.size === 0}
             />
             <tbody>
               {sortedVms.map((vm, idx) => {
