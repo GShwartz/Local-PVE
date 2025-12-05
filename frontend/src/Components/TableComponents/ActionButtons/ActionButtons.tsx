@@ -113,30 +113,11 @@ const ActionButtons = ({
     };
   }, []);
 
-  // Simplified operation completion detection
-  useLayoutEffect(() => {
-    const completedOperations = new Set<string>();
-    
-    activeOperations.forEach(operation => {
-      const currentStatus = vm.status?.toLowerCase() || '';
-      
-      if (
-        (operation === 'start' && currentStatus === 'running') ||
-        (operation === 'stop' && currentStatus === 'stopped') ||
-        (operation === 'shutdown' && currentStatus === 'stopped')
-      ) {
-        completedOperations.add(operation);
-      }
-    });
-    
-    if (completedOperations.size > 0) {
-      setActiveOperations(prev => {
-        const next = new Set(prev);
-        completedOperations.forEach(op => next.delete(op));
-        return next;
-      });
-    }
-  }, [vm.status, activeOperations]);
+  const actionsForVm = pendingActions[vm.vmid] || [];
+  const hasPendingActions = actionsForVm.length > 0;
+  const isCreatingSnapshot = actionsForVm.some((a) => a.startsWith('create-'));
+  const isClonePending = actionsForVm.includes('clone');
+  const showCloningLabel = isCloningInProgress || isClonePending;
 
   // Clone operation tracking
   useEffect(() => {
@@ -160,33 +141,34 @@ const ActionButtons = ({
     }
   }, [activeOperations, initialVmCount, queryClient.getQueryData(['vms'])]);
 
-  // Fallback timers to prevent stuck operations
-  useEffect(() => {
-    const timers: NodeJS.Timeout[] = [];
-    
-    activeOperations.forEach(operation => {
-      if (operation !== 'remove') {
-        const timer = setTimeout(() => {
-          setActiveOperations(prev => {
-            const next = new Set(prev);
-            next.delete(operation);
-            return next;
-          });
-          refreshVMs();
-        }, 30000); // 30 seconds fallback
-        
-        timers.push(timer);
-      }
-    });
-    
-    return () => timers.forEach(clearTimeout);
-  }, [activeOperations, refreshVMs]);
+  // Global disable for most buttons
+  const disableAll =
+    hasPendingActions ||
+    isStarting ||
+    isHalting ||
+    isCloningInProgress ||
+    isRemoving ||
+    isApplying ||
+    isSuspending;
 
-  // Simple status logic
-  const status = vm.status?.toLowerCase() || '';
-  const isRunning = status === 'running';
-  const isStopped = status === 'stopped';
-  const isPaused = status === 'paused' || status === 'suspended';
+  // ✅ Stop should ignore harmless "resume/suspend" pending and only disable for blocking stuff
+  const hasBlockingPendingForStop = actionsForVm.some(
+    (a) => a !== 'resume' && a !== 'suspend'
+  );
+  const disableStop =
+    hasBlockingPendingForStop ||
+    isStarting ||
+    isHalting ||
+    isCloningInProgress ||
+    isRemoving ||
+    isApplying ||
+    isSuspending; // still disable if a resume/suspend is actively in progress
+
+  const disableConsole =
+    isSuspended ||
+    (!isRebooting &&
+      !isStarting &&
+      (isCreatingSnapshot || isHalting || hasPendingActions || isSuspending));
 
   // Suspend hints tracking
   const [suspendHints, setSuspendHints] = useState<{ resumeShowing: boolean; resumeEnabled: boolean }>({
@@ -370,8 +352,11 @@ const ActionButtons = ({
         />
 
         <StopButton
-          disabled={!buttonStates.canStop || activeOperations.has('stop')}
-          onClick={handleStop}
+          vm={vm}
+          disabled={disableStop}
+          setIsHalting={setIsHalting}
+          vmMutation={vmMutation}
+          addAlert={addAlert}
         />
 
         <ShutdownButton
@@ -391,8 +376,8 @@ const ActionButtons = ({
           vmMutation={vmMutation}
           addAlert={addAlert}
           refreshVMs={refreshVMs}
-          disabled={!buttonStates.canSuspendResume}
-          isPending={actionsForVm.includes('suspend') || actionsForVm.includes('resume')}
+          disabled={disableAll}
+          isPending={actionsForVm.some((a) => a === 'suspend' || a === 'resume')}
           setSuspending={setIsSuspending}
           onHintsChange={(hints) => {
             setSuspendHints(hints);

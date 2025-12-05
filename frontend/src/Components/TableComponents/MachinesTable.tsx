@@ -31,6 +31,8 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: 
 
   const LOADER_MIN_DURATION = 5000;
 
+  const LOADER_MIN_DURATION = 5000;
+
   const toggleRow = (vmid: number): void => {
     const newExpanded = new Set(expandedRows);
     const newSnapshotView = new Set(snapshotView);
@@ -123,6 +125,8 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: 
             <TableHeader
               sortConfig={sortConfig}
               handleSort={handleSort}
+              isApplying={isApplying}
+              loaderMinDuration={LOADER_MIN_DURATION}
             />
             <tbody>
               {sortedVms.map((vm, idx) => {
@@ -150,6 +154,7 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: 
                     addAlert={addAlert}
                     openConsole={openConsole}
                     refreshVMs={refreshVMs}
+                    isApplying={isApplying}
                     loaderMinDuration={LOADER_MIN_DURATION}
                   />
                 );

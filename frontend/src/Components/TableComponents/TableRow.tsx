@@ -35,6 +35,7 @@ interface TableRowProps {
   refreshVMs: () => void;
   openConsole: (vmid: number) => void;
   hasRowAboveExpanded: boolean;
+  isApplying: boolean;
   loaderMinDuration: number;
 }
 
@@ -73,6 +74,7 @@ const TableRow = ({
   cancelEdit,
   addAlert,
   refreshVMs,
+  isApplying,
   loaderMinDuration,
 }: TableRowProps) => {
   const queryClient = useQueryClient();
@@ -272,7 +274,7 @@ const TableRow = ({
           addAlert={addAlert}
           refreshVMs={refreshVMs}
           queryClient={queryClient}
-          isApplying={isApplying} // Pass the local applying state
+          isApplying={isApplyingOrCooldown}
           onResumeHintsChange={setResumeHints}
           onRebootingHintChange={setRebootingHint}
           onStoppingHintChange={setStoppingHint}

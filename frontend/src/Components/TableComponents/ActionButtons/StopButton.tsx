@@ -20,14 +20,15 @@ const StopButton = ({
     onClick(e);
   };
 
-  // Reset when VM actually stops
-  useEffect(() => {
-    if (wasClicked && vmStatus?.toLowerCase() === 'stopped') {
-      setWasClicked(false);
-    }
-  }, [vmStatus, wasClicked]);
+  const normalizedStatus = (vm.status || '').trim().toLowerCase();
+  // Allow Stop when VM is running OR paused/hibernate/suspended (when Resume would show)
+  const canStop =
+    normalizedStatus === 'running' ||
+    normalizedStatus === 'paused' ||
+    normalizedStatus === 'hibernate' ||
+    normalizedStatus === 'suspended';
 
-  const isDisabled = disabled || wasClicked;
+  const isInactive = disabled || !canStop;
 
   return (
     <ActionButton
