@@ -8,6 +8,7 @@ interface NetworkingListProps {
   onEdit: (nic: NetworkInterface) => void;
   onCopyMac: (mac: string) => void;
   vmStatus: string;
+  ipAddress?: string;
 }
 
 const NetworkingList = ({
@@ -15,7 +16,8 @@ const NetworkingList = ({
   onRemove,
   onEdit,
   onCopyMac,
-  vmStatus
+  vmStatus,
+  ipAddress
 }: NetworkingListProps) => (
   <div className={styles.column}>
     <div className="max-h-64 overflow-y-auto">
@@ -28,6 +30,7 @@ const NetworkingList = ({
             onEdit={onEdit}
             onCopyMac={onCopyMac}
             vmStatus={vmStatus}
+            ipAddress={net.name === 'net0' ? ipAddress : undefined}
           />
         ))}
       </ul>

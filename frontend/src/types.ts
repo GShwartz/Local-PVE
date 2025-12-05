@@ -18,6 +18,11 @@ export interface VM {
   hdd_free: string;
   config?: Record<string, string>;
   node: string;
+  net0_mac?: string;
+  net0_ip?: string;
+  net0_bridge?: string;
+  net0_model?: string;
+  net0_firewall?: boolean;
 }
 
 export interface Snapshot {

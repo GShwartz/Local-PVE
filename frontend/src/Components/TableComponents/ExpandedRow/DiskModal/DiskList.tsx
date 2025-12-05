@@ -1,5 +1,6 @@
 import DiskListItem from './DiskListItem';
 import { VM } from '../../../../types';
+import styles from '../../../../CSS/ExpandedArea.module.css';
 
 interface DiskListProps {
   config: VM['config'] | null;
@@ -45,7 +46,7 @@ const DiskList = ({
     });
 
   return (
-    <ul className="my-4 space-y-3 max-h-64 overflow-y-auto">
+    <ul className={styles.listContainer}>
       {diskEntries.map(([key, value], index) => (
         <DiskListItem
           key={index}

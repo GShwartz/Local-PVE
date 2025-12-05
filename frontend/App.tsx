@@ -62,6 +62,7 @@ function App() {
     queryKey: ['vms', NODE, auth?.csrf_token, auth?.ticket],
     queryFn: () => fetchVMs({ node: NODE, csrf: auth?.csrf_token || '', ticket: auth?.ticket || '' }),
     enabled: !!auth,
+    refetchInterval: 2000,
   });
 
   useEffect(() => {

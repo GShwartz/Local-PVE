@@ -1,8 +1,8 @@
 import { UseMutationResult } from '@tanstack/react-query';
 import { VM, Snapshot } from '../../../../types';
 import { useState } from 'react';
-import styles from '../../../../CSS/Loader.module.css';
-import buttonStyles from '../../../../CSS/ExpandedArea.module.css';
+import loaderStyles from '../../../../CSS/Loader.module.css';
+import styles from '../../../../CSS/ExpandedArea.module.css';
 
 interface SnapshotsViewProps {
   vm: VM;
@@ -36,15 +36,14 @@ const Popconfirm: React.FC<PopconfirmProps> = ({ isOpen, onConfirm, onCancel, me
             <div className="flex justify-end space-x-2">
               <button
                 onClick={onCancel}
-                className={`${buttonStyles.button} ${buttonStyles['button-disabled']}`}
+                className={`${styles.button} ${styles['button-disabled']}`}
               >
                 Cancel
               </button>
               <button
                 onClick={onConfirm}
-                className={`${buttonStyles.button} ${
-                  action === 'revert' ? buttonStyles['button-purple'] : buttonStyles['button-red']
-                }`}
+                className={`${styles.button} ${action === 'revert' ? styles['button-purple'] : styles['button-red']
+                  }`}
               >
                 {action === 'revert' ? 'Revert' : 'Remove'}
               </button>
@@ -98,54 +97,55 @@ const SnapshotsView = ({
   };
 
   return (
-    <>
+    <div className="w-full flex-1 min-h-[300px] max-h-[600px] overflow-y-auto p-4 bg-white border border-gray-200 rounded-lg shadow-sm sm:p-6 dark:bg-gray-800 dark:border-gray-700">
       {snapshotsLoading && <p className="sr-only">Loading snapshots...</p>}
       {snapshotsError && <p className="text-red-500">Error loading snapshots: {snapshotsError.message}</p>}
 
-      <div className="w-full flex-1 min-h-[300px] p-4 bg-white border border-gray-200 rounded-lg shadow-sm sm:p-6 dark:bg-gray-800 dark:border-gray-700">
-        <div className="flex items-center justify-between mb-3 gap-2">
-          <h5 className="text-base font-semibold text-gray-900 md:text-xl dark:text-white">
-            Snapshots
-          </h5>
+      <div className={styles.cardHeader}>
+        <div className="flex items-center gap-2">
+          <h5 className={styles.cardTitle}>Snapshots</h5>
           {(isCreatingSnapshot || isRevertingSnapshot) && (
-            <div className={`${styles.loader}`} aria-label="Snapshot action in progress">
+            <div className={loaderStyles.loader} aria-label="Snapshot action in progress">
               {[...Array(5)].map((_, i) => (
-                <div key={i} className={styles.circle}>
-                  <div className={styles.dot}></div>
-                  <div className={styles.outline}></div>
+                <div key={i} className={loaderStyles.circle}>
+                  <div className={loaderStyles.dot}></div>
+                  <div className={loaderStyles.outline}></div>
                 </div>
               ))}
             </div>
           )}
-          <button
-            onClick={() => openModal(vm.vmid)}
-            disabled={isCreatingSnapshot || isRevertingSnapshot || isAddingDisk}
-            className={`${buttonStyles.button} ${
-              isCreatingSnapshot || isRevertingSnapshot || isAddingDisk
-                ? buttonStyles['button-disabled']
-                : buttonStyles['button-blue']
-            }`}
-          >
-            Take Snapshot
-          </button>
         </div>
+        <button
+          onClick={() => openModal(vm.vmid)}
+          disabled={isCreatingSnapshot || isRevertingSnapshot || isAddingDisk}
+          className={`${styles.button} ${isCreatingSnapshot || isRevertingSnapshot || isAddingDisk
+            ? styles['button-disabled']
+            : styles['button-blue']
+            }`}
+        >
+          <span className="text-lg">+</span> Take Snapshot
+        </button>
+      </div>
 
-        {snapshots && snapshots.length === 0 ? (
-          <p>No snapshots available.</p>
-        ) : (
-          <div className="max-h-52 overflow-y-auto">
-            <ul className="my-4 space-y-3">
+      {snapshots && snapshots.length === 0 ? (
+        <div className="flex items-center justify-center p-8 text-gray-500 text-sm italic border border-dashed border-white/10 rounded-lg">
+          No snapshots available
+        </div>
+      ) : (
+        <div className={styles.column}>
+          <div className={styles.listContainer}>
+            <ul className="space-y-2">
               {snapshots?.map((snapshot) => (
-                <li key={snapshot.name}>
-                  <div className="flex items-center p-3 text-base font-bold text-gray-900 rounded-lg bg-gray-700 hover:bg-gray-600 group hover:shadow dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-white">
-                    <span className="flex-1 text-left whitespace-nowrap">
-                      {snapshot.name}
+                <li key={snapshot.name} className={styles.listItem}>
+                  <div className="flex justify-between items-start">
+                    <div className="flex flex-col text-left">
+                      <span className="font-medium text-gray-200">{snapshot.name}</span>
                       {snapshot.snaptime && (
-                        <span className="block text-sm font-normal text-gray-500 dark:text-gray-400">
-                          Created: {new Date(snapshot.snaptime * 1000).toLocaleString()}
+                        <span className="text-xs text-gray-400 mt-0.5">
+                          {new Date(snapshot.snaptime * 1000).toLocaleString()}
                         </span>
                       )}
-                    </span>
+                    </div>
                     <div className="flex space-x-2">
                       <button
                         onClick={(e) => {
@@ -157,13 +157,12 @@ const SnapshotsView = ({
                           isCreatingSnapshot ||
                           pendingActions[vm.vmid]?.includes(`delete-${snapshot.name}`)
                         }
-                        className={`${buttonStyles.button} ${
-                          isRevertingSnapshot ||
+                        className={`${styles.button} ${isRevertingSnapshot ||
                           isCreatingSnapshot ||
                           pendingActions[vm.vmid]?.includes(`delete-${snapshot.name}`)
-                            ? buttonStyles['button-disabled']
-                            : buttonStyles['button-purple']
-                        }`}
+                          ? styles['button-disabled']
+                          : styles['button-purple']
+                          }`}
                       >
                         Revert
                       </button>
@@ -177,24 +176,28 @@ const SnapshotsView = ({
                           isCreatingSnapshot ||
                           pendingActions[vm.vmid]?.includes(`revert-${snapshot.name}`)
                         }
-                        className={`${buttonStyles.button} ${
-                          pendingActions[vm.vmid]?.includes(`delete-${snapshot.name}`) ||
+                        className={`${styles.button} ${pendingActions[vm.vmid]?.includes(`delete-${snapshot.name}`) ||
                           isCreatingSnapshot ||
                           pendingActions[vm.vmid]?.includes(`revert-${snapshot.name}`)
-                            ? buttonStyles['button-disabled']
-                            : buttonStyles['button-red']
-                        }`}
+                          ? styles['button-disabled']
+                          : styles['button-red']
+                          }`}
                       >
                         Remove
                       </button>
                     </div>
                   </div>
+                  {snapshot.description && (
+                    <span className="text-xs text-gray-500 line-clamp-2 mt-2 border-t border-white/5 pt-2">
+                      {snapshot.description}
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       <Popconfirm
         isOpen={popconfirm.isOpen}
@@ -207,7 +210,7 @@ const SnapshotsView = ({
         }
         action={popconfirm.action}
       />
-    </>
+    </div>
   );
 };
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { VM, VMConfigResponse, ProxmoxVMConfig } from '../../../../types';
+import styles from '../../../../CSS/ExpandedArea.module.css';
 import NetworkingHeader from './NetworkingHeader';
 import NetworkingList from './NetworkingList';
 import NetworkingModal, { NetworkingFormData } from './NetworkingModal';
@@ -178,7 +179,6 @@ const NetworkingView = ({ vm, node, auth, addAlert, refreshVMs }: NetworkingView
       addAlert(`Failed to remove NIC ${nicName}: ${msg}`, 'error');
     }
   };
-
   const handleEditNIC = (nic: NetworkInterface) => {
     setEditNIC(nic);
     setIsModalOpen(true);
@@ -192,12 +192,15 @@ const NetworkingView = ({ vm, node, auth, addAlert, refreshVMs }: NetworkingView
 
   return (
     <div className="w-full flex-1 min-h-[300px] max-h-[600px] overflow-y-auto p-4 bg-white border border-gray-200 rounded-lg shadow-sm sm:p-6 dark:bg-gray-800 dark:border-gray-700">
-      <NetworkingHeader
-        loading={loading}
-        onRefresh={handleRefreshClick}
-        onAddNIC={handleAddNIC}
-        vmStatus={vm.status}
-      />
+      <div className={styles.cardHeader}>
+        <h5 className={styles.cardTitle}>Networking</h5>
+        <NetworkingHeader
+          loading={loading}
+          onRefresh={handleRefreshClick}
+          onAddNIC={handleAddNIC}
+          vmStatus={vm.status}
+        />
+      </div>
 
       {loading && <p className="text-sm text-gray-500">Loading networking...</p>}
       {error && <p className="text-sm text-red-500">{error}</p>}
@@ -211,6 +214,7 @@ const NetworkingView = ({ vm, node, auth, addAlert, refreshVMs }: NetworkingView
           onEdit={handleEditNIC}
           onCopyMac={handleCopyMac}
           vmStatus={vm.status}
+          ipAddress={vm.ip_address}
         />
       )}
 

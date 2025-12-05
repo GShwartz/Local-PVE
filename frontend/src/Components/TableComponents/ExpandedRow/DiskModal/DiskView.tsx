@@ -39,9 +39,9 @@ const DisksView = ({
   const closeModal = () => setIsModalOpen(false);
 
   return (
-    <div className="w-full flex-1 min-h-[300px] p-4 bg-white border border-gray-200 rounded-lg shadow-sm sm:p-6 dark:bg-gray-800 dark:border-gray-700">
-      <div className="flex items-center justify-between mb-7 gap-5">
-        <h5 className="text-base font-semibold text-gray-900 md:text-xl dark:text-white whitespace-nowrap">
+    <div className="w-full flex-1 min-h-[300px] max-h-[600px] overflow-y-auto p-4 bg-white border border-gray-200 rounded-lg shadow-sm sm:p-6 dark:bg-gray-800 dark:border-gray-700">
+      <div className={styles.cardHeader}>
+        <h5 className={styles.cardTitle}>
           Disks
         </h5>
         <div className="flex-grow flex justify-center">
@@ -50,17 +50,16 @@ const DisksView = ({
         <button
           onClick={openModal}
           disabled={isAddingDisk || deletingDiskKey !== null}
-          className={`${styles.button} ${
-            isAddingDisk || deletingDiskKey
+          className={`${styles.button} ${isAddingDisk || deletingDiskKey
               ? styles['button-disabled']
               : styles['button-blue']
-          }`}
+            }`}
         >
-          {isAddingDisk
+          <span className="text-lg">+</span> {isAddingDisk
             ? 'Adding...'
             : deletingDiskKey !== null
-            ? 'Removing...'
-            : 'Add Disk'}
+              ? 'Removing...'
+              : 'Add Disk'}
         </button>
       </div>
 
@@ -90,7 +89,7 @@ const DisksView = ({
         setIsAddingDisk={setIsAddingDisk}
         refreshConfig={refreshConfig}
       />
-    </div>
+    </div >
   );
 };
 
