@@ -488,7 +488,7 @@ const CreateVMModal = ({ isOpen, closeModal, auth, node, queryClient, addAlert }
                 >
                   {source || 'Source'}
                   <svg className="w-2.5 h-2.5 ms-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 10 6">
-                    <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m1 1 4 4 4-4"/>
+                    <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m1 1 4 4 4-4" />
                   </svg>
                 </button>
                 <div
@@ -543,11 +543,10 @@ const CreateVMModal = ({ isOpen, closeModal, auth, node, queryClient, addAlert }
                 id="vm-name"
                 value={vmName}
                 onChange={handleNameChange}
-                className={`text-sm rounded-lg block w-full p-2.5 dark:bg-gray-700 ${
-                  nameError
-                    ? 'bg-red-50 border border-red-500 text-red-900 placeholder-red-700 focus:ring-red-500 focus:border-red-500 dark:text-red-500 dark:placeholder-red-500 dark:border-red-500'
-                    : 'bg-green-50 border border-green-500 text-green-900 dark:text-green-400 placeholder-green-700 dark:placeholder-green-500 focus:ring-green-500 focus:border-green-500 dark:border-green-500'
-                }`}
+                className={`text-sm rounded-lg block w-full p-2.5 dark:bg-gray-700 ${nameError
+                  ? 'bg-red-50 border border-red-500 text-red-900 placeholder-red-700 focus:ring-red-500 focus:border-red-500 dark:text-red-500 dark:placeholder-red-500 dark:border-red-500'
+                  : 'bg-green-50 border border-green-500 text-green-900 dark:text-green-400 placeholder-green-700 dark:placeholder-green-500 focus:ring-green-500 focus:border-green-500 dark:border-green-500'
+                  }`}
                 placeholder="Enter VM name"
                 required
               />
