@@ -78,6 +78,7 @@ function App() {
       <div className="flex flex-col min-h-screen">
         <Navbar
           onCreateClick={() => setIsCreateModalOpen(true)}
+          onLogout={() => setAuth(null)}
           alertHistory={alertHistory}
         />
 

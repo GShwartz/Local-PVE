@@ -1,8 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
+import { FiPlus, FiBell, FiLogOut } from 'react-icons/fi';
 import { Alert } from '../Alerts';
 import styles from '../../CSS/Navbar.module.css';
 
-const Navbar = ({ onCreateClick, alertHistory }: { onCreateClick: () => void; alertHistory: Alert[] }) => {
+interface NavbarProps {
+  onCreateClick: () => void;
+  onLogout: () => void;
+  alertHistory: Alert[];
+}
+
+const Navbar = ({ onCreateClick, onLogout, alertHistory }: NavbarProps) => {
   const [showHistory, setShowHistory] = useState(false);
   const [order, setOrder] = useState<'newToOld' | 'oldToNew'>('newToOld');
   const [alerts, setAlerts] = useState(alertHistory);
@@ -10,6 +17,8 @@ const Navbar = ({ onCreateClick, alertHistory }: { onCreateClick: () => void; al
   const buttonRef = useRef<HTMLButtonElement>(null);
   const historyRef = useRef<HTMLDivElement>(null);
   const popconfirmRef = useRef<HTMLDivElement>(null);
+
+  // ... (rest of logic unchanged until return)
 
   // Track if history was cleared to prevent prop updates
   const [isHistoryCleared, setIsHistoryCleared] = useState(false);
@@ -73,22 +82,40 @@ const Navbar = ({ onCreateClick, alertHistory }: { onCreateClick: () => void; al
     setIsHistoryCleared(true);
   };
 
+  const unreadCount = alerts.length;
+
   return (
     <nav className={styles.navbar}>
       <div className={styles['navbar-container']}>
         <div className={styles['navbar-left']}>
           <span className={styles['navbar-title']}>Local-PVE</span>
-          <button onClick={onCreateClick} className={styles['create-vm-button']}>Create VM</button>
+          <button onClick={onCreateClick} className={styles['create-vm-button']}>
+            <FiPlus className="text-lg" />
+            <span>Create VM</span>
+          </button>
         </div>
         <div className={styles['navbar-right']}>
           <button
             ref={buttonRef}
             onClick={() => setShowHistory((prev) => !prev)}
-            className={styles['notifications-button']}
+            className={`${styles['notifications-button']} ${unreadCount > 0 ? 'text-white' : ''}`}
           >
-            Notifications
+            <div className="relative">
+              <FiBell className="text-xl" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
+                </span>
+              )}
+            </div>
+            <span className="ml-2 hidden sm:inline">Notifications</span>
           </button>
-          <button className={styles['logout-button']}>Logout</button>
+
+          <button onClick={onLogout} className={styles['logout-button']}>
+            <FiLogOut className="text-lg" />
+            <span>Logout</span>
+          </button>
           {showHistory && (
             <div
               ref={historyRef}
