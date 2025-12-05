@@ -10,7 +10,7 @@
 }
 
 .navbar-container {
-  @apply w-full max-w-7xl mx-auto flex justify-between items-center px-4;
+  @apply w-full flex justify-between items-center px-4;
 }
 
 .navbar-left {

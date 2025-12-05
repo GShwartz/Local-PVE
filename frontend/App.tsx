@@ -31,12 +31,22 @@ function App() {
 
   const addAlert = (message: string, type: string): void => {
     const id: string = `${Date.now()}-${Math.random()}`;
-    const newAlert = { id, message, type };
+    const newAlert = { id, message, type, read: false, timestamp: Date.now() };
     setAlerts((prev) => [...prev, newAlert]);
     setAlertHistory((prev) => [...prev, newAlert]);
     setTimeout(() => {
       setAlerts((prev) => prev.filter((alert) => alert.id !== id));
     }, 5000);
+  };
+
+  const markAsRead = (id: string): void => {
+    setAlertHistory((prev) => prev.map(alert =>
+      alert.id === id ? { ...alert, read: true } : alert
+    ));
+  };
+
+  const markAllAsRead = (): void => {
+    setAlertHistory((prev) => prev.map(alert => ({ ...alert, read: true })));
   };
 
   const dismissAlert = (id: string): void => {
@@ -52,6 +62,7 @@ function App() {
     queryKey: ['vms', NODE, auth?.csrf_token, auth?.ticket],
     queryFn: () => fetchVMs({ node: NODE, csrf: auth?.csrf_token || '', ticket: auth?.ticket || '' }),
     enabled: !!auth,
+    refetchInterval: 2000,
   });
 
   useEffect(() => {
@@ -80,6 +91,8 @@ function App() {
           onCreateClick={() => setIsCreateModalOpen(true)}
           onLogout={() => setAuth(null)}
           alertHistory={alertHistory}
+          markAsRead={markAsRead}
+          markAllAsRead={markAllAsRead}
         />
 
         <div className="flex flex-1 relative z-10">

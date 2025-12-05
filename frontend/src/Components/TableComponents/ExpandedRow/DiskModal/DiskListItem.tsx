@@ -123,8 +123,8 @@ const DiskListItem = ({
   };
 
   return (
-    <li>
-      <div className="flex items-center justify-between p-3 text-sm font-normal text-gray-900 rounded-lg bg-gray-700 dark:bg-gray-700 dark:text-white relative">
+    <li className={styles.listItem}>
+      <div className={styles.listItemHeader}>
         <div className="flex items-center space-x-4">
           <span className="text-[16px] font-semibold">💾 {controllerLabel} {controllerNumber}</span>
           <span className="text-base font-medium text-gray-200">{size}</span>
@@ -169,9 +169,8 @@ const DiskListItem = ({
               <button
                 onClick={() => setPendingDiskKey(diskKey)}
                 disabled={disableRemove}
-                className={`${styles.button} ${
-                  disableRemove ? styles['button-disabled'] : styles['button-red']
-                }`}
+                className={`${styles.button} ${disableRemove ? styles['button-disabled'] : styles['button-red']
+                  }`}
               >
                 Remove
               </button>

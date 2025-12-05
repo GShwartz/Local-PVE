@@ -52,7 +52,7 @@ const ActionButtons = ({
 }: ActionButtonsProps) => {
   // Simplified state management
   const [activeOperations, setActiveOperations] = useState<Set<string>>(new Set());
-  
+
   // UI-specific states
   const [isCloning, setIsCloning] = useState(false);
   const [cloneName, setCloneName] = useState(vm.name);
@@ -116,10 +116,10 @@ const ActionButtons = ({
   // Simplified operation completion detection
   useLayoutEffect(() => {
     const completedOperations = new Set<string>();
-    
+
     activeOperations.forEach(operation => {
       const currentStatus = vm.status?.toLowerCase() || '';
-      
+
       if (
         (operation === 'start' && currentStatus === 'running') ||
         (operation === 'stop' && currentStatus === 'stopped') ||
@@ -128,7 +128,7 @@ const ActionButtons = ({
         completedOperations.add(operation);
       }
     });
-    
+
     if (completedOperations.size > 0) {
       setActiveOperations(prev => {
         const next = new Set(prev);
@@ -144,11 +144,11 @@ const ActionButtons = ({
       const currentVms = queryClient.getQueryData(['vms']) as VM[] | undefined;
       setInitialVmCount(currentVms?.length || 0);
     }
-    
+
     if (activeOperations.has('clone') && initialVmCount !== null) {
       const currentVms = queryClient.getQueryData(['vms']) as VM[] | undefined;
       const currentCount = currentVms?.length || 0;
-      
+
       if (currentCount > initialVmCount) {
         setActiveOperations(prev => {
           const next = new Set(prev);
@@ -163,7 +163,7 @@ const ActionButtons = ({
   // Fallback timers to prevent stuck operations
   useEffect(() => {
     const timers: NodeJS.Timeout[] = [];
-    
+
     activeOperations.forEach(operation => {
       if (operation !== 'remove') {
         const timer = setTimeout(() => {
@@ -174,11 +174,11 @@ const ActionButtons = ({
           });
           refreshVMs();
         }, 30000); // 30 seconds fallback
-        
+
         timers.push(timer);
       }
     });
-    
+
     return () => timers.forEach(clearTimeout);
   }, [activeOperations, refreshVMs]);
 
@@ -195,7 +195,7 @@ const ActionButtons = ({
   });
 
   // Enhanced suspended detection
-  const isSuspended = 
+  const isSuspended =
     isPaused ||
     suspendHints.resumeShowing;
 
@@ -207,7 +207,7 @@ const ActionButtons = ({
   // Simplified button state calculations
   const buttonStates = useMemo(() => {
     const hasRebootPending = actionsForVm.includes('reboot');
-    
+
     return {
       canStart: isStopped && !hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending,
       canStop: (isRunning || isPaused) && !hasPendingAction && !isApplying && !isSuspending,
@@ -223,7 +223,7 @@ const ActionButtons = ({
   // Send hint updates synchronously to prevent timing issues
   useLayoutEffect(() => {
     const hasRebootPending = actionsForVm.includes('reboot');
-    
+
     console.log('🔧 ActionButtons VM', vm.vmid, 'sending hints:', {
       vmStatus: vm.status,
       pendingActions: actionsForVm,
@@ -233,7 +233,7 @@ const ActionButtons = ({
       activeOperations: Array.from(activeOperations),
       DETAILED_PENDING_ACTIONS: pendingActions // Show the entire pendingActions object
     });
-    
+
     onRebootingHintChange?.(hasRebootPending);
     onStoppingHintChange?.(activeOperations.has('stop') || activeOperations.has('shutdown'));
   }, [actionsForVm, activeOperations, onRebootingHintChange, onStoppingHintChange, vm.vmid, vm.status, pendingActions]);
@@ -243,7 +243,7 @@ const ActionButtons = ({
     // Atomic state update to prevent timing issues
     setActiveOperations(prev => new Set([...prev, action]));
     addAlert(alertMessage, alertType);
-    
+
     vmMutation.mutate(
       { vmid: vm.vmid, action, name: vm.name },
       {
@@ -277,9 +277,9 @@ const ActionButtons = ({
       currentPendingActions: actionsForVm,
       aboutToMutate: 'reboot'
     });
-    
+
     addAlert(`Rebooting VM "${vm.name}"...`, 'info');
-    
+
     vmMutation.mutate(
       { vmid: vm.vmid, action: 'reboot', name: vm.name },
       {
@@ -301,7 +301,7 @@ const ActionButtons = ({
     setIsCloning(false);
     setActiveOperations(prev => new Set([...prev, 'clone']));
     addAlert(`Cloning VM "${vm.name}" to "${cloneName}"...`, 'info');
-    
+
     vmMutation.mutate(
       { vmid: vm.vmid, action: 'clone', name: cloneName },
       {
@@ -356,78 +356,79 @@ const ActionButtons = ({
     >
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', width: '100%' }}>
         <div className={styles.buttonGroup} style={{ height: '40px', marginBottom: '4px' }}>
-        
-        <StartButton
-          vm={vm}
-          disabled={!buttonStates.canStart}
-          isStarting={activeOperations.has('start')}
-          setIsStarting={() => {}} // StartButton handles its own state
-          vmMutation={vmMutation}
-          addAlert={addAlert}
-          onSent={() => {
-            setActiveOperations(prev => new Set([...prev, 'start']));
-          }}
-        />
 
-        <StopButton
-          disabled={!buttonStates.canStop || activeOperations.has('stop')}
-          onClick={handleStop}
-        />
+          <StartButton
+            vm={vm}
+            disabled={!buttonStates.canStart}
+            isStarting={activeOperations.has('start')}
+            setIsStarting={() => { }} // StartButton handles its own state
+            vmMutation={vmMutation}
+            addAlert={addAlert}
+            onSent={() => {
+              setActiveOperations(prev => new Set([...prev, 'start']));
+            }}
+          />
 
-        <ShutdownButton
-          disabled={!buttonStates.canShutdown}
-          onClick={handleShutdown}
-        />
+          <StopButton
+            disabled={!buttonStates.canStop || activeOperations.has('stop')}
+            onClick={handleStop}
+            vmStatus={vm.status}
+          />
 
-        <RebootButton
-          disabled={!buttonStates.canReboot}
-          onClick={handleReboot}
-        />
+          <ShutdownButton
+            disabled={!buttonStates.canShutdown}
+            onClick={handleShutdown}
+          />
 
-        <SuspendResumeButton
-          vm={vm}
-          node={PROXMOX_NODE}
-          auth={auth}
-          vmMutation={vmMutation}
-          addAlert={addAlert}
-          refreshVMs={refreshVMs}
-          disabled={!buttonStates.canSuspendResume}
-          isPending={actionsForVm.includes('suspend') || actionsForVm.includes('resume')}
-          setSuspending={setIsSuspending}
-          onHintsChange={(hints) => {
-            setSuspendHints(hints);
-            onResumeHintsChange?.(hints);
-          }}
-        />
+          <RebootButton
+            disabled={!buttonStates.canReboot}
+            onClick={handleReboot}
+          />
 
-        <ConsoleButton
-          onClick={(e) => {
-            e.stopPropagation();
-            openProxmoxConsole(PROXMOX_NODE, vm.vmid, auth.csrf_token, auth.ticket);
-          }}
-          disabled={!buttonStates.canConsole}
-        />
+          <SuspendResumeButton
+            vm={vm}
+            node={PROXMOX_NODE}
+            auth={auth}
+            vmMutation={vmMutation}
+            addAlert={addAlert}
+            refreshVMs={refreshVMs}
+            disabled={!buttonStates.canSuspendResume}
+            isPending={actionsForVm.includes('suspend') || actionsForVm.includes('resume')}
+            setSuspending={setIsSuspending}
+            onHintsChange={(hints) => {
+              setSuspendHints(hints);
+              onResumeHintsChange?.(hints);
+            }}
+          />
 
-        <CloneButton
-          disabled={!buttonStates.canClone}
-          showCloningLabel={actionsForVm.includes('clone')}
-          isCloning={isCloning}
-          cloneName={cloneName}
-          onToggle={() => setIsCloning(!isCloning)}
-          onChange={setCloneName}
-          onConfirm={handleCloneConfirm}
-          onCancel={() => {
-            setIsCloning(false);
-            setCloneName(vm.name);
-          }}
-        />
+          <ConsoleButton
+            onClick={(e) => {
+              e.stopPropagation();
+              openProxmoxConsole(PROXMOX_NODE, vm.vmid, auth.csrf_token, auth.ticket);
+            }}
+            disabled={!buttonStates.canConsole}
+          />
 
-        <RemoveButton
-          disabled={!buttonStates.canRemove}
-          onConfirm={handleRemove}
-          showConfirm={showRemoveConfirm}
-          setShowConfirm={setShowRemoveConfirm}
-        />
+          <CloneButton
+            disabled={!buttonStates.canClone}
+            showCloningLabel={actionsForVm.includes('clone')}
+            isCloning={isCloning}
+            cloneName={cloneName}
+            onToggle={() => setIsCloning(!isCloning)}
+            onChange={setCloneName}
+            onConfirm={handleCloneConfirm}
+            onCancel={() => {
+              setIsCloning(false);
+              setCloneName(vm.name);
+            }}
+          />
+
+          <RemoveButton
+            disabled={!buttonStates.canRemove}
+            onConfirm={handleRemove}
+            showConfirm={showRemoveConfirm}
+            setShowConfirm={setShowRemoveConfirm}
+          />
 
         </div>
 
@@ -474,7 +475,7 @@ const ActionButtons = ({
                 `,
               }}
             />
-            
+
             {/* Secondary plasma trail */}
             <div
               style={{
@@ -498,7 +499,7 @@ const ActionButtons = ({
                 opacity: 0.8,
               }}
             />
-            
+
             {/* Particle effects */}
             {[...Array(5)].map((_, i) => (
               <div

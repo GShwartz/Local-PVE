@@ -9,6 +9,7 @@ interface NetworkingItemProps {
   onEdit: (nic: NetworkInterface) => void;
   onCopyMac: (mac: string) => void;
   vmStatus: string;
+  ipAddress?: string;
 }
 
 const NetworkingItem = ({
@@ -16,7 +17,8 @@ const NetworkingItem = ({
   onRemove,
   onEdit,
   onCopyMac,
-  vmStatus
+  vmStatus,
+  ipAddress
 }: NetworkingItemProps) => {
   const [tooltipMessage, setTooltipMessage] = useState('');
   const [showTooltip, setShowTooltip] = useState(false);
@@ -111,6 +113,11 @@ const NetworkingItem = ({
           </button>
         </div>
       )}
+
+      {/* IP Address Line - Positioned between MAC and Firewall */}
+      <div className="text-gray-300 text-xs flex items-center gap-1 relative">
+        <span className="select-none">IP Address: {ipAddress || '—'}</span>
+      </div>
 
       {showTooltip && (
         <div

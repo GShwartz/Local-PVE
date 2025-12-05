@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { FiPlus, FiBell, FiLogOut } from 'react-icons/fi';
+import { FiPlus, FiBell, FiLogOut, FiCheckCircle, FiTrash2 } from 'react-icons/fi';
 import { Alert } from '../Alerts';
 import styles from '../../CSS/Navbar.module.css';
 
@@ -7,9 +7,11 @@ interface NavbarProps {
   onCreateClick: () => void;
   onLogout: () => void;
   alertHistory: Alert[];
+  markAsRead: (id: string) => void;
+  markAllAsRead: () => void;
 }
 
-const Navbar = ({ onCreateClick, onLogout, alertHistory }: NavbarProps) => {
+const Navbar = ({ onCreateClick, onLogout, alertHistory, markAsRead, markAllAsRead }: NavbarProps) => {
   const [showHistory, setShowHistory] = useState(false);
   const [order, setOrder] = useState<'newToOld' | 'oldToNew'>('newToOld');
   const [alerts, setAlerts] = useState(alertHistory);
@@ -18,19 +20,27 @@ const Navbar = ({ onCreateClick, onLogout, alertHistory }: NavbarProps) => {
   const historyRef = useRef<HTMLDivElement>(null);
   const popconfirmRef = useRef<HTMLDivElement>(null);
 
-  // ... (rest of logic unchanged until return)
-
   // Track if history was cleared to prevent prop updates
   const [isHistoryCleared, setIsHistoryCleared] = useState(false);
   const lastAlertCount = useRef(alertHistory.length);
 
+  // Update alerts when history prop changes, unless cleared
   useEffect(() => {
     if (!isHistoryCleared) {
       setAlerts(alertHistory);
       lastAlertCount.current = alertHistory.length;
     } else if (alertHistory.length > lastAlertCount.current) {
-      setAlerts(prev => [...prev, ...alertHistory.slice(lastAlertCount.current)]);
+      // If new alerts come in even after clear, append them
+      const newAlerts = alertHistory.slice(lastAlertCount.current);
+      setAlerts(prev => [...prev, ...newAlerts]);
+      setIsHistoryCleared(false); // Reset clear status if new alerts come
       lastAlertCount.current = alertHistory.length;
+    } else {
+      // If history matches length but changed content (e.g. read status update from App), we should update local alerts
+      setAlerts(prev => prev.map(a => {
+        const fresh = alertHistory.find(h => h.id === a.id);
+        return fresh ? fresh : a;
+      }));
     }
   }, [alertHistory, isHistoryCleared]);
 
@@ -65,11 +75,6 @@ const Navbar = ({ onCreateClick, onLogout, alertHistory }: NavbarProps) => {
     }
   };
 
-  let displayedAlerts = [...alerts];
-  if (order === 'newToOld') {
-    displayedAlerts = displayedAlerts.slice().reverse();
-  }
-
   const handleOrderChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setOrder(e.target.value as 'newToOld' | 'oldToNew');
     e.target.blur();
@@ -82,7 +87,19 @@ const Navbar = ({ onCreateClick, onLogout, alertHistory }: NavbarProps) => {
     setIsHistoryCleared(true);
   };
 
-  const unreadCount = alerts.length;
+  const handleAlertClick = (id: string, read: boolean) => {
+    if (!read) {
+      markAsRead(id);
+    }
+  };
+
+  // Count unread based on local alerts state (which is synced with props)
+  const unreadCount = alerts.filter(a => !a.read).length;
+
+  let displayedAlerts = [...alerts];
+  if (order === 'newToOld') {
+    displayedAlerts.reverse();
+  }
 
   return (
     <nav className={styles.navbar}>
@@ -103,9 +120,8 @@ const Navbar = ({ onCreateClick, onLogout, alertHistory }: NavbarProps) => {
             <div className="relative">
               <FiBell className="text-xl" />
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
+                <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white shadow-sm ring-1 ring-white/10">
+                  {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               )}
             </div>
@@ -140,17 +156,26 @@ const Navbar = ({ onCreateClick, onLogout, alertHistory }: NavbarProps) => {
                     <th scope="col" className={`${styles['history-table-th']} w-3/4`}>
                       <div className={styles['message-header-container']}>
                         <span className={styles['message-header']}>Message</span>
-                        <div className={styles['clear-button-container']}>
-                          <button
-                            onClick={() => setShowPopconfirm(true)}
-                            className={`${styles['clear-button']} ${alerts.length === 0 ? styles['clear-button:disabled'] : ''}`}
-                            title="Clear History"
-                            disabled={alerts.length === 0}
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5-4h4M9 7v12m6-12v12M3 3h18" />
-                            </svg>
-                          </button>
+                        <div className="flex items-center gap-2 ml-auto mr-4 relative">
+                          {unreadCount > 0 && (
+                            <button
+                              onClick={markAllAsRead}
+                              className="text-blue-400 hover:text-blue-300 transition-colors tooltip-trigger"
+                              title="Mark all as read"
+                            >
+                              <FiCheckCircle className="w-4 h-4" />
+                            </button>
+                          )}
+                          <div className={styles['clear-button-container'] + " !ml-0 !mr-0"}>
+                            <button
+                              onClick={() => setShowPopconfirm(true)}
+                              className={`${styles['clear-button']} ${alerts.length === 0 ? styles['clear-button:disabled'] : ''}`}
+                              title="Clear History"
+                              disabled={alerts.length === 0}
+                            >
+                              <FiTrash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                         {showPopconfirm && (
                           <div
@@ -180,11 +205,38 @@ const Navbar = ({ onCreateClick, onLogout, alertHistory }: NavbarProps) => {
                 </thead>
                 <tbody>
                   {displayedAlerts.map((alert) => (
-                    <tr key={alert.id} className={styles['history-table-tr']}>
-                      <td className={`${styles['history-table-td']} font-medium ${getTextColor(alert.type)} text-center!`}>{alert.type}</td>
-                      <td className={styles['history-table-td']}>{alert.message}</td>
+                    <tr
+                      key={alert.id}
+                      className={`${styles['history-table-tr']} cursor-pointer transition-colors duration-200 ${alert.read ? 'opacity-50 hover:opacity-75' : 'hover:bg-white/5'}`}
+                      onClick={() => handleAlertClick(alert.id, alert.read)}
+                    >
+                      <td className={`${styles['history-table-td']} font-medium ${getTextColor(alert.type)} text-center!`}>
+                        <div className="flex items-center justify-center gap-2">
+                          {!alert.read && <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>}
+                          {alert.type}
+                        </div>
+                      </td>
+                      <td className={styles['history-table-td']}>
+                        <div className="flex flex-col">
+                          <span>{alert.message}</span>
+                          <span className="text-xs text-gray-500 mt-1">
+                            {new Date(alert.timestamp).toLocaleString(undefined, {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </div>
+                      </td>
                     </tr>
                   ))}
+                  {displayedAlerts.length === 0 && (
+                    <tr>
+                      <td colSpan={2} className="px-6 py-8 text-center text-gray-500 italic">No notifications</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
