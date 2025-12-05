@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
+import { useState, useLayoutEffect, useMemo, useCallback, useEffect } from 'react';
 import { VM, Auth } from '../../../types';
 import { UseMutationResult, QueryClient } from '@tanstack/react-query';
 
@@ -12,6 +12,7 @@ import RemoveButton from './RemoveButton';
 import SuspendResumeButton from './SuspendResumeButton';
 import { openProxmoxConsole } from './openProxmoxConsole';
 import styles from '../../../CSS/ActionButtons.module.css';
+import loaderStyles from '../../../CSS/ButtonLoader.module.css';
 
 interface ActionButtonsProps {
   vm: VM;
@@ -59,59 +60,6 @@ const ActionButtons = ({
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const [isSuspending, setIsSuspending] = useState(false);
   const [initialVmCount, setInitialVmCount] = useState<number | null>(null);
-
-  // Inject animation keyframes for the futuristic loader
-  useEffect(() => {
-    const styleTag = document.createElement('style');
-    styleTag.type = 'text/css';
-    styleTag.textContent = `
-      @keyframes abtn_bar_sweep {
-        0% { 
-          transform: translateX(-120%) skewX(-15deg);
-          opacity: 0;
-          filter: blur(2px);
-        }
-        10% {
-          opacity: 0.3;
-          filter: blur(1px);
-        }
-        20% {
-          opacity: 1;
-          filter: blur(0px);
-        }
-        80% {
-          opacity: 1;
-          filter: blur(0px);
-        }
-        90% {
-          opacity: 0.3;
-          filter: blur(1px);
-        }
-        100% { 
-          transform: translateX(320%) skewX(-15deg);
-          opacity: 0;
-          filter: blur(2px);
-        }
-      }
-      
-      @keyframes abtn_particle_float {
-        0%, 100% { 
-          transform: translateY(0px) scale(1);
-          opacity: 0.6;
-        }
-        50% { 
-          transform: translateY(-2px) scale(1.1);
-          opacity: 1;
-        }
-      }
-    `;
-    document.head.appendChild(styleTag);
-    return () => {
-      if (document.head.contains(styleTag)) {
-        document.head.removeChild(styleTag);
-      }
-    };
-  }, []);
 
   // Simplified operation completion detection
   useLayoutEffect(() => {
@@ -213,7 +161,7 @@ const ActionButtons = ({
       canStop: (isRunning || isPaused) && !hasPendingAction && !isApplying && !isSuspending,
       canShutdown: isRunning && !isSuspended && !hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending,
       canReboot: isRunning && !isSuspended && !hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending,
-      canConsole: isRunning && !isSuspended && !hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending,
+      canConsole: (isRunning && !isSuspended) || (isStopped && !hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending),
       canClone: (!hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending),
       canRemove: isStopped && !hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending,
       canSuspendResume: (isRunning || isPaused) && !hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending
@@ -341,6 +289,36 @@ const ActionButtons = ({
     }
   }, [vm.vmid, vm.name, auth.csrf_token, auth.ticket, addAlert, refreshVMs]);
 
+  // Loader component for individual buttons
+  const ButtonLoader = ({ show, width = '100%' }: { show: boolean; width?: string }) => {
+    if (!show) return null;
+    
+    const particleCount = width === '100%' ? 5 : 3;
+    const particleSpacing = width === '100%' ? 20 : 30;
+    
+    return (
+      <div
+        aria-live="polite"
+        className={loaderStyles.loader}
+        style={{ width }}
+      >
+        <div className={loaderStyles.primaryBeam} />
+        <div className={loaderStyles.secondaryTrail} />
+        
+        {[...Array(particleCount)].map((_, i) => (
+          <div
+            key={i}
+            className={loaderStyles.particle}
+            style={{
+              left: `${15 + i * particleSpacing}%`,
+              animationDelay: `${i * 0.3}s`,
+            }}
+          />
+        ))}
+      </div>
+    );
+  };
+
   return (
     <td
       className="px-2 py-1 text-center action-buttons-cell"
@@ -360,8 +338,6 @@ const ActionButtons = ({
         <StartButton
           vm={vm}
           disabled={!buttonStates.canStart}
-          isStarting={activeOperations.has('start')}
-          setIsStarting={() => {}} // StartButton handles its own state
           vmMutation={vmMutation}
           addAlert={addAlert}
           onSent={() => {
@@ -431,94 +407,46 @@ const ActionButtons = ({
 
         </div>
 
-        {/* Clean futuristic loader effect */}
-        {(activeOperations.size > 0 || isSuspending || actionsForVm.includes('reboot')) && (
-          <div
-            aria-live="polite"
-            style={{
-              width: '100%',
-              height: '8px',
-              marginTop: 0,
-              borderRadius: '12px',
-              overflow: 'hidden',
-              position: 'relative',
-              background: 'linear-gradient(90deg, rgba(15,23,42,0.8), rgba(30,41,59,0.9), rgba(15,23,42,0.8))',
-              backdropFilter: 'blur(4px)',
-            }}
-          >
-            {/* Primary energy beam */}
-            <div
-              style={{
-                position: 'absolute',
-                left: 0,
-                top: 0,
-                height: '100%',
-                width: '50%',
-                background: `
-                  linear-gradient(90deg, 
-                    transparent 0%,
-                    rgba(0, 247, 255, 0.2) 10%,
-                    rgba(0, 247, 255, 0.8) 30%,
-                    rgba(59, 130, 246, 1) 50%,
-                    rgba(147, 51, 234, 1) 70%,
-                    rgba(236, 72, 153, 0.8) 90%,
-                    transparent 100%
-                  )
-                `,
-                borderRadius: '12px',
-                animation: 'abtn_bar_sweep 2.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite',
-                boxShadow: `
-                  0 0 20px rgba(0, 247, 255, 0.6),
-                  0 0 40px rgba(147, 51, 234, 0.4),
-                  0 0 60px rgba(236, 72, 153, 0.2)
-                `,
-              }}
-            />
-            
-            {/* Secondary plasma trail */}
-            <div
-              style={{
-                position: 'absolute',
-                left: 0,
-                top: 0,
-                height: '100%',
-                width: '25%',
-                background: `
-                  linear-gradient(90deg, 
-                    transparent 0%,
-                    rgba(255, 255, 255, 0.4) 20%,
-                    rgba(255, 255, 255, 0.9) 50%,
-                    rgba(255, 255, 255, 0.4) 80%,
-                    transparent 100%
-                  )
-                `,
-                borderRadius: '12px',
-                animation: 'abtn_bar_sweep 2.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite 300ms',
-                filter: 'blur(0.5px)',
-                opacity: 0.8,
-              }}
-            />
-            
-            {/* Particle effects */}
-            {[...Array(5)].map((_, i) => (
-              <div
-                key={i}
-                style={{
-                  position: 'absolute',
-                  left: `${15 + i * 20}%`,
-                  top: '50%',
-                  width: '2px',
-                  height: '2px',
-                  background: 'rgba(0, 247, 255, 0.8)',
-                  borderRadius: '50%',
-                  transform: 'translateY(-50%)',
-                  animation: `abtn_particle_float 1.5s ease-in-out infinite ${i * 0.3}s`,
-                  boxShadow: '0 0 4px rgba(0, 247, 255, 0.8)',
-                }}
-              />
-            ))}
+        {/* Targeted loaders for specific buttons */}
+        <div style={{ display: 'flex', width: '100%', gap: '0.625rem' }}>
+          
+          {/* Start button loader - full width */}
+          <div style={{ flex: 1 }}>
+            <ButtonLoader show={activeOperations.has('start')} width="100%" />
           </div>
-        )}
+
+          {/* Stop button loader */}
+          <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+            <ButtonLoader show={activeOperations.has('stop')} width="3.5rem" />
+          </div>
+
+          {/* Shutdown button loader */}
+          <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+            <ButtonLoader show={activeOperations.has('shutdown')} width="5rem" />
+          </div>
+
+          {/* Reboot button loader */}
+          <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+            <ButtonLoader show={actionsForVm.includes('reboot')} width="4rem" />
+          </div>
+
+          {/* Suspend/Resume button loader */}
+          <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+            <ButtonLoader show={isSuspending || actionsForVm.includes('suspend') || actionsForVm.includes('resume')} width="4.5rem" />
+          </div>
+
+          {/* Console - no loader */}
+          <div style={{ flex: 1 }}></div>
+
+          {/* Clone button loader */}
+          <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+            <ButtonLoader show={activeOperations.has('clone')} width="4rem" />
+          </div>
+
+          {/* Remove - no loader */}
+          <div style={{ flex: 1 }}></div>
+
+        </div>
       </div>
     </td>
   );
