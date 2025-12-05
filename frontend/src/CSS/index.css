@@ -1,0 +1,231 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  height: 100%;
+  overflow-y: hidden; /* Disable main y-scrollbar */
+}
+
+body {
+  @apply bg-gray-900 text-white flex flex-col;
+  min-height: 100vh;
+  margin: 0;
+  overflow-y: hidden; /* Disable main y-scrollbar */
+  background: radial-gradient(circle at top left, rgba(37, 99, 235, 0.1), transparent 40%),
+              radial-gradient(circle at bottom right, rgba(147, 51, 234, 0.1), transparent 40%);
+}
+
+.glass-panel {
+  @apply bg-gray-800/40 backdrop-blur-xl border border-white/10 shadow-lg;
+}
+
+nav {
+  @apply glass-panel p-4 z-50;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  height: 80px; /* Stretch the navbar height */
+}
+
+table {
+  @apply border-collapse border border-white;
+  width: 100%; /* Ensure table takes full width */
+  margin-bottom: 5px; /* Add 5px gap beneath table */
+  border-bottom: 2px solid white; /* Add bottom border */
+  max-height: 70rem; /* Fixed max height for table */
+}
+
+.action-buttons-cell {
+  margin-top: 5px;
+}
+
+thead {
+  border-bottom: 1px solid #4b5563; /* Match row border style (less bold) */
+}
+
+main {
+  @apply flex-1 p-8;
+  margin-top: 2rem; /* Add gap below navbar */
+  margin-bottom: 80px; /* Adjusted for footer */
+  overflow-y: hidden; /* Disable main y-scrollbar */
+}
+
+footer {
+  @apply bg-gray-900 border-t border-gray-700 p-6;
+  width: 100%;
+  position: fixed;
+  bottom: 2rem;
+  left: 0;
+  height: 70px; /* Explicit height for calculation */
+  margin-top: 10px; /* Add gap above footer */
+}
+
+th, td {
+  @apply text-center;
+}
+
+/* Ensure table container allows scrolling for table */
+.overflow-x-auto {
+  max-height: 40rem; /* Increased by 10rem */
+  overflow-y: auto;
+  /* Custom scrollbar styling */
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: #4b5563 #1f2937; /* Thumb and track colors for Firefox */
+}
+
+/* Webkit browsers (Chrome, Safari, Edge) */
+.overflow-x-auto::-webkit-scrollbar {
+  width: 8px; /* Scrollbar width */
+}
+
+.overflow-x-auto::-webkit-scrollbar-track {
+  background: #1f2937; /* Track color (dark gray) */
+  border-radius: 4px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb {
+  background: #4b5563; /* Thumb color (gray) */
+  border-radius: 4px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb:hover {
+  background: #6b7280; /* Lighter gray on hover */
+}
+
+/* Ensure expanded row content is scrollable */
+.expanded-content {
+  height: 10rem; /* Set to 10rem as starting height */
+  overflow-y: auto;
+  /* Custom scrollbar styling for expanded content */
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: #4b5563 #1f2937; /* Thumb and track colors for Firefox */
+}
+
+/* Webkit browsers for expanded content */
+.expanded-content::-webkit-scrollbar {
+  width: 8px; /* Scrollbar width */
+}
+
+.expanded-content::-webkit-scrollbar-track {
+  background: #1f2937; /* Track color (dark gray) */
+  border-radius: 4px;
+}
+
+.expanded-content::-webkit-scrollbar-thumb {
+  background: #4b5563; /* Thumb color (gray) */
+  border-radius: 4px;
+}
+
+.expanded-content::-webkit-scrollbar-thumb:hover {
+  background: #6b7280; /* Lighter gray on hover */
+}
+
+/* Narrower columns for CPU, Status, RAM, HDD Sizes */
+.narrow-col {
+  @apply w-20; /* Fixed width for narrower columns */
+}
+
+/* Custom scrollbar for notification history */
+.custom-scrollbar {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: #4b5563 #1f2937; /* Thumb and track colors for Firefox */
+}
+
+/* Webkit browsers (Chrome, Safari, Edge) */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px; /* Scrollbar width */
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #1f2937; /* Track color (dark gray) */
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #4b5563; /* Thumb color (gray) */
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #6b7280; /* Lighter gray on hover */
+}
+
+/* Styling for snapshots card in ActionButtons */
+.snapshots-card {
+  @apply bg-gray-800 p-2 rounded-md mt-2 w-full;
+  width: 21rem; /* Increased by 1rem from max-w-xs (~20rem) */
+  margin-top: 2rem !important; /* Increased gap to 2rem with !important to override potential conflicts */
+  overflow-y: auto; /* Enable scrolling for snapshots */
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: #4b5563 #1f2937; /* Thumb and track colors for Firefox */
+}
+
+/* Webkit browsers for snapshots card */
+.snapshots-card::-webkit-scrollbar {
+  width: 8px; /* Scrollbar width */
+}
+
+.snapshots-card::-webkit-scrollbar-track {
+  background: #1f2937; /* Track color (dark gray) */
+  border-radius: 4px;
+}
+
+.snapshots-card::-webkit-scrollbar-thumb {
+  background: #4b5563; /* Thumb color (gray) */
+  border-radius: 4px;
+}
+
+.snapshots-card::-webkit-scrollbar-thumb:hover {
+  background: #6b7280; /* Lighter gray on hover */
+}
+
+/* Global reusable styling for tooltips/notes */
+.note-tooltip {
+  position: fixed; /* Always floats above layout */
+  background: rgba(243, 200, 70, 0.95); /* Tailwind yellow-500 with slight transparency */
+  color: #720404; /* Tailwind red-900 for text */
+  font-size: 0.8125rem; /* text-xs + 1px (~13px) */
+  font-weight: 500; /* Semi-bold text */
+  padding: 0.375rem 0.625rem; /* Slightly larger padding for readability */
+  border-radius: 0.375rem; /* Rounded-md */
+  white-space: nowrap; /* Prevent line breaks */
+  border: 1px solid rgba(202, 138, 4, 0.8); /* More visible yellow-600 border */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6); /* Stronger dark shadow */
+  z-index: 999999; /* Float above all UI elements */
+  pointer-events: none; /* Let clicks pass through */
+  transition: opacity 0.15s ease-in-out, transform 0.15s ease-in-out;
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.note-tooltip.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+
+.note-tooltip::before {
+  content: "ℹ️";
+  margin-right: 0.4rem;
+  font-size: 0.85rem;
+  position: relative;
+  top: 1px; /* Adjust for perfect vertical centering */
+}
+
+/* Custom Animation for Login Page */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.5s ease-out forwards;
+}
+

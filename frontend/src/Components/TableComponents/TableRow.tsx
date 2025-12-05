@@ -151,9 +151,9 @@ const TableRow = ({
     const hasRebootPending = actionsForVm.includes('reboot') || rebootingHint;
     const hasStopPending = actionsForVm.includes('stop') || actionsForVm.includes('shutdown') || stoppingHint;
     const hasStartPending = actionsForVm.includes('start');
-    
+
     let maskedStatus = vm.status;
-    
+
     // Apply masking logic - during reboot, always show as running
     if (hasRebootPending) {
       maskedStatus = 'running';  // Force running status during reboot
@@ -162,7 +162,7 @@ const TableRow = ({
     } else if (hasStartPending && vm.status !== 'running') {
       maskedStatus = 'stopped';  // Keep showing stopped until actually running
     }
-    
+
     console.log('🎭 TableRow VM', vm.vmid, 'masking status:', {
       originalStatus: vm.status,
       maskedStatus,
@@ -176,13 +176,13 @@ const TableRow = ({
       willPassToIPAddress: maskedStatus,
       FULL_PENDING_ACTIONS_OBJECT: pendingActions // Show entire pendingActions state
     });
-    
+
     const result = {
       ...vm,
       status: maskedStatus,
       node
     };
-    
+
     // Additional logging for StatusBadge props
     console.log('🟢 StatusBadge VM', vm.vmid, 'props:', {
       originalVMStatus: vm.status,
@@ -190,7 +190,7 @@ const TableRow = ({
       forcePlay: rebootingHint,
       forceStop: stoppingHint
     });
-    
+
     return result;
   }, [vm, pendingActions, rebootingHint, stoppingHint, node]);
 
@@ -211,19 +211,19 @@ const TableRow = ({
         </tr>
       )}
 
-      <tr className="bg-gray-900 border-b border-gray-700 hover:bg-gray-700 text-xs sm:text-sm">
+      <tr className="group bg-gray-800/30 border-b border-white/5 hover:bg-white/5 transition-all duration-200 text-xs sm:text-sm hover:shadow-lg hover:z-10 relative">
         <td
-          className="px-2 py-4 text-center cursor-pointer"
+          className="px-2 py-4 text-center cursor-pointer text-gray-400 group-hover:text-blue-400 transition-colors"
           onClick={() => toggleRow(vm.vmid)}
         >
           {expandedRows.has(vm.vmid) ? (
-            <FiChevronUp className="inline text-lg" />
+            <FiChevronUp className="inline text-lg transform transition-transform" />
           ) : (
-            <FiChevronDown className="inline text-lg" />
+            <FiChevronDown className="inline text-lg transform transition-transform" />
           )}
         </td>
 
-        <td className="px-2 sm:px-6 py-2 sm:py-4 text-center">{vm.vmid}</td>
+        <td className="px-2 sm:px-6 py-2 sm:py-4 text-center font-medium text-blue-300">{vm.vmid}</td>
 
         <VMNameCell
           {...{ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply, isApplying: isApplyingOrCooldown }}
@@ -232,7 +232,7 @@ const TableRow = ({
         {/* Use masked VM for IP address display */}
         <IPAddressCell vm={maskedVM} />
 
-        <td className="px-2 sm:px-6 py-2 sm:py-4 text-center">{vm.os}</td>
+        <td className="px-2 sm:px-6 py-2 sm:py-4 text-center text-gray-300">{vm.os}</td>
 
         <CPUCell
           {...{ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply, isApplying: isApplyingOrCooldown }}
