@@ -53,7 +53,7 @@ const Login = ({ onLoginSuccess }: LoginProps) => {
 
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 mb-2">
-            Welcome Back
+            Welcome to Local-PVE
           </h1>
           <p className="text-gray-400 text-sm">Enter your credentials to access the console</p>
         </div>
