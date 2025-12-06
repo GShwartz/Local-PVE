@@ -1,3 +1,4 @@
+import { FiRotateCw } from 'react-icons/fi';
 import ActionButton from './ActionButton';
 
 interface RebootButtonProps {
@@ -15,7 +16,9 @@ const RebootButton = ({ disabled, onClick }: RebootButtonProps) => {
       disabled={disabled}
       variant="yellow"
     >
-      Reboot
+      <span style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', transform: 'translateX(10px)' }}>
+        <FiRotateCw size={14} /> Reboot
+      </span>
     </ActionButton>
   );
 };

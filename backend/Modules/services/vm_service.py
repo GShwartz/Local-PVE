@@ -83,6 +83,7 @@ class VMService:
                     config = config_res.json().get("data", {})
                     status_data = status_res.json().get("data", {})
                     status = status_data.get("status", "stopped")
+                    lock = status_data.get("lock") or config.get("lock")
 
                     disks = []
                     for k, v in config.items():
@@ -96,6 +97,7 @@ class VMService:
                         "ram": int(config.get("memory", 0)),
                         "name": config.get("name", f"VM {vmid}"),
                         "status": status,
+                        "lock": lock,
                         "os": "Windows" if "win" in config.get("ostype", "").lower() else "Linux",
                         "num_hdd": len(disks),
                         "hdd_sizes": ", ".join(disks) if disks else "N/A",
@@ -280,3 +282,4 @@ class VMService:
         if response.status_code != 200:
             raise HTTPException(status_code=response.status_code, detail=response.text)
         return response.json().get("data")
+    

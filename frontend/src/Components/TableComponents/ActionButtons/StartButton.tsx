@@ -1,3 +1,4 @@
+import { FiPlay } from 'react-icons/fi';
 import ActionButton from './ActionButton';
 import { VM } from '../../../types';
 import { UseMutationResult } from '@tanstack/react-query';
@@ -55,7 +56,9 @@ const StartButton = ({
       disabled={isInactive}
       variant="blue"
     >
-      Start
+      <span style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', transform: 'translateX(10px)' }}>
+        <FiPlay size={14} /> Start
+      </span>
     </ActionButton>
   );
 };

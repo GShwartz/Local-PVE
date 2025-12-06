@@ -1,3 +1,4 @@
+import { FiCopy } from 'react-icons/fi';
 import ActionButton from './ActionButton';
 import ClonePopover from './ClonePopover';
 
@@ -32,7 +33,7 @@ const CloneButton = ({
         disabled={disabled}
         variant="purple"
       >
-        {showCloningLabel ? 'Cloning...' : 'Clone'}
+        <FiCopy size={14} /> {showCloningLabel ? 'Cloning...' : 'Clone'}
       </ActionButton>
 
       {isCloning && (

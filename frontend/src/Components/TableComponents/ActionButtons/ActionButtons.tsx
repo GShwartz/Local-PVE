@@ -44,7 +44,7 @@ const ActionButtons = ({
   auth,
   addAlert,
   refreshVMs,
-  queryClient,
+  queryClient: _queryClient,
   isApplying,
   onResumeHintsChange,
   onRebootingHintChange,
@@ -55,10 +55,9 @@ const ActionButtons = ({
 
   // UI-specific states
   const [isCloning, setIsCloning] = useState(false);
-  const [cloneName, setCloneName] = useState(vm.name);
+  const [cloneName, setCloneName] = useState(`${vm.name}-clone`);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const [isSuspending, setIsSuspending] = useState(false);
-  const [initialVmCount, setInitialVmCount] = useState<number | null>(null);
 
   // Inject animation keyframes for the professional loader
   useEffect(() => {
@@ -116,27 +115,8 @@ const ActionButtons = ({
     }
   }, [vm.status, activeOperations]);
 
-  // Clone operation tracking
-  useEffect(() => {
-    if (activeOperations.has('clone') && initialVmCount === null) {
-      const currentVms = queryClient.getQueryData(['vms']) as VM[] | undefined;
-      setInitialVmCount(currentVms?.length || 0);
-    }
-
-    if (activeOperations.has('clone') && initialVmCount !== null) {
-      const currentVms = queryClient.getQueryData(['vms']) as VM[] | undefined;
-      const currentCount = currentVms?.length || 0;
-
-      if (currentCount > initialVmCount) {
-        setActiveOperations(prev => {
-          const next = new Set(prev);
-          next.delete('clone');
-          return next;
-        });
-        setInitialVmCount(null);
-      }
-    }
-  }, [activeOperations, initialVmCount, queryClient.getQueryData(['vms'])]);
+  // Get pending actions for this VM (from vmMutations task polling)
+  const actionsForVm = pendingActions[vm.vmid] || [];
 
   // Fallback timers to prevent stuck operations
   useEffect(() => {
@@ -177,26 +157,42 @@ const ActionButtons = ({
     isPaused ||
     suspendHints.resumeShowing;
 
-  // Get pending actions for this VM
-  const actionsForVm = pendingActions[vm.vmid] || [];
+  // hasPendingAction and isOperationActive derived from actionsForVm (defined earlier)
   const hasPendingAction = actionsForVm.length > 0;
   const isOperationActive = activeOperations.size > 0 || isSuspending;
+  
+  // Check if VM is locked (being cloned, migrated, etc.)
+  const hasLock = !!(vm as any).lock;
+  const [lockCooldown, setLockCooldown] = useState(false);
+  
+  useEffect(() => {
+    if (hasLock) {
+      setLockCooldown(true);
+    } else if (lockCooldown) {
+      // Lock was just released - keep disabled for 10 more seconds
+      const timer = setTimeout(() => setLockCooldown(false), 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [hasLock, lockCooldown]);
+  
+  const isLocked = hasLock || lockCooldown;
 
   // Simplified button state calculations
   const buttonStates = useMemo(() => {
     const hasRebootPending = actionsForVm.includes('reboot');
+    const hasClonePending = actionsForVm.includes('clone');
 
     return {
-      canStart: isStopped && !hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending,
-      canStop: (isRunning || isPaused) && !hasPendingAction && !isApplying && !isSuspending,
-      canShutdown: isRunning && !isSuspended && !hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending,
-      canReboot: isRunning && !isSuspended && !hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending,
-      canConsole: true, // Console should always be available
-      canClone: (!hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending),
-      canRemove: isStopped && !hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending,
-      canSuspendResume: (isRunning || isPaused) && !hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending
+      canStart: isStopped && !hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending && !isLocked,
+      canStop: (isRunning || isPaused) && !hasPendingAction && !isApplying && !isSuspending && !isLocked,
+      canShutdown: isRunning && !isSuspended && !hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending && !isLocked,
+      canReboot: isRunning && !isSuspended && !hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending && !isLocked,
+      canConsole: !isLocked && !hasClonePending,
+      canClone: (!hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending && !isLocked),
+      canRemove: isStopped && !hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending && !isLocked,
+      canSuspendResume: (isRunning || isPaused) && !hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending && !isLocked
     };
-  }, [isRunning, isStopped, isPaused, isSuspended, hasPendingAction, isApplying, isOperationActive, isSuspending, actionsForVm]);
+  }, [isRunning, isStopped, isPaused, isSuspended, hasPendingAction, isApplying, isOperationActive, isSuspending, actionsForVm, isLocked]);
 
   // Send hint updates synchronously to prevent timing issues
   useLayoutEffect(() => {
@@ -277,7 +273,6 @@ const ActionButtons = ({
 
   const handleCloneConfirm = useCallback(() => {
     setIsCloning(false);
-    setActiveOperations(prev => new Set([...prev, 'clone']));
     addAlert(`Cloning VM "${vm.name}" to "${cloneName}"...`, 'info');
 
     vmMutation.mutate(
@@ -287,11 +282,6 @@ const ActionButtons = ({
           addAlert(`VM "${vm.name}" clone initiated.`, 'success');
         },
         onError: () => {
-          setActiveOperations(prev => {
-            const next = new Set(prev);
-            next.delete('clone');
-            return next;
-          });
           addAlert(`Failed to clone VM "${vm.name}".`, 'error');
         },
       }
@@ -397,7 +387,7 @@ const ActionButtons = ({
             onConfirm={handleCloneConfirm}
             onCancel={() => {
               setIsCloning(false);
-              setCloneName(vm.name);
+              setCloneName(`${vm.name}-clone`);
             }}
           />
 
@@ -406,12 +396,14 @@ const ActionButtons = ({
             onConfirm={handleRemove}
             showConfirm={showRemoveConfirm}
             setShowConfirm={setShowRemoveConfirm}
+            vmName={vm.name}
+            vmId={vm.vmid}
           />
 
         </div>
 
         {/* Professional loader */}
-        {(activeOperations.size > 0 || isSuspending || actionsForVm.includes('reboot')) && (
+        {(activeOperations.size > 0 || isSuspending || actionsForVm.includes('reboot') || actionsForVm.includes('clone') || isLocked) && (
           <div
             aria-live="polite"
             style={{

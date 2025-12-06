@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { FiPause, FiPlay } from 'react-icons/fi';
 import { VM, Auth } from '../../../types';
 import { UseMutationResult } from '@tanstack/react-query';
 import ActionButton from './ActionButton';
@@ -132,7 +133,7 @@ const SuspendResumeButton: React.FC<SuspendResumeButtonProps> = ({
       disabled={isButtonDisabled}
       variant={localSuspended ? 'green' : 'yellow'}
     >
-      {localSuspended ? 'Resume' : 'Suspend'}
+      {localSuspended ? <><FiPlay size={14} /> Resume</> : <><FiPause size={14} /> Suspend</>}
     </ActionButton>
   );
 };

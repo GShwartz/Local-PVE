@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import { Snapshot } from '../../../../types';
 import { useState, useEffect, useRef } from 'react';
+import styles from '../../../../CSS/ExpandedArea.module.css';
 
 interface SnapshotModalProps {
   isOpen: boolean;
@@ -90,16 +91,13 @@ const SnapshotModal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4 max-h-96 overflow-y-auto">
+    <div className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4 max-h-96 overflow-x-hidden overflow-y-auto">
       {/* Form content */}
-      <div className="space-y-4 mb-4">
+      <div className="space-y-4">
         {/* Snapshot Name */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
-              <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
               Snapshot Name
             </label>
           </div>
@@ -122,19 +120,23 @@ const SnapshotModal = ({
         </div>
 
         {/* Action buttons */}
-        <div className="flex gap-2 justify-start pt-4 border-t border-gray-200 dark:border-gray-700">
-          <button
-            onClick={closeModal}
-            className="px-3 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg font-medium transition-colors duration-200"
-          >
-            Cancel
-          </button>
+        <div className="flex gap-2 justify-start pb-4 border-b border-gray-200 dark:border-gray-700">
           <button
             onClick={handleTakeSnapshot}
             disabled={!snapshotName || !isValidSnapshotName(snapshotName) || createSnapshotMutation.isPending || snapshotsLoading}
-            className="px-3 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg font-medium shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 transition-all duration-200"
+            className={`${styles['button-small']} ${
+              !snapshotName || !isValidSnapshotName(snapshotName) || createSnapshotMutation.isPending || snapshotsLoading
+                ? styles['button-small-disabled']
+                : styles['button-small-purple']
+            }`}
           >
             {createSnapshotMutation.isPending ? 'Creating...' : 'Create'}
+          </button>
+          <button
+            onClick={closeModal}
+            className={`${styles['button-small']} ${styles['button-small-red']}`}
+          >
+            Cancel
           </button>
         </div>
       </div>

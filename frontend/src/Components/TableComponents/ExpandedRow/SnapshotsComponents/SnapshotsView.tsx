@@ -1,4 +1,5 @@
 import { UseMutationResult, useMutation, useQueryClient } from '@tanstack/react-query';
+import { FiPlus } from 'react-icons/fi';
 import { VM, Snapshot, Auth } from '../../../../types';
 import { useState, useEffect } from 'react';
 import styles from '../../../../CSS/ExpandedArea.module.css';
@@ -74,11 +75,11 @@ const SnapshotsView = ({
   };
 
   // Validation function for snapshot names
-  const isValidSnapshotName = (name: string): boolean => /^[a-zA-Z0-9_+.-]{1,40}$/.test(name);
+  const isValidSnapshotName = (name: string): boolean => /^[a-zA-Z0-9_+.-]{2,40}$/.test(name);
 
   // Local mutation for creating snapshots
-  const createSnapshotMutation = useMutation({
-    mutationFn: async ({ vmid, snapname }: { vmid: number; snapname: string }) => {
+  const createSnapshotMutation = useMutation<string, any, { vmid: number; snapname: string }>({
+    mutationFn: async ({ vmid, snapname }): Promise<string> => {
       const response = await axios.post(
         `http://localhost:8000/vm/${node}/qemu/${vmid}/snapshot`,
         { snapname, description: '' },
@@ -89,12 +90,15 @@ const SnapshotsView = ({
           },
         }
       );
-      return response.data;
+      return response.data as string;
     },
-    onSuccess: (data, { vmid, snapname }) => {
+    onSuccess: (_, { vmid, snapname }) => {
       addAlert(`Snapshot "${snapname}" created successfully for VM ${vmid}`, 'success');
-      queryClient.invalidateQueries({ queryKey: ['snapshots', node, vmid] });
-      queryClient.invalidateQueries({ queryKey: ['vms', node] });
+      // Delay the query invalidation to sync with action buttons loader (which has 10s cooldown)
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['snapshots', node, vmid] });
+        queryClient.invalidateQueries({ queryKey: ['vms', node] });
+      }, 10000);
       closeModal();
     },
     onError: (error: any, { snapname }) => {
@@ -128,7 +132,7 @@ const SnapshotsView = ({
                 : styles['button-blue']
                 }`}
             >
-              <span className="text-lg">+</span> Take Snapshot
+              <FiPlus className="inline-block mr-1" /> Take Snapshot
             </button>
           )}
           {isModalOpen && (
@@ -191,9 +195,7 @@ const SnapshotsView = ({
                         ) : (
                           <>
                             <span className="text-xs text-red-300">
-                              {vm.status === 'running'
-                                ? `VM is running. Shutdown + ${pendingSnapshotRemoval ? 'Delete' : 'Revert'} snapshot "${snapshot.name}"? This action cannot be undone.`
-                                : `Confirm ${pendingSnapshotRemoval ? 'remove' : 'revert'}?`}
+                              {pendingSnapshotRemoval ? 'Confirm Snapshot Removal' : 'Confirm Revert'}
                             </span>
                             <button
                               onClick={() => {

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { FiPlus } from 'react-icons/fi';
 import { VM, Snapshot } from '../../../../types';
 import DiskModal from '../DiskModal/DiskModal';
 import DiskList from '../DiskModal/DiskList';
@@ -70,7 +71,8 @@ const DisksView = ({
                 : styles['button-blue']
               }`}
           >
-            <span className="text-lg">+</span> {isAddingDisk
+            <FiPlus className="inline-block mr-1" />
+            {isAddingDisk
               ? 'Adding...'
               : deletingDiskKey !== null
                 ? 'Removing...'

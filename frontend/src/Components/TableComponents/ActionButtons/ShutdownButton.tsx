@@ -1,3 +1,4 @@
+import { FiPower } from 'react-icons/fi';
 import ActionButton from './ActionButton';
 
 interface ShutdownButtonProps {
@@ -15,7 +16,7 @@ const ShutdownButton = ({ disabled, onClick }: ShutdownButtonProps) => {
       disabled={disabled}
       variant="purple"
     >
-      Shutdown
+      <FiPower size={14} /> Shutdown
     </ActionButton>
   );
 };

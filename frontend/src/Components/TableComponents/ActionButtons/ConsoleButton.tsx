@@ -1,4 +1,5 @@
 import React from 'react';
+import { FiTerminal } from 'react-icons/fi';
 import ActionButton from './ActionButton';
 
 interface ConsoleButtonProps {
@@ -12,7 +13,7 @@ const ConsoleButton = ({ onClick, disabled }: ConsoleButtonProps) => (
     disabled={disabled}
     variant="blue"
   >
-    Console
+    <FiTerminal size={14} /> Console
   </ActionButton>
 );
 

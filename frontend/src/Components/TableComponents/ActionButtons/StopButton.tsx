@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { FiSquare } from 'react-icons/fi';
 import ActionButton from './ActionButton';
 
 interface StopButtonProps {
@@ -35,7 +36,9 @@ const StopButton = ({
       disabled={isDisabled}
       variant="cyan"
     >
-      Stop
+      <span style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', transform: 'translateX(10px)' }}>
+        <FiSquare size={14} /> Stop
+      </span>
     </ActionButton>
   );
 };
