@@ -26,7 +26,6 @@ const StartButton = ({
   setIsStarting,
   vmMutation,
   addAlert,
-  showLoader, // kept but unused
   onSent,
 }: StartButtonProps) => {
   const handleStart = (e: React.MouseEvent) => {
