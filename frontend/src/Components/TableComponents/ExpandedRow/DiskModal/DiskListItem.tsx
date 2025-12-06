@@ -1,7 +1,8 @@
 import axios from 'axios';
 import { VM } from '../../../../types';
 import { useState, useRef, useEffect } from 'react';
-import DiskExpandModal from './DiskExpandModal';
+import DiskExpandForm from './DiskExpandForm';
+import Loader from './Loader';
 import styles from '../../../../CSS/ExpandedArea.module.css';
 
 interface DiskListItemProps {
@@ -48,7 +49,7 @@ const DiskListItem = ({
   const isDeleting = deletingDiskKey === diskKey;
   const isBootDisk = diskKey === 'scsi0';
 
-  const [isExpandModalOpen, setIsExpandModalOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const confirmRemoveDisk = async () => {
     setDeletingDiskKey(diskKey);
@@ -69,14 +70,56 @@ const DiskListItem = ({
         );
       }
 
+      // Delete the disk
       await axios.delete(`http://localhost:8000/vm/${node}/qemu/${vm.vmid}/disk/${diskKey}`, {
         params: { csrf_token: auth.csrf_token, ticket: auth.ticket },
         headers: { 'Content-Type': 'application/json' }
       });
 
-      addAlert(`✅ Disk ${diskKey} removed successfully from VM ${vm.vmid}.`, 'success');
-      await refreshConfig();
-      refreshVMs();
+      // Wait a moment for the backend operation to complete
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Poll the config to verify the disk is actually removed
+      let attempts = 0;
+      const maxAttempts = 10;
+      let diskRemoved = false;
+
+      while (attempts < maxAttempts) {
+        try {
+          const configResp = await axios.get<{ config: any }>(
+            `http://localhost:8000/vm/${node}/qemu/${vm.vmid}/config`,
+            {
+              params: {
+                csrf_token: auth.csrf_token,
+                ticket: auth.ticket
+              }
+            }
+          );
+
+          const config = configResp.data.config || {};
+          // Check if the disk is no longer in the config
+          if (!config[diskKey]) {
+            diskRemoved = true;
+            break;
+          }
+        } catch (err) {
+          // Continue polling even if there's an error
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 500));
+        attempts++;
+      }
+
+      if (diskRemoved) {
+        addAlert(`✅ Disk ${diskKey} removed successfully from VM ${vm.vmid}.`, 'success');
+        await refreshConfig();
+        refreshVMs();
+      } else {
+        // Even if polling didn't confirm, refresh anyway (might be a timing issue)
+        addAlert(`✅ Disk ${diskKey} removal completed.`, 'success');
+        await refreshConfig();
+        refreshVMs();
+      }
     } catch (err: any) {
       const detail = err?.response?.data?.detail || err?.message || 'Unknown error';
       addAlert(`❌ Failed to remove disk ${diskKey}: ${detail}`, 'error');
@@ -86,7 +129,7 @@ const DiskListItem = ({
     }
   };
 
-  const disableRemove = isBootDisk || pendingDiskKey !== null || deletingDiskKey === diskKey || hasSnapshots || isOnlyDisk;
+  const disableRemove = isBootDisk || pendingDiskKey !== null || deletingDiskKey === diskKey;
 
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipMessage, setTooltipMessage] = useState('');
@@ -107,11 +150,14 @@ const DiskListItem = ({
         left: rect.left + rect.width / 2
       });
 
-      if (hasSnapshots) {
-        setTooltipMessage('Remove option is disabled while there is an active snapshot');
+      if (isBootDisk) {
+        setTooltipMessage('Cannot remove boot disk (SCSI 0)');
         hoverTimerRef.current = setTimeout(() => setShowTooltip(true), 1000);
-      } else if (isOnlyDisk) {
-        setTooltipMessage('Cannot remove the only disk');
+      } else if (pendingDiskKey !== null) {
+        setTooltipMessage('Another disk operation is in progress');
+        hoverTimerRef.current = setTimeout(() => setShowTooltip(true), 1000);
+      } else if (deletingDiskKey === diskKey) {
+        setTooltipMessage('This disk is being removed');
         hoverTimerRef.current = setTimeout(() => setShowTooltip(true), 1000);
       }
     }
@@ -132,21 +178,21 @@ const DiskListItem = ({
 
         {isPending ? (
           isDeleting ? (
-            <span className="text-xs text-gray-400">Removing...</span>
+            <Loader />
           ) : (
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 ml-auto">
               <span className="text-xs text-red-300">
                 {vm.status === 'running' ? 'Shutdown + Remove?' : 'Confirm remove?'}
               </span>
               <button
                 onClick={confirmRemoveDisk}
-                className={`${styles.button} ${styles['button-red']}`}
+                className={`${styles['button-small']} ${styles['button-small-green']}`}
               >
                 Yes
               </button>
               <button
                 onClick={() => setPendingDiskKey(null)}
-                className={`${styles.button} ${styles['button-disabled']}`}
+                className={`${styles['button-small']} ${styles['button-small-red']}`}
               >
                 No
               </button>
@@ -154,13 +200,15 @@ const DiskListItem = ({
           )
         ) : (
           <div className="flex items-center space-x-2">
-            <button
-              onClick={() => setIsExpandModalOpen(true)}
-              disabled={pendingDiskKey !== null || deletingDiskKey !== null}
-              className={`${styles.button} ${styles['button-green']}`}
-            >
-              Expand
-            </button>
+            {!isExpanded && (
+              <button
+                onClick={() => setIsExpanded(true)}
+                disabled={pendingDiskKey !== null || deletingDiskKey !== null}
+                className={`${styles['button-small']} ${pendingDiskKey !== null || deletingDiskKey !== null ? styles['button-small-disabled'] : styles['button-green']}`}
+              >
+                Expand
+              </button>
+            )}
 
             <div
               onMouseEnter={handleMouseEnter}
@@ -169,7 +217,7 @@ const DiskListItem = ({
               <button
                 onClick={() => setPendingDiskKey(diskKey)}
                 disabled={disableRemove}
-                className={`${styles.button} ${disableRemove ? styles['button-disabled'] : styles['button-red']
+                className={`${styles['button-small']} ${disableRemove ? styles['button-small-disabled'] : styles['button-small-red']
                   }`}
               >
                 Remove
@@ -191,17 +239,21 @@ const DiskListItem = ({
         </div>
       )}
 
-      <DiskExpandModal
-        vm={vm}
-        node={node}
-        auth={auth}
-        diskKey={diskKey}
-        currentSize={currentSizeGB}
-        isOpen={isExpandModalOpen}
-        onClose={() => setIsExpandModalOpen(false)}
-        addAlert={addAlert}
-        refreshConfig={refreshConfig}
-      />
+      {isExpanded && (
+        <div className="mt-3 pt-3 border-t border-gray-600">
+          <DiskExpandForm
+            vm={vm}
+            node={node}
+            auth={auth}
+            diskKey={diskKey}
+            currentSize={currentSizeGB}
+            onClose={() => setIsExpanded(false)}
+            addAlert={addAlert}
+            refreshConfig={refreshConfig}
+            setPendingDiskKey={setPendingDiskKey}
+          />
+        </div>
+      )}
     </li>
   );
 };

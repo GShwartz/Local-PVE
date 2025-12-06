@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { VM, Auth } from '../../../types';
 import { UseMutationResult } from '@tanstack/react-query';
+import ActionButton from './ActionButton';
 
 interface SuspendResumeButtonProps {
   vm: VM;
@@ -50,7 +51,8 @@ const SuspendResumeButton: React.FC<SuspendResumeButtonProps> = ({
   const action = localSuspended ? 'resume' : 'suspend';
   const targetStatus = localSuspended ? 'running' : 'paused';
 
-  const handleClick = () => {
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (isButtonDisabled) return;
 
     setSuspending(true);
@@ -113,33 +115,25 @@ const SuspendResumeButton: React.FC<SuspendResumeButtonProps> = ({
   // 🔗 Send live hints to parent for StatusBadge - but only when they actually change
   useEffect(() => {
     const newHints = calculateHints();
-    
+
     // Only call onHintsChange if the hints actually changed
-    if (!lastHintsRef.current || 
-        lastHintsRef.current.resumeShowing !== newHints.resumeShowing ||
-        lastHintsRef.current.resumeEnabled !== newHints.resumeEnabled) {
-      
+    if (!lastHintsRef.current ||
+      lastHintsRef.current.resumeShowing !== newHints.resumeShowing ||
+      lastHintsRef.current.resumeEnabled !== newHints.resumeEnabled) {
+
       lastHintsRef.current = newHints;
       onHintsChange?.(newHints);
     }
   }, [calculateHints]);
 
   return (
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        handleClick();
-      }}
+    <ActionButton
+      onClick={handleClick}
       disabled={isButtonDisabled}
-      className={`px-2 py-1 text-sm font-medium rounded-md active:scale-95 transition-transform duration-100 text-white ${
-        isButtonDisabled
-          ? 'bg-gray-600 cursor-not-allowed'
-          : 'bg-blue-600 hover:bg-blue-700'
-      }`}
-      style={{ height: '34px', lineHeight: '1.5' }}
+      variant={localSuspended ? 'green' : 'yellow'}
     >
       {localSuspended ? 'Resume' : 'Suspend'}
-    </button>
+    </ActionButton>
   );
 };
 

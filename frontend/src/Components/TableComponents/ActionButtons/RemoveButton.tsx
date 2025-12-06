@@ -54,11 +54,7 @@ const RemoveButton = ({
       <ActionButton
         onClick={handleClick}
         disabled={disabled}
-        className={
-          disabled
-            ? 'bg-gray-600 cursor-not-allowed'
-            : 'bg-pink-700 hover:bg-pink-800'
-        }
+        variant="red"
       >
         Remove
       </ActionButton>

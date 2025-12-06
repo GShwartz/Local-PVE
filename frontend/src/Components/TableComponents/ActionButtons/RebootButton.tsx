@@ -13,7 +13,7 @@ const RebootButton = ({ disabled, onClick }: RebootButtonProps) => {
         onClick(e);
       }}
       disabled={disabled}
-      className={disabled ? 'bg-gray-600 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}
+      variant="yellow"
     >
       Reboot
     </ActionButton>

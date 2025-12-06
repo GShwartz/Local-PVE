@@ -17,8 +17,17 @@ class AuthService:
         self.log_file = log_file
         self.logger = init_logger(self.log_file, __name__)
 
-    def login(self, username: str, password: str) -> dict:
+    def login(self, username: str = None, password: str = None) -> dict:
         try:
+            # Use provided credentials or get from environment
+            if not username:
+                username = "app@pve"  # Default username
+            if not password:
+                import os
+                password = os.getenv('PROXMOX_PASSWORD')
+                if not password:
+                    raise ValueError("No password provided and PROXMOX_PASSWORD not set")
+
             self.logger.info(f"Attempting login with username: {username}")
             response = self.session.post(
                 f"{PROXMOX_BASE_URL}/access/ticket",

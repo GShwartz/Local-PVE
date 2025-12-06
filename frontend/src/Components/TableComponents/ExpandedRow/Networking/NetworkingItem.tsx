@@ -69,7 +69,7 @@ const NetworkingItem = ({
             <button
               onClick={() => onEdit(net)}
               disabled={isDisabled}
-              className={`${styles.button} ${styles['button-yellow']} ${isDisabled ? styles['button-disabled'] : ''}`}
+              className={`${styles['button-small']} ${styles['button-small-yellow']} ${isDisabled ? styles['button-small-disabled'] : ''}`}
             >
               Edit
             </button>
@@ -82,7 +82,7 @@ const NetworkingItem = ({
             <button
               onClick={() => onRemove(net.name)}
               disabled={isDisabled}
-              className={`${styles.button} ${styles['button-red']} ${isDisabled ? styles['button-disabled'] : ''}`}
+              className={`${styles['button-small']} ${styles['button-small-red']} ${isDisabled ? styles['button-small-disabled'] : ''}`}
             >
               Remove
             </button>
@@ -108,6 +108,7 @@ const NetworkingItem = ({
             }}
             onMouseLeave={clearTooltip}
             className="text-gray-400 hover:text-white p-0.5"
+            style={{ width: '20px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
           >
             <Copy size={14} />
           </button>

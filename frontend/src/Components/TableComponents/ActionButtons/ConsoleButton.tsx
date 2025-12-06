@@ -10,7 +10,7 @@ const ConsoleButton = ({ onClick, disabled }: ConsoleButtonProps) => (
   <ActionButton
     onClick={onClick}
     disabled={disabled}
-    className={disabled ? 'bg-gray-600 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}
+    variant="blue"
   >
     Console
   </ActionButton>

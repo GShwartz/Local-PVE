@@ -15,13 +15,21 @@ import ActionButtons from './ActionButtons/ActionButtons';
 import ApplyButton from './ActionButtons/ApplyButton';
 import ExpandedRow from './ExpandedRow/ExpandedRow';
 
+// Color schemes for different rows
+const colorSchemes = [
+  { primary: 'blue', secondary: 'purple', bg: 'from-blue-500/40 via-purple-500/60 to-blue-500/40', connector: 'rgba(59, 130, 246, 0.8), rgba(147, 51, 234, 0.8)', shadow: 'shadow-blue-500/10', border: 'border-b-blue-500/30' },
+  { primary: 'green', secondary: 'teal', bg: 'from-green-500/40 via-teal-500/60 to-green-500/40', connector: 'rgba(34, 197, 94, 0.8), rgba(20, 184, 166, 0.8)', shadow: 'shadow-green-500/10', border: 'border-b-green-500/30' },
+  { primary: 'orange', secondary: 'red', bg: 'from-orange-500/40 via-red-500/60 to-orange-500/40', connector: 'rgba(249, 115, 22, 0.8), rgba(239, 68, 68, 0.8)', shadow: 'shadow-orange-500/10', border: 'border-b-orange-500/30' },
+  { primary: 'purple', secondary: 'pink', bg: 'from-purple-500/40 via-pink-500/60 to-purple-500/40', connector: 'rgba(147, 51, 234, 0.8), rgba(236, 72, 153, 0.8)', shadow: 'shadow-purple-500/10', border: 'border-b-purple-500/30' },
+  { primary: 'cyan', secondary: 'blue', bg: 'from-cyan-500/40 via-blue-500/60 to-cyan-500/40', connector: 'rgba(6, 182, 212, 0.8), rgba(59, 130, 246, 0.8)', shadow: 'shadow-cyan-500/10', border: 'border-b-cyan-500/30' }
+];
+
 interface TableRowProps {
   vm: VM;
   expandedRows: Set<number>;
   toggleRow: (vmid: number) => void;
   snapshotView: Set<number>;
   showSnapshots: (vmid: number) => void;
-  openModal: (vmid: number, vmName: string) => void;
   pendingActions: { [vmid: number]: string[] };
   vmMutation: UseMutationResult<string, any, any, unknown>;
   snapshotMutation: UseMutationResult<string, any, any, unknown>;
@@ -61,7 +69,6 @@ const TableRow = ({
   expandedRows,
   toggleRow,
   snapshotView,
-  openModal,
   pendingActions,
   vmMutation,
   snapshotMutation,
@@ -76,6 +83,9 @@ const TableRow = ({
   loaderMinDuration,
 }: TableRowProps) => {
   const queryClient = useQueryClient();
+
+  // Get color scheme based on VM ID for consistent coloring
+  const colorScheme = colorSchemes[vm.vmid % colorSchemes.length];
 
   // Move applying state to individual row level
   const [isApplying, setIsApplying] = useState(false);
@@ -211,7 +221,7 @@ const TableRow = ({
         </tr>
       )}
 
-      <tr className="group bg-gray-800/30 border-b border-white/5 hover:bg-white/5 transition-all duration-200 text-xs sm:text-sm hover:shadow-lg hover:z-10 relative">
+      <tr className={`group bg-gray-800/30 border-b border-white/5 hover:bg-white/5 transition-all duration-200 text-xs sm:text-sm hover:shadow-lg hover:z-10 relative shadow-lg ${colorScheme.shadow}`}>
         <td
           className="px-2 py-4 text-center cursor-pointer text-gray-400 group-hover:text-blue-400 transition-colors"
           onClick={() => toggleRow(vm.vmid)}
@@ -286,7 +296,6 @@ const TableRow = ({
         addAlert={addAlert}
         snapshotView={snapshotView}
         expandedRows={expandedRows}
-        openModal={openModal}
         snapshotMutation={snapshotMutation}
         deleteSnapshotMutation={deleteSnapshotMutation}
         pendingActions={pendingActions}

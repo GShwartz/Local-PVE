@@ -53,7 +53,7 @@ const StartButton = ({
     <ActionButton
       onClick={handleStart}
       disabled={isInactive}
-      className={isInactive ? 'bg-gray-600 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}
+      variant="blue"
     >
       Start
     </ActionButton>

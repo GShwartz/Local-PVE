@@ -1,99 +1,112 @@
-import { UseMutationResult } from '@tanstack/react-query';
-import { VM, Snapshot } from '../../../../types';
-import { useState } from 'react';
-import loaderStyles from '../../../../CSS/Loader.module.css';
+import { UseMutationResult, useMutation, useQueryClient } from '@tanstack/react-query';
+import { VM, Snapshot, Auth } from '../../../../types';
+import { useState, useEffect } from 'react';
 import styles from '../../../../CSS/ExpandedArea.module.css';
+import SnapshotModal from './SnapshotModal';
+import axios from 'axios';
 
 interface SnapshotsViewProps {
   vm: VM;
   snapshots?: Snapshot[];
   snapshotsLoading: boolean;
   snapshotsError: any;
-  openModal: (vmid: number) => void;
   snapshotMutation: UseMutationResult<string, any, { vmid: number; snapname: string }, unknown>;
   deleteSnapshotMutation: UseMutationResult<string, any, { vmid: number; snapname: string }, unknown>;
   pendingActions: { [vmid: number]: string[] };
   isAddingDisk?: boolean;
+  node: string;
+  auth: Auth;
+  addAlert: (message: string, type: string) => void;
 }
 
-interface PopconfirmProps {
-  isOpen: boolean;
-  onConfirm: () => void;
-  onCancel: () => void;
-  message: string;
-  action: 'revert' | 'delete' | null;
-}
-
-const Popconfirm: React.FC<PopconfirmProps> = ({ isOpen, onConfirm, onCancel, message, action }) => {
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 mt-1 flex justify-center items-center bg-black/50">
-      <div className="relative p-4 w-full max-w-sm max-h-full">
-        <div className="relative bg-white rounded-lg shadow-sm dark:bg-gray-700">
-          <div className="p-4 md:p-5">
-            <p className="text-sm text-gray-900 dark:text-white mb-4">{message}</p>
-            <div className="flex justify-end space-x-2">
-              <button
-                onClick={onCancel}
-                className={`${styles.button} ${styles['button-disabled']}`}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={onConfirm}
-                className={`${styles.button} ${action === 'revert' ? styles['button-purple'] : styles['button-red']
-                  }`}
-              >
-                {action === 'revert' ? 'Revert' : 'Remove'}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 const SnapshotsView = ({
   vm,
   snapshots,
   snapshotsLoading,
   snapshotsError,
-  openModal,
   snapshotMutation,
   deleteSnapshotMutation,
   pendingActions,
   isAddingDisk,
+  node,
+  auth,
+  addAlert,
 }: SnapshotsViewProps) => {
+  const queryClient = useQueryClient();
+
   const isCreatingSnapshot = pendingActions[vm.vmid]?.some((action) =>
     action.startsWith('create-')
   );
   const isRevertingSnapshot = pendingActions[vm.vmid]?.some((action) =>
     action.startsWith('revert-')
   );
+  const isDeletingAnySnapshot = pendingActions[vm.vmid]?.some((action) =>
+    action.startsWith('delete-')
+  );
 
-  const [popconfirm, setPopconfirm] = useState<{
-    isOpen: boolean;
-    action: 'revert' | 'delete' | null;
-    snapname: string | null;
-  }>({ isOpen: false, action: null, snapname: null });
 
-  const showPopconfirm = (action: 'revert' | 'delete', snapname: string) => {
-    setPopconfirm({ isOpen: true, action, snapname });
-  };
+  // Inline confirmation states
+  const [pendingSnapshotRemoval, setPendingSnapshotRemoval] = useState<string | null>(null);
+  const [pendingSnapshotRevert, setPendingSnapshotRevert] = useState<string | null>(null);
 
-  const handleConfirm = () => {
-    if (popconfirm.action === 'revert' && popconfirm.snapname) {
-      snapshotMutation.mutate({ vmid: vm.vmid, snapname: popconfirm.snapname });
-    } else if (popconfirm.action === 'delete' && popconfirm.snapname) {
-      deleteSnapshotMutation.mutate({ vmid: vm.vmid, snapname: popconfirm.snapname });
+  // Clear pending states when mutations complete
+  useEffect(() => {
+    if (snapshotMutation.isSuccess || snapshotMutation.isError) {
+      setPendingSnapshotRevert(null);
     }
-    setPopconfirm({ isOpen: false, action: null, snapname: null });
+  }, [snapshotMutation.isSuccess, snapshotMutation.isError]);
+
+  useEffect(() => {
+    if (deleteSnapshotMutation.isSuccess || deleteSnapshotMutation.isError) {
+      setPendingSnapshotRemoval(null);
+    }
+  }, [deleteSnapshotMutation.isSuccess, deleteSnapshotMutation.isError]);
+
+  // Modal state
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [snapshotName, setSnapshotName] = useState('');
+
+  const openModal = () => setIsModalOpen(true);
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setSnapshotName('');
   };
 
-  const handleCancel = () => {
-    setPopconfirm({ isOpen: false, action: null, snapname: null });
+  // Validation function for snapshot names
+  const isValidSnapshotName = (name: string): boolean => /^[a-zA-Z0-9_+.-]{1,40}$/.test(name);
+
+  // Local mutation for creating snapshots
+  const createSnapshotMutation = useMutation({
+    mutationFn: async ({ vmid, snapname }: { vmid: number; snapname: string }) => {
+      const response = await axios.post(
+        `http://localhost:8000/vm/${node}/qemu/${vmid}/snapshot`,
+        { snapname, description: '' },
+        {
+          params: {
+            csrf_token: auth.csrf_token,
+            ticket: auth.ticket,
+          },
+        }
+      );
+      return response.data;
+    },
+    onSuccess: (data, { vmid, snapname }) => {
+      addAlert(`Snapshot "${snapname}" created successfully for VM ${vmid}`, 'success');
+      queryClient.invalidateQueries({ queryKey: ['snapshots', node, vmid] });
+      queryClient.invalidateQueries({ queryKey: ['vms', node] });
+      closeModal();
+    },
+    onError: (error: any, { snapname }) => {
+      addAlert(`Failed to create snapshot "${snapname}": ${error.response?.data?.detail || error.message}`, 'error');
+    },
+  });
+
+
+  // Get the header title based on modal state
+  const getHeaderTitle = () => {
+    if (isModalOpen) return 'Take Snapshot';
+    return 'Snapshots';
   };
 
   return (
@@ -102,31 +115,53 @@ const SnapshotsView = ({
       {snapshotsError && <p className="text-red-500">Error loading snapshots: {snapshotsError.message}</p>}
 
       <div className={styles.cardHeader}>
+        <div className="flex items-center gap-2 flex-1">
+          <h5 className={styles.cardTitle}>{getHeaderTitle()}</h5>
+        </div>
         <div className="flex items-center gap-2">
-          <h5 className={styles.cardTitle}>Snapshots</h5>
-          {(isCreatingSnapshot || isRevertingSnapshot) && (
-            <div className={loaderStyles.loader} aria-label="Snapshot action in progress">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className={loaderStyles.circle}>
-                  <div className={loaderStyles.dot}></div>
-                  <div className={loaderStyles.outline}></div>
-                </div>
-              ))}
-            </div>
+          {!isModalOpen && (
+            <button
+              onClick={openModal}
+              disabled={isCreatingSnapshot || isRevertingSnapshot || isAddingDisk || isDeletingAnySnapshot}
+              className={`${styles.button} ${isCreatingSnapshot || isRevertingSnapshot || isAddingDisk || isDeletingAnySnapshot
+                ? styles['button-disabled']
+                : styles['button-blue']
+                }`}
+            >
+              <span className="text-lg">+</span> Take Snapshot
+            </button>
+          )}
+          {isModalOpen && (
+            <button
+              onClick={closeModal}
+              className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/50 hover:text-red-600 dark:hover:text-red-400 rounded-md transition-all duration-200 group"
+              aria-label="Close snapshot form"
+            >
+              <svg className="w-4 h-4 group-hover:rotate-90 group-hover:scale-110 transition-all duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           )}
         </div>
-        <button
-          onClick={() => openModal(vm.vmid)}
-          disabled={isCreatingSnapshot || isRevertingSnapshot || isAddingDisk}
-          className={`${styles.button} ${isCreatingSnapshot || isRevertingSnapshot || isAddingDisk
-            ? styles['button-disabled']
-            : styles['button-blue']
-            }`}
-        >
-          <span className="text-lg">+</span> Take Snapshot
-        </button>
       </div>
 
+      {/* Show modal when open */}
+      {isModalOpen && (
+        <SnapshotModal
+          isOpen={isModalOpen}
+          closeModal={closeModal}
+          snapshotName={snapshotName}
+          setSnapshotName={setSnapshotName}
+          currentVmid={vm.vmid}
+          createSnapshotMutation={createSnapshotMutation}
+          isValidSnapshotName={isValidSnapshotName}
+          addAlert={addAlert}
+          node={node}
+          auth={auth}
+        />
+      )}
+
+      {/* Always show snapshot list */}
       {snapshots && snapshots.length === 0 ? (
         <div className="flex items-center justify-center p-8 text-gray-500 text-sm italic border border-dashed border-white/10 rounded-lg">
           No snapshots available
@@ -137,7 +172,7 @@ const SnapshotsView = ({
             <ul className="space-y-2">
               {snapshots?.map((snapshot) => (
                 <li key={snapshot.name} className={styles.listItem}>
-                  <div className="flex justify-between items-start">
+                  <div className="flex justify-between items-center">
                     <div className="flex flex-col text-left">
                       <span className="font-medium text-gray-200">{snapshot.name}</span>
                       {snapshot.snaptime && (
@@ -146,46 +181,78 @@ const SnapshotsView = ({
                         </span>
                       )}
                     </div>
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          showPopconfirm('revert', snapshot.name);
-                        }}
-                        disabled={
-                          isRevertingSnapshot ||
-                          isCreatingSnapshot ||
-                          pendingActions[vm.vmid]?.includes(`delete-${snapshot.name}`)
-                        }
-                        className={`${styles.button} ${isRevertingSnapshot ||
-                          isCreatingSnapshot ||
-                          pendingActions[vm.vmid]?.includes(`delete-${snapshot.name}`)
-                          ? styles['button-disabled']
-                          : styles['button-purple']
-                          }`}
-                      >
-                        Revert
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          showPopconfirm('delete', snapshot.name);
-                        }}
-                        disabled={
-                          pendingActions[vm.vmid]?.includes(`delete-${snapshot.name}`) ||
-                          isCreatingSnapshot ||
-                          pendingActions[vm.vmid]?.includes(`revert-${snapshot.name}`)
-                        }
-                        className={`${styles.button} ${pendingActions[vm.vmid]?.includes(`delete-${snapshot.name}`) ||
-                          isCreatingSnapshot ||
-                          pendingActions[vm.vmid]?.includes(`revert-${snapshot.name}`)
-                          ? styles['button-disabled']
-                          : styles['button-red']
-                          }`}
-                      >
-                        Remove
-                      </button>
-                    </div>
+                    {pendingSnapshotRemoval === snapshot.name || pendingSnapshotRevert === snapshot.name ? (
+                      <div className="flex items-center space-x-2 ml-auto">
+                        {(pendingSnapshotRemoval && deleteSnapshotMutation.isPending) ||
+                         (pendingSnapshotRevert && snapshotMutation.isPending) ? (
+                          <span className="text-xs text-gray-400">
+                            {pendingSnapshotRemoval ? 'Removing...' : 'Reverting...'}
+                          </span>
+                        ) : (
+                          <>
+                            <span className="text-xs text-red-300">
+                              {vm.status === 'running'
+                                ? `VM is running. Shutdown + ${pendingSnapshotRemoval ? 'Delete' : 'Revert'} snapshot "${snapshot.name}"? This action cannot be undone.`
+                                : `Confirm ${pendingSnapshotRemoval ? 'remove' : 'revert'}?`}
+                            </span>
+                            <button
+                              onClick={() => {
+                                if (pendingSnapshotRemoval) {
+                                  deleteSnapshotMutation.mutate({ vmid: vm.vmid, snapname: snapshot.name });
+                                } else if (pendingSnapshotRevert) {
+                                  snapshotMutation.mutate({ vmid: vm.vmid, snapname: snapshot.name });
+                                }
+                              }}
+                              className={`${styles['button-small']} ${styles['button-small-green']}`}
+                            >
+                              Yes
+                            </button>
+                            <button
+                              onClick={() => {
+                                setPendingSnapshotRemoval(null);
+                                setPendingSnapshotRevert(null);
+                              }}
+                              className={`${styles['button-small']} ${styles['button-small-red']}`}
+                            >
+                              No
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex space-x-2 items-center">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPendingSnapshotRevert(snapshot.name);
+                          }}
+                          disabled={isRevertingSnapshot || isCreatingSnapshot || isDeletingAnySnapshot}
+                          className={`${styles['button-small']} ${isRevertingSnapshot ||
+                            isCreatingSnapshot ||
+                            isDeletingAnySnapshot
+                            ? styles['button-small-disabled']
+                            : styles['button-small-purple']
+                            }`}
+                        >
+                          Revert
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPendingSnapshotRemoval(snapshot.name);
+                          }}
+                          disabled={isDeletingAnySnapshot || isCreatingSnapshot || pendingActions[vm.vmid]?.includes(`revert-${snapshot.name}`)}
+                          className={`${styles['button-small']} ${isDeletingAnySnapshot ||
+                            isCreatingSnapshot ||
+                            pendingActions[vm.vmid]?.includes(`revert-${snapshot.name}`)
+                            ? styles['button-small-disabled']
+                            : styles['button-small-red']
+                            }`}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    )}
                   </div>
                   {snapshot.description && (
                     <span className="text-xs text-gray-500 line-clamp-2 mt-2 border-t border-white/5 pt-2">
@@ -199,17 +266,6 @@ const SnapshotsView = ({
         </div>
       )}
 
-      <Popconfirm
-        isOpen={popconfirm.isOpen}
-        onConfirm={handleConfirm}
-        onCancel={handleCancel}
-        message={
-          popconfirm.action === 'revert'
-            ? `Are you sure you want to revert to snapshot "${popconfirm.snapname}"? This action cannot be undone.`
-            : `Are you sure you want to delete snapshot "${popconfirm.snapname}"? This action cannot be undone.`
-        }
-        action={popconfirm.action}
-      />
     </div>
   );
 };

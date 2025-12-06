@@ -21,8 +21,10 @@ const Login = ({ onLoginSuccess }: LoginProps) => {
     setIsLoading(true);
 
     try {
+      console.log('Attempting login with:', form);
       // Using axios to match App.tsx patterns
       const { data } = await axios.post<Auth>('http://localhost:8000/login', form);
+      console.log('Login response:', data);
 
       // Set cookies for legacy support if needed (App.tsx seems to use state mainly, but keeping this doesn't hurt)
       document.cookie = `PVEAuthCookie=${data.ticket}; path=/; SameSite=Strict; Secure`;
@@ -32,11 +34,13 @@ const Login = ({ onLoginSuccess }: LoginProps) => {
       localStorage.setItem('ticket', data.ticket);
 
       toast.success('Welcome back!');
+      console.log('Calling onLoginSuccess with:', data);
       onLoginSuccess(data);
     } catch (error: any) {
       console.error('Login error:', error);
       const msg = error.response?.data?.detail || error.message || 'Failed to log in.';
       toast.error(msg);
+      console.error('Full error details:', error.response);
     } finally {
       setIsLoading(false);
     }

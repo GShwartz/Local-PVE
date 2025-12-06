@@ -213,7 +213,7 @@ const ActionButtons = ({
       canStop: (isRunning || isPaused) && !hasPendingAction && !isApplying && !isSuspending,
       canShutdown: isRunning && !isSuspended && !hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending,
       canReboot: isRunning && !isSuspended && !hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending,
-      canConsole: isRunning && !isSuspended && !hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending,
+      canConsole: true, // Console should always be available
       canClone: (!hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending),
       canRemove: isStopped && !hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending,
       canSuspendResume: (isRunning || isPaused) && !hasPendingAction && !isApplying && !isOperationActive && !hasRebootPending
@@ -355,7 +355,7 @@ const ActionButtons = ({
       onClick={onToggleRow}
     >
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', width: '100%' }}>
-        <div className={styles.buttonGroup} style={{ height: '40px', marginBottom: '4px' }}>
+        <div className={styles.buttonGroup}>
 
           <StartButton
             vm={vm}
