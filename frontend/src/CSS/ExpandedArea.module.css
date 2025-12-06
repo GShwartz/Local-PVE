@@ -6,6 +6,21 @@
   padding: 1.5rem;
   flex-wrap: wrap;
   width: 100%;
+  position: relative;
+}
+
+/* Visual connection styling */
+.container::before {
+  content: '';
+  position: absolute;
+  top: -0.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 3px;
+  height: 1.25rem;
+  background: linear-gradient(to bottom, var(--connector-gradient, rgba(59, 130, 246, 0.8), rgba(147, 51, 234, 0.8)));
+  border-radius: 2px;
+  box-shadow: 0 0 8px var(--shadow-color, rgba(59, 130, 246, 0.3));
 }
 
 .column {
@@ -70,6 +85,38 @@
 }
 
 .button-disabled {
+  @apply bg-none bg-gray-700/50 text-gray-400 cursor-not-allowed opacity-70 hover:scale-100 hover:bg-gray-700/50 shadow-none border-gray-600;
+  pointer-events: none;
+}
+
+/* Smaller button variant for networking actions */
+.button-small {
+  @apply inline-flex items-center justify-center gap-1 px-2 py-1 text-xs font-semibold rounded transition-all duration-200 border border-transparent shadow-sm transform hover:scale-[1.02] active:scale-[0.98];
+  height: 24px;
+  min-width: 50px;
+}
+
+.button-small-blue {
+  @apply bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-500 hover:to-purple-500 shadow-blue-500/20;
+}
+
+.button-small-green {
+  @apply bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-500 hover:to-teal-500 shadow-emerald-500/20;
+}
+
+.button-small-red {
+  @apply bg-gradient-to-r from-red-600 to-pink-600 text-white hover:from-red-500 hover:to-pink-500 shadow-red-500/20;
+}
+
+.button-small-yellow {
+  @apply bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-400 hover:to-orange-400 shadow-amber-500/20;
+}
+
+.button-small-purple {
+  @apply bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:from-purple-500 hover:to-indigo-500 shadow-purple-500/20;
+}
+
+.button-small-disabled {
   @apply bg-none bg-gray-700/50 text-gray-400 cursor-not-allowed opacity-70 hover:scale-100 hover:bg-gray-700/50 shadow-none border-gray-600;
   pointer-events: none;
 }

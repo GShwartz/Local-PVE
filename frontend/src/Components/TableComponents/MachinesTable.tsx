@@ -1,13 +1,11 @@
 import { useState } from 'react';
 import TableHeader from './TableHeader';
 import TableRow from './TableRow';
-import SnapshotModal from './ExpandedRow/SnapshotsComponents/SnapshotModal';
 import { Auth, VM } from '../../types';
 import {
   useVMMutation,
   useSnapshotMutation,
   useDeleteSnapshotMutation,
-  useCreateSnapshotMutation,
 } from '../vmMutations';
 
 interface MachinesTableProps {
@@ -24,12 +22,15 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: 
   const [snapshotView, setSnapshotView] = useState<Set<number>>(new Set());
   const [sortConfig, setSortConfig] = useState<{ key: keyof VM; direction: 'asc' | 'desc' }>({ key: 'vmid', direction: 'asc' });
   const [pendingActions, setPendingActions] = useState<{ [vmid: number]: string[] }>({});
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [snapshotName, setSnapshotName] = useState('');
-  const [currentVmid, setCurrentVmid] = useState<number | null>(null);
   const [editingVmid, setEditingVmid] = useState<number | null>(null);
 
   const LOADER_MIN_DURATION = 5000;
+
+  const openEditModal = (vm: VM) => {
+    if (editingVmid === null || editingVmid === vm.vmid) setEditingVmid(vm.vmid);
+  };
+
+  const cancelEdit = () => setEditingVmid(null);
 
   const toggleRow = (vmid: number): void => {
     const newExpanded = new Set(expandedRows);
@@ -61,17 +62,6 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: 
     setSnapshotView(newSnapshotView);
   };
 
-  const openModal = (vmid: number): void => {
-    setCurrentVmid(vmid);
-    setSnapshotName('');
-    setIsModalOpen(true);
-  };
-
-  const closeModal = (): void => {
-    setIsModalOpen(false);
-    setCurrentVmid(null);
-    setSnapshotName('');
-  };
 
   const handleSort = (key: keyof VM): void => {
     setSortConfig((prev) => ({
@@ -103,15 +93,6 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: 
   const vmMutation = useVMMutation(auth, node, queryClient, addAlert, setPendingActions);
   const snapshotMutation = useSnapshotMutation(auth, node, queryClient, addAlert, setPendingActions);
   const deleteSnapshotMutation = useDeleteSnapshotMutation(auth, node, queryClient, addAlert, setPendingActions);
-  const createSnapshotMutation = useCreateSnapshotMutation(auth, node, queryClient, addAlert, setPendingActions, closeModal);
-
-  const isValidSnapshotName = (name: string): boolean => /^[a-zA-Z0-9_+.-]{1,40}$/.test(name);
-
-  const openEditModal = (vm: VM) => {
-    if (editingVmid === null || editingVmid === vm.vmid) setEditingVmid(vm.vmid);
-  };
-
-  const cancelEdit = () => setEditingVmid(null);
 
   const refreshVMs = () => queryClient.invalidateQueries(['vms']);
 
@@ -137,7 +118,6 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: 
                     toggleRow={toggleRow}
                     snapshotView={snapshotView}
                     showSnapshots={showSnapshots}
-                    openModal={openModal}
                     pendingActions={pendingActions}
                     vmMutation={vmMutation}
                     snapshotMutation={snapshotMutation}
@@ -159,18 +139,6 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: 
           </table>
         </div>
       </div>
-      <SnapshotModal
-        isOpen={isModalOpen}
-        closeModal={closeModal}
-        snapshotName={snapshotName}
-        setSnapshotName={setSnapshotName}
-        currentVmid={currentVmid}
-        createSnapshotMutation={createSnapshotMutation}
-        isValidSnapshotName={isValidSnapshotName}
-        addAlert={addAlert}
-        node={node}
-        auth={auth}
-      />
     </>
   );
 };

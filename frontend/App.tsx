@@ -76,8 +76,13 @@ function App() {
   }
 
   if (!auth) {
-    return <Login onLoginSuccess={setAuth} />;
+    return <Login onLoginSuccess={(authData) => {
+      console.log('Login success, setting auth:', authData);
+      setAuth(authData);
+    }} />;
   }
+
+  console.log('Rendering main app with auth:', auth);
 
   return (
     <>

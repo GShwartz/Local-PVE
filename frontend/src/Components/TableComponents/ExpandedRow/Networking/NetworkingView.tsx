@@ -35,6 +35,13 @@ const NetworkingView = ({ vm, node, auth, addAlert, refreshVMs }: NetworkingView
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editNIC, setEditNIC] = useState<NetworkInterface | null>(null);
 
+  // Determine the header title based on modal state
+  const getHeaderTitle = () => {
+    if (!isModalOpen) return 'Networking';
+    if (editNIC) return `Edit ${editNIC.name}`;
+    return 'Add NIC';
+  };
+
   const API_BASE = 'http://localhost:8000';
 
   const parseNetConfig = (key: string, value: string): NetworkInterface => {
@@ -186,44 +193,63 @@ const NetworkingView = ({ vm, node, auth, addAlert, refreshVMs }: NetworkingView
 
   const handleCopyMac = (mac: string) => {
     navigator.clipboard.writeText(mac).then(() => {
-      addAlert(`Copied MAC address: ${mac}`, 'success');
+      // Defer the alert to next frame to prevent layout shift
+      requestAnimationFrame(() => {
+        addAlert(`Copied MAC address: ${mac}`, 'success');
+      });
     });
   };
 
   return (
     <div className="w-full flex-1 min-h-[300px] max-h-[600px] overflow-y-auto p-4 bg-white border border-gray-200 rounded-lg shadow-sm sm:p-6 dark:bg-gray-800 dark:border-gray-700">
       <div className={styles.cardHeader}>
-        <h5 className={styles.cardTitle}>Networking</h5>
-        <NetworkingHeader
-          loading={loading}
-          onRefresh={handleRefreshClick}
-          onAddNIC={handleAddNIC}
-          vmStatus={vm.status}
-        />
+        <h5 className={styles.cardTitle}>{getHeaderTitle()}</h5>
+        {isModalOpen ? (
+          <button
+            onClick={() => setIsModalOpen(false)}
+            className="p-2 hover:bg-red-50 dark:hover:bg-red-950/50 hover:text-red-600 dark:hover:text-red-400 rounded-lg transition-all duration-200 group"
+            aria-label="Close"
+          >
+            <svg className="w-4 h-4 group-hover:rotate-90 group-hover:scale-110 transition-all duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        ) : (
+          <NetworkingHeader
+            loading={loading}
+            onRefresh={handleRefreshClick}
+            onAddNIC={handleAddNIC}
+            vmStatus={vm.status}
+          />
+        )}
       </div>
 
-      {loading && <p className="text-sm text-gray-500">Loading networking...</p>}
-      {error && <p className="text-sm text-red-500">{error}</p>}
-      {!loading && !error && interfaces.length === 0 && (
-        <p className="text-sm text-gray-500">No network interfaces found.</p>
-      )}
-      {!loading && !error && interfaces.length > 0 && (
-        <NetworkingList
-          interfaces={interfaces}
-          onRemove={handleRemoveNIC}
-          onEdit={handleEditNIC}
-          onCopyMac={handleCopyMac}
-          vmStatus={vm.status}
-          ipAddress={vm.ip_address}
+      {isModalOpen ? (
+        <NetworkingModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onSubmit={handleNICSubmit}
+          editNIC={editNIC}
         />
+      ) : (
+        <>
+          {loading && <p className="text-sm text-gray-500">Loading networking...</p>}
+          {error && <p className="text-sm text-red-500">{error}</p>}
+          {!loading && !error && interfaces.length === 0 && (
+            <p className="text-sm text-gray-500">No network interfaces found.</p>
+          )}
+          {!loading && !error && interfaces.length > 0 && (
+            <NetworkingList
+              interfaces={interfaces}
+              onRemove={handleRemoveNIC}
+              onEdit={handleEditNIC}
+              onCopyMac={handleCopyMac}
+              vmStatus={vm.status}
+              ipAddress={vm.ip_address}
+            />
+          )}
+        </>
       )}
-
-      <NetworkingModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSubmit={handleNICSubmit}
-        editNIC={editNIC}
-      />
     </div>
   );
 };

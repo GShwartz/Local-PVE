@@ -2,7 +2,7 @@ import { UseMutationResult } from '@tanstack/react-query';
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import { Snapshot } from '../../../../types';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 interface SnapshotModalProps {
   isOpen: boolean;
@@ -43,6 +43,7 @@ const SnapshotModal = ({
     enabled: !!currentVmid && isOpen,
   });
   const [isNameTaken, setIsNameTaken] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isNameTaken) {
@@ -52,6 +53,13 @@ const SnapshotModal = ({
       return () => clearTimeout(timer);
     }
   }, [isNameTaken]);
+
+  // Focus input when modal opens
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isOpen]);
 
   const handleTakeSnapshot = () => {
     if (!snapshotName) {
@@ -82,79 +90,64 @@ const SnapshotModal = ({
   if (!isOpen) return null;
 
   return (
-    <>
-      <style>
-        {`
-          @keyframes flicker {
-            0%, 50%, 100% { border-color: red; }
-            25%, 75% { border-color: transparent; }
-          }
-          .animate-flicker {
-            animation: flicker 0.25s linear 4;
-          }
-        `}
-      </style>
-      <div
-        id="take-snapshot-modal"
-        tabIndex={-1}
-        aria-hidden="true"
-        className="fixed inset-0 z-[100] flex justify-center items-center w-full h-full bg-black/50"
-        onClick={closeModal}
-      >
-        <div
-          className="relative p-4 w-full max-w-md max-h-full"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="relative bg-white rounded-lg shadow-sm dark:bg-gray-700">
-            <div className="flex items-center justify-between p-4 md:p-5 border-b rounded-t dark:border-gray-600 border-gray-200">
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                Create Snapshot
-              </h3>
-              <button
-                type="button"
-                className="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 ms-auto inline-flex justify-center items-center dark:hover:bg-gray-600 dark:hover:text-white"
-                onClick={closeModal}
-                aria-label="Close modal"
-              >
-                <svg className="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
-                  <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6"/>
-                </svg>
-                <span className="sr-only">Close modal</span>
-              </button>
-            </div>
-            <div className="p-4 md:p-5">
-              <div className="space-y-4">
-                {snapshotsLoading && <p>Loading existing snapshots...</p>}
-                <div>
-                  <label htmlFor="snapshot-name" className="block mb-2 text-sm font-semibold text-gray-700 dark:text-white">Snapshot Name</label>
-                  <input
-                    type="text"
-                    name="snapshot-name"
-                    id="snapshot-name"
-                    className={`bg-gray-50 border text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:text-white ${
-                      isNameTaken
-                        ? 'border-red-500 animate-flicker'
-                        : 'border-gray-300 dark:border-gray-600'
-                    }`}
-                    placeholder="Enter letters, numbers, _, -, ., + (no spaces)"
-                    value={snapshotName}
-                    onChange={(e) => setSnapshotName(e.target.value.trim())}
-                  />
-                </div>
-                <button
-                  type="button"
-                  className="w-full text-white bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-semibold px-4 py-2 text-center dark:bg-blue-500 dark:hover:bg-blue-600"
-                  onClick={handleTakeSnapshot}
-                  disabled={!snapshotName || !isValidSnapshotName(snapshotName) || createSnapshotMutation.isPending || snapshotsLoading}
-                >
-                  Take Snapshot
-                </button>
-              </div>
-            </div>
+    <div className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4 max-h-96 overflow-y-auto">
+      {/* Form content */}
+      <div className="space-y-4 mb-4">
+        {/* Snapshot Name */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
+              <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              Snapshot Name
+            </label>
+            <button
+              onClick={closeModal}
+              className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/50 hover:text-red-600 dark:hover:text-red-400 rounded-md transition-all duration-200 group"
+              aria-label="Close"
+            >
+              <svg className="w-4 h-4 group-hover:rotate-90 group-hover:scale-110 transition-all duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
+          <div className="relative group">
+            <input
+              ref={inputRef}
+              type="text"
+              value={snapshotName}
+              onChange={(e) => setSnapshotName(e.target.value.trim())}
+              placeholder="Enter letters, numbers, _, -, ., + (no spaces)"
+              className={`w-full px-3 py-2.5 bg-white dark:bg-gray-800 border rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 group-hover:border-gray-300 dark:group-hover:border-gray-500 ${
+                isNameTaken
+                  ? 'border-red-500 animate-flicker'
+                  : 'border-gray-200 dark:border-gray-600'
+              }`}
+            />
+            <div className="absolute inset-0 rounded-lg bg-gradient-to-r from-blue-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none"></div>
+          </div>
+          {snapshotsLoading && <p className="text-xs text-gray-500">Loading existing snapshots...</p>}
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex gap-2 justify-start pt-4 border-t border-gray-200 dark:border-gray-700">
+          <button
+            onClick={closeModal}
+            className="px-3 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg font-medium transition-colors duration-200"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleTakeSnapshot}
+            disabled={!snapshotName || !isValidSnapshotName(snapshotName) || createSnapshotMutation.isPending || snapshotsLoading}
+            className="px-3 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg font-medium shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 transition-all duration-200"
+          >
+            {createSnapshotMutation.isPending ? 'Creating...' : 'Create'}
+          </button>
         </div>
       </div>
-    </>
+    </div>
   );
 };
 

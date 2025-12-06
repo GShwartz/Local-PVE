@@ -29,10 +29,9 @@ nav {
 }
 
 table {
-  @apply border-collapse border border-white;
+  @apply border-collapse;
   width: 100%; /* Ensure table takes full width */
   margin-bottom: 5px; /* Add 5px gap beneath table */
-  border-bottom: 2px solid white; /* Add bottom border */
   max-height: 70rem; /* Fixed max height for table */
 }
 

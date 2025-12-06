@@ -1,19 +1,23 @@
-import { UseMutationResult } from '@tanstack/react-query';
-import { VM, Snapshot } from '../../../../types';
+import { UseMutationResult, useMutation, useQueryClient } from '@tanstack/react-query';
+import { VM, Snapshot, Auth } from '../../../../types';
 import { useState } from 'react';
 import loaderStyles from '../../../../CSS/Loader.module.css';
 import styles from '../../../../CSS/ExpandedArea.module.css';
+import SnapshotModal from './SnapshotModal';
+import axios from 'axios';
 
 interface SnapshotsViewProps {
   vm: VM;
   snapshots?: Snapshot[];
   snapshotsLoading: boolean;
   snapshotsError: any;
-  openModal: (vmid: number) => void;
   snapshotMutation: UseMutationResult<string, any, { vmid: number; snapname: string }, unknown>;
   deleteSnapshotMutation: UseMutationResult<string, any, { vmid: number; snapname: string }, unknown>;
   pendingActions: { [vmid: number]: string[] };
   isAddingDisk?: boolean;
+  node: string;
+  auth: Auth;
+  addAlert: (message: string, type: string) => void;
 }
 
 interface PopconfirmProps {
@@ -60,17 +64,24 @@ const SnapshotsView = ({
   snapshots,
   snapshotsLoading,
   snapshotsError,
-  openModal,
   snapshotMutation,
   deleteSnapshotMutation,
   pendingActions,
   isAddingDisk,
+  node,
+  auth,
+  addAlert,
 }: SnapshotsViewProps) => {
+  const queryClient = useQueryClient();
+
   const isCreatingSnapshot = pendingActions[vm.vmid]?.some((action) =>
     action.startsWith('create-')
   );
   const isRevertingSnapshot = pendingActions[vm.vmid]?.some((action) =>
     action.startsWith('revert-')
+  );
+  const isDeletingAnySnapshot = pendingActions[vm.vmid]?.some((action) =>
+    action.startsWith('delete-')
   );
 
   const [popconfirm, setPopconfirm] = useState<{
@@ -78,6 +89,45 @@ const SnapshotsView = ({
     action: 'revert' | 'delete' | null;
     snapname: string | null;
   }>({ isOpen: false, action: null, snapname: null });
+
+  // Modal state
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [snapshotName, setSnapshotName] = useState('');
+
+  const openModal = () => setIsModalOpen(true);
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setSnapshotName('');
+  };
+
+  // Validation function for snapshot names
+  const isValidSnapshotName = (name: string): boolean => /^[a-zA-Z0-9_+.-]{1,40}$/.test(name);
+
+  // Local mutation for creating snapshots
+  const createSnapshotMutation = useMutation({
+    mutationFn: async ({ vmid, snapname }: { vmid: number; snapname: string }) => {
+      const response = await axios.post(
+        `http://localhost:8000/vm/${node}/qemu/${vmid}/snapshot`,
+        { snapname, description: '' },
+        {
+          params: {
+            csrf_token: auth.csrf_token,
+            ticket: auth.ticket,
+          },
+        }
+      );
+      return response.data;
+    },
+    onSuccess: (data, { vmid, snapname }) => {
+      addAlert(`Snapshot "${snapname}" created successfully for VM ${vmid}`, 'success');
+      queryClient.invalidateQueries({ queryKey: ['snapshots', node, vmid] });
+      queryClient.invalidateQueries({ queryKey: ['vms', node] });
+      closeModal();
+    },
+    onError: (error: any, { snapname }) => {
+      addAlert(`Failed to create snapshot "${snapname}": ${error.response?.data?.detail || error.message}`, 'error');
+    },
+  });
 
   const showPopconfirm = (action: 'revert' | 'delete', snapname: string) => {
     setPopconfirm({ isOpen: true, action, snapname });
@@ -96,6 +146,12 @@ const SnapshotsView = ({
     setPopconfirm({ isOpen: false, action: null, snapname: null });
   };
 
+  // Get the header title based on modal state
+  const getHeaderTitle = () => {
+    if (isModalOpen) return 'Take Snapshot';
+    return 'Snapshots';
+  };
+
   return (
     <div className="w-full flex-1 min-h-[300px] max-h-[600px] overflow-y-auto p-4 bg-white border border-gray-200 rounded-lg shadow-sm sm:p-6 dark:bg-gray-800 dark:border-gray-700">
       {snapshotsLoading && <p className="sr-only">Loading snapshots...</p>}
@@ -103,7 +159,7 @@ const SnapshotsView = ({
 
       <div className={styles.cardHeader}>
         <div className="flex items-center gap-2">
-          <h5 className={styles.cardTitle}>Snapshots</h5>
+          <h5 className={styles.cardTitle}>{getHeaderTitle()}</h5>
           {(isCreatingSnapshot || isRevertingSnapshot) && (
             <div className={loaderStyles.loader} aria-label="Snapshot action in progress">
               {[...Array(5)].map((_, i) => (
@@ -115,18 +171,37 @@ const SnapshotsView = ({
             </div>
           )}
         </div>
-        <button
-          onClick={() => openModal(vm.vmid)}
-          disabled={isCreatingSnapshot || isRevertingSnapshot || isAddingDisk}
-          className={`${styles.button} ${isCreatingSnapshot || isRevertingSnapshot || isAddingDisk
-            ? styles['button-disabled']
-            : styles['button-blue']
-            }`}
-        >
-          <span className="text-lg">+</span> Take Snapshot
-        </button>
+        {!isModalOpen && (
+          <button
+            onClick={openModal}
+            disabled={isCreatingSnapshot || isRevertingSnapshot || isAddingDisk || isDeletingAnySnapshot}
+            className={`${styles.button} ${isCreatingSnapshot || isRevertingSnapshot || isAddingDisk || isDeletingAnySnapshot
+              ? styles['button-disabled']
+              : styles['button-blue']
+              }`}
+          >
+            <span className="text-lg">+</span> Take Snapshot
+          </button>
+        )}
       </div>
 
+      {/* Show modal when open */}
+      {isModalOpen && (
+        <SnapshotModal
+          isOpen={isModalOpen}
+          closeModal={closeModal}
+          snapshotName={snapshotName}
+          setSnapshotName={setSnapshotName}
+          currentVmid={vm.vmid}
+          createSnapshotMutation={createSnapshotMutation}
+          isValidSnapshotName={isValidSnapshotName}
+          addAlert={addAlert}
+          node={node}
+          auth={auth}
+        />
+      )}
+
+      {/* Always show snapshot list */}
       {snapshots && snapshots.length === 0 ? (
         <div className="flex items-center justify-center p-8 text-gray-500 text-sm italic border border-dashed border-white/10 rounded-lg">
           No snapshots available
@@ -155,11 +230,11 @@ const SnapshotsView = ({
                         disabled={
                           isRevertingSnapshot ||
                           isCreatingSnapshot ||
-                          pendingActions[vm.vmid]?.includes(`delete-${snapshot.name}`)
+                          isDeletingAnySnapshot
                         }
                         className={`${styles.button} ${isRevertingSnapshot ||
                           isCreatingSnapshot ||
-                          pendingActions[vm.vmid]?.includes(`delete-${snapshot.name}`)
+                          isDeletingAnySnapshot
                           ? styles['button-disabled']
                           : styles['button-purple']
                           }`}
@@ -172,11 +247,11 @@ const SnapshotsView = ({
                           showPopconfirm('delete', snapshot.name);
                         }}
                         disabled={
-                          pendingActions[vm.vmid]?.includes(`delete-${snapshot.name}`) ||
+                          isDeletingAnySnapshot ||
                           isCreatingSnapshot ||
                           pendingActions[vm.vmid]?.includes(`revert-${snapshot.name}`)
                         }
-                        className={`${styles.button} ${pendingActions[vm.vmid]?.includes(`delete-${snapshot.name}`) ||
+                        className={`${styles.button} ${isDeletingAnySnapshot ||
                           isCreatingSnapshot ||
                           pendingActions[vm.vmid]?.includes(`revert-${snapshot.name}`)
                           ? styles['button-disabled']
