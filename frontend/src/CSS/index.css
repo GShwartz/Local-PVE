@@ -58,6 +58,8 @@ footer {
   left: 0;
   height: 70px; /* Explicit height for calculation */
   margin-top: 10px; /* Add gap above footer */
+  z-index: 40; /* Ensure footer is above main content but below navbar */
+  pointer-events: auto; /* Ensure clicks work */
 }
 
 th, td {

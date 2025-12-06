@@ -60,48 +60,26 @@ const ActionButtons = ({
   const [isSuspending, setIsSuspending] = useState(false);
   const [initialVmCount, setInitialVmCount] = useState<number | null>(null);
 
-  // Inject animation keyframes for the futuristic loader
+  // Inject animation keyframes for the professional loader
   useEffect(() => {
     const styleTag = document.createElement('style');
     styleTag.type = 'text/css';
     styleTag.textContent = `
-      @keyframes abtn_bar_sweep {
-        0% { 
-          transform: translateX(-120%) skewX(-15deg);
-          opacity: 0;
-          filter: blur(2px);
+      @keyframes abtn_progress_sweep {
+        0% {
+          transform: translateX(-100%);
         }
-        10% {
-          opacity: 0.3;
-          filter: blur(1px);
-        }
-        20% {
-          opacity: 1;
-          filter: blur(0px);
-        }
-        80% {
-          opacity: 1;
-          filter: blur(0px);
-        }
-        90% {
-          opacity: 0.3;
-          filter: blur(1px);
-        }
-        100% { 
-          transform: translateX(320%) skewX(-15deg);
-          opacity: 0;
-          filter: blur(2px);
+        100% {
+          transform: translateX(400%);
         }
       }
       
-      @keyframes abtn_particle_float {
-        0%, 100% { 
-          transform: translateY(0px) scale(1);
-          opacity: 0.6;
+      @keyframes abtn_shimmer {
+        0% {
+          background-position: -200% 0;
         }
-        50% { 
-          transform: translateY(-2px) scale(1.1);
-          opacity: 1;
+        100% {
+          background-position: 200% 0;
         }
       }
     `;
@@ -432,92 +410,34 @@ const ActionButtons = ({
 
         </div>
 
-        {/* Clean futuristic loader effect */}
+        {/* Professional loader */}
         {(activeOperations.size > 0 || isSuspending || actionsForVm.includes('reboot')) && (
           <div
             aria-live="polite"
             style={{
               width: '100%',
-              height: '8px',
-              marginTop: 0,
-              borderRadius: '12px',
+              height: '3px',
+              marginTop: '8px',
+              borderRadius: '2px',
               overflow: 'hidden',
               position: 'relative',
-              background: 'linear-gradient(90deg, rgba(15,23,42,0.8), rgba(30,41,59,0.9), rgba(15,23,42,0.8))',
-              backdropFilter: 'blur(4px)',
+              background: 'rgba(255, 255, 255, 0.08)',
             }}
           >
-            {/* Primary energy beam */}
+            {/* Animated progress bar */}
             <div
               style={{
                 position: 'absolute',
                 left: 0,
                 top: 0,
                 height: '100%',
-                width: '50%',
-                background: `
-                  linear-gradient(90deg, 
-                    transparent 0%,
-                    rgba(0, 247, 255, 0.2) 10%,
-                    rgba(0, 247, 255, 0.8) 30%,
-                    rgba(59, 130, 246, 1) 50%,
-                    rgba(147, 51, 234, 1) 70%,
-                    rgba(236, 72, 153, 0.8) 90%,
-                    transparent 100%
-                  )
-                `,
-                borderRadius: '12px',
-                animation: 'abtn_bar_sweep 2.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite',
-                boxShadow: `
-                  0 0 20px rgba(0, 247, 255, 0.6),
-                  0 0 40px rgba(147, 51, 234, 0.4),
-                  0 0 60px rgba(236, 72, 153, 0.2)
-                `,
+                width: '30%',
+                background: 'linear-gradient(90deg, rgba(59, 130, 246, 0.6), rgba(59, 130, 246, 1), rgba(59, 130, 246, 0.6))',
+                backgroundSize: '200% 100%',
+                borderRadius: '2px',
+                animation: 'abtn_progress_sweep 1.5s ease-in-out infinite, abtn_shimmer 2s linear infinite',
               }}
             />
-
-            {/* Secondary plasma trail */}
-            <div
-              style={{
-                position: 'absolute',
-                left: 0,
-                top: 0,
-                height: '100%',
-                width: '25%',
-                background: `
-                  linear-gradient(90deg, 
-                    transparent 0%,
-                    rgba(255, 255, 255, 0.4) 20%,
-                    rgba(255, 255, 255, 0.9) 50%,
-                    rgba(255, 255, 255, 0.4) 80%,
-                    transparent 100%
-                  )
-                `,
-                borderRadius: '12px',
-                animation: 'abtn_bar_sweep 2.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite 300ms',
-                filter: 'blur(0.5px)',
-                opacity: 0.8,
-              }}
-            />
-
-            {/* Particle effects */}
-            {[...Array(5)].map((_, i) => (
-              <div
-                key={i}
-                style={{
-                  position: 'absolute',
-                  left: `${15 + i * 20}%`,
-                  top: '50%',
-                  width: '2px',
-                  height: '2px',
-                  background: 'rgba(0, 247, 255, 0.8)',
-                  borderRadius: '50%',
-                  transform: 'translateY(-50%)',
-                  animation: `abtn_particle_float 1.5s ease-in-out infinite ${i * 0.3}s`,
-                  boxShadow: '0 0 4px rgba(0, 247, 255, 0.8)',
-                }}
-              />
-            ))}
           </div>
         )}
       </div>
