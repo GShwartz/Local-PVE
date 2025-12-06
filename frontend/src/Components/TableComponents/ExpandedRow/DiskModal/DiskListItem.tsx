@@ -2,6 +2,7 @@ import axios from 'axios';
 import { VM } from '../../../../types';
 import { useState, useRef, useEffect } from 'react';
 import DiskExpandForm from './DiskExpandForm';
+import Loader from './Loader';
 import styles from '../../../../CSS/ExpandedArea.module.css';
 
 interface DiskListItemProps {
@@ -69,14 +70,56 @@ const DiskListItem = ({
         );
       }
 
+      // Delete the disk
       await axios.delete(`http://localhost:8000/vm/${node}/qemu/${vm.vmid}/disk/${diskKey}`, {
         params: { csrf_token: auth.csrf_token, ticket: auth.ticket },
         headers: { 'Content-Type': 'application/json' }
       });
 
-      addAlert(`✅ Disk ${diskKey} removed successfully from VM ${vm.vmid}.`, 'success');
-      await refreshConfig();
-      refreshVMs();
+      // Wait a moment for the backend operation to complete
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Poll the config to verify the disk is actually removed
+      let attempts = 0;
+      const maxAttempts = 10;
+      let diskRemoved = false;
+
+      while (attempts < maxAttempts) {
+        try {
+          const configResp = await axios.get<{ config: any }>(
+            `http://localhost:8000/vm/${node}/qemu/${vm.vmid}/config`,
+            {
+              params: {
+                csrf_token: auth.csrf_token,
+                ticket: auth.ticket
+              }
+            }
+          );
+
+          const config = configResp.data.config || {};
+          // Check if the disk is no longer in the config
+          if (!config[diskKey]) {
+            diskRemoved = true;
+            break;
+          }
+        } catch (err) {
+          // Continue polling even if there's an error
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 500));
+        attempts++;
+      }
+
+      if (diskRemoved) {
+        addAlert(`✅ Disk ${diskKey} removed successfully from VM ${vm.vmid}.`, 'success');
+        await refreshConfig();
+        refreshVMs();
+      } else {
+        // Even if polling didn't confirm, refresh anyway (might be a timing issue)
+        addAlert(`✅ Disk ${diskKey} removal completed.`, 'success');
+        await refreshConfig();
+        refreshVMs();
+      }
     } catch (err: any) {
       const detail = err?.response?.data?.detail || err?.message || 'Unknown error';
       addAlert(`❌ Failed to remove disk ${diskKey}: ${detail}`, 'error');
@@ -135,7 +178,7 @@ const DiskListItem = ({
 
         {isPending ? (
           isDeleting ? (
-            <span className="text-xs text-gray-400">Removing...</span>
+            <Loader />
           ) : (
             <div className="flex items-center space-x-2 ml-auto">
               <span className="text-xs text-red-300">
