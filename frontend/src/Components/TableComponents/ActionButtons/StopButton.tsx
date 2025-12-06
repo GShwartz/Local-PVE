@@ -7,9 +7,9 @@ interface StopButtonProps {
   vmStatus?: string;
 }
 
-const StopButton = ({ 
-  disabled, 
-  onClick, 
+const StopButton = ({
+  disabled,
+  onClick,
   vmStatus
 }: StopButtonProps) => {
   const [wasClicked, setWasClicked] = useState(false);
@@ -33,7 +33,7 @@ const StopButton = ({
     <ActionButton
       onClick={handleClick}
       disabled={isDisabled}
-      className={isDisabled ? 'bg-gray-600 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}
+      variant="cyan"
     >
       Stop
     </ActionButton>

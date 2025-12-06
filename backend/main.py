@@ -48,11 +48,17 @@ app = FastAPI(title="Proxmox Controller API")
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["http://localhost:5173", "http://localhost:5174"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include console routers
+from Modules.routes.console import router as console_router
+from Modules.routes.console_ws import router as console_ws_router
+app.include_router(console_router)
+app.include_router(console_ws_router)
 
 # Dependency providers
 def get_auth_service() -> AuthService:
@@ -80,12 +86,46 @@ def get_vnc_service() -> VNCService:
 
 # Endpoints
 
-@app.post("/login", response_model=AuthResponse)
+@app.post("/login")
 async def login(
     login_data: LoginRequest,
     auth: AuthService = Depends(get_auth_service),
 ):
-    return auth.login(login_data.username, login_data.password)
+    from fastapi.responses import JSONResponse
+    
+    # Authenticate with Proxmox
+    auth_response = auth.login(login_data.username, login_data.password)
+    
+    # Create response with Proxmox cookies for console access
+    response = JSONResponse(content=auth_response)
+    
+    # Set Proxmox authentication cookies for console
+    # This allows the console to work without separate Proxmox login
+    proxmox_host = os.getenv('PROXMOX_HOST', 'pve.home.lab')
+    
+    response.set_cookie(
+        key="PVEAuthCookie",
+        value=auth_response["ticket"],
+        domain=proxmox_host,
+        path="/",
+        secure=True,
+        httponly=True,
+        samesite="none",
+        max_age=7200  # 2 hours
+    )
+    
+    response.set_cookie(
+        key="CSRFPreventionToken",
+        value=auth_response["csrf_token"],
+        domain=proxmox_host,
+        path="/",
+        secure=True,
+        httponly=False,
+        samesite="none",
+        max_age=7200  # 2 hours
+    )
+    
+    return response
 
 @app.get("/vms/{node}")
 async def list_vms(

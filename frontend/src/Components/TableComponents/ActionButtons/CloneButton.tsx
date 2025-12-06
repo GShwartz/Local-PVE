@@ -30,7 +30,7 @@ const CloneButton = ({
           onToggle();
         }}
         disabled={disabled}
-        className={disabled ? 'bg-gray-600 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}
+        variant="purple"
       >
         {showCloningLabel ? 'Cloning...' : 'Clone'}
       </ActionButton>
