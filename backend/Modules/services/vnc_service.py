@@ -19,15 +19,23 @@ class VNCService:
         self.logger = init_logger(self.log_file, __name__)
 
     def get_vnc_proxy(self, node: str, vmid: int, csrf_token: str, ticket: str) -> dict:
-        self.logger.info("Fetching VNC Proxy")
-        self.session.cookies.set("PVEAuthCookie", ticket)
+        # Try with CSRF token - maybe required for VNC proxy
+        from urllib.parse import unquote
+        csrf_token = unquote(csrf_token)
+        ticket = unquote(ticket)
+
+        session = requests.Session()
+        session.verify = False
+        session.cookies.set("PVEAuthCookie", ticket)
+
         headers = {"CSRFPreventionToken": csrf_token}
         url = f"{PROXMOX_BASE_URL}/nodes/{node}/qemu/{vmid}/vncproxy"
-        self.logger.info(f"VNC URL: {url}")
+        response = session.post(url, headers=headers)
 
-        response = self.session.post(url, headers=headers)
+        print(f"DEBUG VNC: With CSRF - Status: {response.status_code}")
+        print(f"DEBUG VNC: Response: '{response.text}'")
+
         if response.status_code != 200:
-            self.logger.error(f"Failed to get VNC proxy")
-            raise HTTPException(status_code=response.status_code, detail="Failed to get VNC proxy")
+            raise HTTPException(status_code=response.status_code, detail=f"VNC proxy failed: {response.text}")
 
         return response.json().get("data", {})

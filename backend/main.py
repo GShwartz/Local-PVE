@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query, Body
+from urllib.parse import unquote
 from fastapi.middleware.cors import CORSMiddleware
 from urllib.parse import quote_plus
 from pydantic import BaseModel
@@ -56,9 +57,9 @@ app.add_middleware(
 
 # Include console routers
 from Modules.routes.console import router as console_router
-from Modules.routes.console_ws import router as console_ws_router
+# from Modules.routes.console_ws import router as console_ws_router  # Conflicts with main.py WebSocket
 app.include_router(console_router)
-app.include_router(console_ws_router)
+# app.include_router(console_ws_router)
 
 # Dependency providers
 def get_auth_service() -> AuthService:
@@ -379,34 +380,54 @@ async def websocket_console(
     websocket: WebSocket,
     node: str,
     vmid: int,
-    csrf_token: str,
-    ticket: str,
+    csrf_token: str = Query(...),
+    ticket: str = Query(...),
     svc: VNCService = Depends(get_vnc_service),
 ):
     await websocket.accept()
     try:
-        vnc = svc.get_vnc_proxy(node, vmid, csrf_token, ticket)
-        port = vnc["port"]
-        vncticket = vnc["ticket"]
+        # Keep tokens URL-encoded for VNC proxy (maybe it expects encoded tokens)
+        print(f"DEBUG: Using URL-encoded tokens for VNC proxy")
+        print(f"DEBUG: CSRF: {csrf_token[:20]}...")
+        print(f"DEBUG: Ticket: {ticket[:20]}...")
+
+        # Get VNC proxy data using the main auth credentials
+        vnc_data = svc.get_vnc_proxy(node, vmid, csrf_token, ticket)
+        vnc_port = str(vnc_data.get("port", ""))
+        vnc_ticket = vnc_data.get("ticket", "")
+
+        if not vnc_port or not vnc_ticket:
+            print(f"DEBUG: Failed to get VNC data - Port: {vnc_port}, Ticket: {bool(vnc_ticket)}")
+            await websocket.close(code=1011, reason="Failed to get VNC credentials")
+            return
+
         remote_uri = (
-            f"wss://{os.getenv('PROXMOX_HOST', 'pve.home.lab')}"
+            f"wss://{os.getenv('PROXMOX_HOST', 'pve.home.lab')}:8006"
             f"/api2/json/nodes/{node}/qemu/{vmid}/vncwebsocket"
-            f"?port={port}&vncticket={quote_plus(vncticket)}"
+            f"?port={vnc_port}&vncticket={quote_plus(vnc_ticket)}"
         )
-        headers = {"Cookie": f"PVEAuthCookie={ticket}"}
+        print(f"DEBUG: WebSocket connecting to Proxmox: {remote_uri}")
+        print(f"DEBUG: Node: {node}, VMID: {vmid}, VNC Port: {vnc_port}")
+
+        # For VNC WebSocket, authentication is handled by the vncticket parameter
+        headers = {}
         ssl_ctx = None
         if not os.getenv("VERIFY_SSL", "false").lower().startswith("t"):
             ssl_ctx = ssl.create_default_context()
             ssl_ctx.check_hostname = False
             ssl_ctx.verify_mode = ssl.CERT_NONE
 
+        print(f"DEBUG: Attempting WebSocket connection to Proxmox...")
         async with websockets.connect(remote_uri, extra_headers=headers, ssl=ssl_ctx) as remote_ws:
+            print(f"DEBUG: Successfully connected to Proxmox VNC WebSocket")
+
             async def client_to_remote():
                 try:
                     while True:
                         data = await websocket.receive_bytes()
                         await remote_ws.send(data)
                 except WebSocketDisconnect:
+                    print(f"DEBUG: Client disconnected from WebSocket")
                     pass
 
             async def remote_to_client():
@@ -417,10 +438,12 @@ async def websocket_console(
                             data = data.encode('utf-8')
                         await websocket.send_bytes(data)
                 except websockets.exceptions.ConnectionClosed:
+                    print(f"DEBUG: Proxmox WebSocket connection closed")
                     pass
 
             await asyncio.gather(client_to_remote(), remote_to_client())
     except Exception as e:
+        print(f"DEBUG: WebSocket proxy error: {e}")
         await websocket.close(code=1011, reason=str(e))
 
 @app.post("/vm/{node}/qemu/{vmid}/disk/{disk_key}/expand")

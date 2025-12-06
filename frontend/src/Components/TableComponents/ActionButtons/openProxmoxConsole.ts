@@ -9,16 +9,14 @@ export async function openProxmoxConsole(
   csrf_token: string,
   ticket: string
 ) {
-  // Open Proxmox console page
-  const consoleUrl = `https://${PROXMOX_HOST}:${PROXMOX_PORT}/?console=kvm&novnc=1&node=${encodeURIComponent(
-    node
-  )}&vmid=${encodeURIComponent(vmid)}&resize=scale`;
+  // Open our backend console endpoint that handles authentication properly
+  const consoleUrl = `http://localhost:8000/console/${encodeURIComponent(node)}/${vmid}?csrf_token=${encodeURIComponent(csrf_token)}&ticket=${encodeURIComponent(ticket)}`;
 
   window.open(consoleUrl, '_blank');
 
   // Show helpful message
-  toast('Console opening in new tab. Login with: app@pve / Pass12344321!!', {
-    duration: 5000,
+  toast('Console opening in new tab...', {
+    duration: 3000,
     icon: '🖥️',
   });
 }

@@ -170,7 +170,7 @@ const DiskModal = ({
   if (!isOpen) return null;
 
   return (
-    <ModalWrapper title="Add Disk" onClose={onClose}>
+    <div className="mt-2 pt-2 max-h-96 overflow-y-auto">
       <DiskWarning />
       <DiskForm
         size={size}
@@ -179,7 +179,7 @@ const DiskModal = ({
         error={error}
         loading={loading}
       />
-    </ModalWrapper>
+    </div>
   );
 };
 
