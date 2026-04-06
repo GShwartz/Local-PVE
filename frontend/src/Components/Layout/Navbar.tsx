@@ -116,6 +116,7 @@ const Navbar = ({ username, onLogout, alertHistory, markAsRead, markAllAsRead, s
   };
 
   const unreadCount = alerts.filter(a => !a.read).length;
+  const hasUnreadError = alerts.some(a => !a.read && a.type === 'error');
   let displayedAlerts = [...alerts];
   if (order === 'newToOld') displayedAlerts.reverse();
 
@@ -163,7 +164,7 @@ const Navbar = ({ username, onLogout, alertHistory, markAsRead, markAllAsRead, s
             <div className="relative">
               <FiBell className="text-lg" />
               {unreadCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white ring-1 ring-white">
+                <span className={`absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full ${hasUnreadError ? 'bg-red-500' : 'bg-blue-500'} text-[10px] font-bold text-white ring-1 ring-white`}>
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               )}

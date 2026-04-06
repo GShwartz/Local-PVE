@@ -19,11 +19,11 @@ const DiskForm = ({
 }: DiskFormProps) => (
   <form onSubmit={handleSubmit} className="space-y-4">
     <div>
-      <label className="block text-sm font-medium text-gray-700 dark:text-white">Size (GB)</label>
+      <label className="block text-sm font-medium text-gray-700">Size (GB)</label>
       <select
         value={size}
         onChange={e => setSize(+e.target.value)}
-        className="mt-1 block w-full h-[38px] rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+        className="mt-1 block w-full h-[38px] rounded-md border border-gray-300 bg-white text-gray-900 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
       >
         {sizeOptions.map(v => (
           <option key={v} value={v}>{v} GB</option>
@@ -31,7 +31,7 @@ const DiskForm = ({
       </select>
     </div>
 
-    {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+    {error && <p className="text-sm text-red-600">{error}</p>}
 
     <button
       type="submit"

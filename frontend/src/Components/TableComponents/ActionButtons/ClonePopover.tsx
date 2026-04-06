@@ -12,7 +12,7 @@ const ClonePopover = ({ cloneName, onChange, onConfirm, onCancel }: ClonePopover
   const valid = isValidCloneName(cloneName);
   return (
     <span
-      className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-gray-800 border border-gray-600 rounded-md p-3 flex flex-col gap-1.5 z-50 min-w-[200px]"
+      className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-white border border-gray-200 rounded-md p-3 flex flex-col gap-1.5 z-50 min-w-[200px] shadow-md"
       onClick={(e) => e.stopPropagation()}
     >
       <div className="flex items-center gap-2">
@@ -20,7 +20,7 @@ const ClonePopover = ({ cloneName, onChange, onConfirm, onCancel }: ClonePopover
           type="text"
           value={cloneName}
           onChange={(e) => onChange(e.target.value)}
-          className={`flex-1 p-1 bg-gray-900 text-white rounded-md text-sm border ${valid || !cloneName ? 'border-transparent' : 'border-red-500'}`}
+          className={`flex-1 p-1 bg-gray-100 text-gray-900 rounded-md text-sm border ${valid || !cloneName ? 'border-gray-300' : 'border-red-500'}`}
           placeholder="Clone name"
         />
         <button

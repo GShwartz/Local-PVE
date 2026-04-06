@@ -91,13 +91,13 @@ const SnapshotModal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4 max-h-96 overflow-x-hidden overflow-y-auto">
+    <div className="mt-4 border-t border-gray-200 pt-4 max-h-96 overflow-x-hidden overflow-y-auto">
       {/* Form content */}
       <div className="space-y-4">
         {/* Snapshot Name */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
+            <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
               Snapshot Name
             </label>
           </div>
@@ -108,10 +108,10 @@ const SnapshotModal = ({
               value={snapshotName}
               onChange={(e) => setSnapshotName(e.target.value.trim())}
               placeholder="Enter letters, numbers, _, -, ., + (no spaces)"
-              className={`w-full px-3 py-2.5 bg-white dark:bg-gray-800 border rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 group-hover:border-gray-300 dark:group-hover:border-gray-500 ${
+              className={`w-full px-3 py-2.5 bg-white border rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 group-hover:border-gray-300 ${
                 isNameTaken
                   ? 'border-red-500 animate-flicker'
-                  : 'border-gray-200 dark:border-gray-600'
+                  : 'border-gray-200'
               }`}
             />
             <div className="absolute inset-0 rounded-lg bg-gradient-to-r from-blue-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none"></div>
@@ -120,7 +120,7 @@ const SnapshotModal = ({
         </div>
 
         {/* Action buttons */}
-        <div className="flex gap-2 justify-start pb-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex gap-2 justify-start pb-4 border-b border-gray-200">
           <button
             onClick={handleTakeSnapshot}
             disabled={!snapshotName || !isValidSnapshotName(snapshotName) || createSnapshotMutation.isPending || snapshotsLoading}

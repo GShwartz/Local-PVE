@@ -65,7 +65,7 @@ const RemoveButton = ({
           className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-[999999] animate-fadeIn"
           onClick={(e) => e.stopPropagation()}
         >
-          <span className="bg-gray-800 border border-gray-600 rounded-md p-3 flex items-center space-x-2">
+          <span className="bg-white border border-gray-200 rounded-md p-3 flex items-center space-x-2 shadow-md">
             <button
               onClick={handleConfirm}
               className="text-white bg-green-600 hover:bg-green-500 rounded-md px-3 py-1"

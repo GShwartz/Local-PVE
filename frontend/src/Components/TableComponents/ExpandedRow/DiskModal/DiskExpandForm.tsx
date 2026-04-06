@@ -126,7 +126,7 @@ const DiskExpandForm = ({
 
   if (availableSizes.length === 0) {
     return (
-      <div className="text-sm text-gray-500 bg-gray-800 p-3 rounded-lg border border-gray-600">
+      <div className="text-sm text-gray-500 bg-gray-100 p-3 rounded-lg border border-gray-300">
         Disk is already at maximum size (80GB)
       </div>
     );
@@ -135,14 +135,14 @@ const DiskExpandForm = ({
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3">
-        <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+        <label className="text-sm font-semibold text-gray-700">
           Expand to:
         </label>
         <select
           value={size}
           onChange={(e) => setSize(Number(e.target.value))}
           disabled={loading}
-          className="px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm"
+          className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm"
         >
           {availableSizes.map((s) => (
             <option key={s} value={s}>
@@ -154,7 +154,7 @@ const DiskExpandForm = ({
       </div>
 
       {error && (
-        <div className="text-sm text-red-500 bg-red-50 dark:bg-red-950/50 p-2 rounded-lg border border-red-200 dark:border-red-800">
+        <div className="text-sm text-red-500 bg-red-50 p-2 rounded-lg border border-red-200">
           {error}
         </div>
       )}

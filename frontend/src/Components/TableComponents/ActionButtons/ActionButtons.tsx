@@ -57,6 +57,11 @@ const ActionButtons = ({
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const [isSuspending, setIsSuspending] = useState(false);
 
+  // Keep clone name in sync with VM name (e.g. after config loads)
+  useEffect(() => {
+    if (!isCloning) setCloneName(vm.name);
+  }, [vm.name, isCloning]);
+
   // Inject animation keyframes for the professional loader
   useEffect(() => {
     const styleTag = document.createElement('style');

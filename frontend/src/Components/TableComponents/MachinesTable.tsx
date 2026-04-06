@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import TableHeader from './TableHeader';
 import TableRow from './TableRow';
 import { Auth, VM } from '../../types';
@@ -24,6 +24,7 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: 
   const [pendingActions, setPendingActions] = useState<{ [vmid: number]: string[] }>({});
   const [editingVmid, setEditingVmid] = useState<number | null>(null);
   const [selectedVmids, setSelectedVmids] = useState<Set<number>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
 
   const toggleSelect = (vmid: number) => {
     setSelectedVmids(prev => {
@@ -34,9 +35,9 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: 
   };
 
   const toggleAll = () => {
-    setSelectedVmids(selectedVmids.size === sortedVms.length
+    setSelectedVmids(selectedVmids.size === displayedVms.length
       ? new Set()
-      : new Set(sortedVms.map(vm => vm.vmid))
+      : new Set(displayedVms.map(vm => vm.vmid))
     );
   };
 
@@ -106,18 +107,56 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: 
     return sortConfig.direction === 'asc' ? aStr.localeCompare(bStr) : -aStr.localeCompare(bStr);
   });
 
+  const displayedVms = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return sortedVms;
+    return sortedVms.filter(vm =>
+      vm.name?.toLowerCase().includes(q) || vm.os?.toLowerCase().includes(q)
+    );
+  }, [sortedVms, searchQuery]);
+
   const vmMutation = useVMMutation(auth, node, queryClient, addAlert, setPendingActions);
   const snapshotMutation = useSnapshotMutation(auth, node, queryClient, addAlert, setPendingActions);
   const deleteSnapshotMutation = useDeleteSnapshotMutation(auth, node, queryClient, addAlert, setPendingActions);
 
   const refreshVMs = () => queryClient.invalidateQueries(['vms']);
 
+  // Status requirements per action
+  const broadcastEligible: Record<string, string[]> = {
+    start:    ['stopped'],
+    shutdown: ['running'],
+    reboot:   ['running'],
+    stop:     ['running', 'paused', 'suspended'],
+  };
+
   const broadcastAction = (action: string) => {
-    const label: Record<string, string> = { start: 'Starting', stop: 'Stopping', shutdown: 'Shutting down', reboot: 'Rebooting' };
-    selectedVmids.forEach(vmid => {
-      vmMutation.mutate({ vmid, action });
+    const eligible = broadcastEligible[action] ?? [];
+    const vmMap = new Map(sortedVms.map(v => [v.vmid, v]));
+    const eligibleVmids = [...selectedVmids].filter(vmid => {
+      const vm = vmMap.get(vmid);
+      return vm && eligible.includes(vm.status?.toLowerCase() || '');
     });
-    addAlert(`${label[action] ?? action} ${selectedVmids.size} VMs…`, 'info');
+
+    if (eligibleVmids.length === 0) {
+      addAlert(`No selected VMs are eligible for "${action}".`, 'warning');
+      return;
+    }
+
+    // Optimistically set pending actions so button states update immediately
+    setPendingActions(prev => {
+      const next = { ...prev };
+      eligibleVmids.forEach(vmid => {
+        next[vmid] = [...(next[vmid] || []), action];
+      });
+      return next;
+    });
+
+    eligibleVmids.forEach(vmid => vmMutation.mutate({ vmid, action }));
+
+    const label: Record<string, string> = { start: 'Starting', stop: 'Force stopping', shutdown: 'Shutting down', reboot: 'Rebooting' };
+    const skipped = selectedVmids.size - eligibleVmids.length;
+    const skippedNote = skipped > 0 ? ` (${skipped} skipped — wrong status)` : '';
+    addAlert(`${label[action] ?? action} ${eligibleVmids.length} VM${eligibleVmids.length !== 1 ? 's' : ''}…${skippedNote}`, 'info');
   };
 
   const broadcastButtons: { action: string; label: string; color: string }[] = [
@@ -129,6 +168,17 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: 
 
   return (
     <>
+      {/* Search bar */}
+      <div className="mb-3">
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          placeholder="Search by name or OS…"
+          className="w-full max-w-xs px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+        />
+      </div>
+
       {/* Broadcast bar — visible when 2+ VMs selected */}
       {selectedVmids.size > 1 && (
         <div className="flex items-center gap-3 mb-3 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl shadow-sm">
@@ -160,13 +210,13 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: 
             sortConfig={sortConfig}
             handleSort={handleSort}
             isSticky={expandedRows.size === 0}
-            isAllSelected={sortedVms.length > 0 && selectedVmids.size === sortedVms.length}
-            isIndeterminate={selectedVmids.size > 0 && selectedVmids.size < sortedVms.length}
+            isAllSelected={displayedVms.length > 0 && selectedVmids.size === displayedVms.length}
+            isIndeterminate={selectedVmids.size > 0 && selectedVmids.size < displayedVms.length}
             onToggleAll={toggleAll}
           />
           <tbody>
-            {sortedVms.map((vm, idx) => {
-              const prevVm = sortedVms[idx - 1];
+            {displayedVms.map((vm, idx) => {
+              const prevVm = displayedVms[idx - 1];
               const hasRowAboveExpanded = prevVm ? expandedRows.has(prevVm.vmid) : false;
               return (
                 <TableRow

@@ -90,6 +90,8 @@ const SuspendResumeButton: React.FC<SuspendResumeButtonProps> = ({
           if (currentStatus === targetStatus) {
             addAlert(`VM "${vm.name}" is now ${targetStatus}.`, 'success');
             refreshVMs();
+          } else {
+            addAlert(`Failed to ${action} VM "${vm.name}".`, 'error');
           }
         },
         onError: () => {
