@@ -24,7 +24,7 @@ const Login = ({ onLoginSuccess }: LoginProps) => {
       localStorage.setItem('ticket', data.ticket);
 
       toast.success('Welcome back!');
-      onLoginSuccess({ ...data, username: form.username });
+      onLoginSuccess({ ...data, username: form.username, role: data.role ?? 'admin' });
     } catch (error: any) {
       const msg = error.response?.data?.detail || error.message || 'Failed to log in.';
       toast.error(msg);

@@ -4,6 +4,7 @@ export interface Auth {
   ticket: string;
   csrf_token: string;
   username?: string;
+  role?: 'admin' | 'operator' | 'viewer';
 }
 
 export interface VM {
@@ -42,6 +43,7 @@ export interface VMCreate {
   cpus: number;
   ram: number;
   source: string;
+  uefi?: boolean;
 }
 
 export interface VMUpdate {

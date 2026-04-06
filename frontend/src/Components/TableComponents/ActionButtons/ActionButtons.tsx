@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
 import { VM, Auth } from '../../../types';
-import { UseMutationResult, QueryClient } from '@tanstack/react-query';
+import { UseMutationResult } from '@tanstack/react-query';
 
 import StartButton from './StartButton';
 import StopButton from './StopButton';
@@ -26,7 +26,6 @@ interface ActionButtonsProps {
   auth: Auth;
   addAlert: (message: string, type: string) => void;
   refreshVMs: () => void;
-  queryClient: QueryClient;
   isApplying: boolean;
   onResumeHintsChange?: (hints: { resumeShowing: boolean; resumeEnabled: boolean }) => void;
   onRebootingHintChange?: (isRebooting: boolean) => void;
@@ -44,7 +43,6 @@ const ActionButtons = ({
   auth,
   addAlert,
   refreshVMs,
-  queryClient,
   isApplying,
   onResumeHintsChange,
   onRebootingHintChange,
@@ -58,7 +56,6 @@ const ActionButtons = ({
   const [cloneName, setCloneName] = useState(vm.name);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const [isSuspending, setIsSuspending] = useState(false);
-  const [initialVmCount, setInitialVmCount] = useState<number | null>(null);
 
   // Inject animation keyframes for the professional loader
   useEffect(() => {
@@ -116,27 +113,8 @@ const ActionButtons = ({
     }
   }, [vm.status, activeOperations]);
 
-  // Clone operation tracking
-  useEffect(() => {
-    if (activeOperations.has('clone') && initialVmCount === null) {
-      const currentVms = queryClient.getQueryData(['vms']) as VM[] | undefined;
-      setInitialVmCount(currentVms?.length || 0);
-    }
-
-    if (activeOperations.has('clone') && initialVmCount !== null) {
-      const currentVms = queryClient.getQueryData(['vms']) as VM[] | undefined;
-      const currentCount = currentVms?.length || 0;
-
-      if (currentCount > initialVmCount) {
-        setActiveOperations(prev => {
-          const next = new Set(prev);
-          next.delete('clone');
-          return next;
-        });
-        setInitialVmCount(null);
-      }
-    }
-  }, [activeOperations, initialVmCount, queryClient.getQueryData(['vms'])]);
+  // Clone completion is tracked via pendingActions (task poller in vmMutations).
+  // activeOperations.clone is cleared in handleCloneConfirm's onSuccess below.
 
   // Fallback timers to prevent stuck operations
   useEffect(() => {
@@ -284,6 +262,12 @@ const ActionButtons = ({
       { vmid: vm.vmid, action: 'clone', name: cloneName },
       {
         onSuccess: () => {
+          // UPID received — hand off tracking to pendingActions (task poller)
+          setActiveOperations(prev => {
+            const next = new Set(prev);
+            next.delete('clone');
+            return next;
+          });
           addAlert(`VM "${vm.name}" clone initiated.`, 'success');
         },
         onError: () => {
@@ -414,7 +398,7 @@ const ActionButtons = ({
         </div>
 
         {/* Professional loader */}
-        {(activeOperations.size > 0 || isSuspending || actionsForVm.includes('reboot')) && (
+        {(activeOperations.size > 0 || isSuspending || actionsForVm.includes('reboot') || actionsForVm.includes('clone')) && (
           <div
             aria-live="polite"
             style={{

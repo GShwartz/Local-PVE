@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Literal, Optional
+from typing import Optional
 
 class LoginRequest(BaseModel):
     username: str
@@ -13,7 +13,8 @@ class VMCreateRequest(BaseModel):
     name: str
     cpus: int
     ram: int
-    source: Literal["ISO", "template", "disk"]  # restrict to known sources if you like
+    source: str
+    uefi: bool = False
 
 class VMUpdateRequest(BaseModel):
     name: Optional[str] = None

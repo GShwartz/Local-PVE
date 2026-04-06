@@ -7,6 +7,7 @@ import MachinesTable from './src/Components/TableComponents/MachinesTable';
 import LoginError from './src/Components/LoginError';
 import Login from './src/Components/Login';
 import CreateVMModal from './src/Components/Layout/CreateVMModal';
+import CreateK8sModal from './src/Components/Layout/CreateK8sModal';
 import Alerts, { Alert } from './src/Components/Alerts';
 import UserManagementView from './src/Components/UserManagement/UserManagementView';
 import AuditLogView from './src/Components/AuditLog/AuditLogView';
@@ -33,11 +34,24 @@ function App() {
   const [loginError, setLoginError] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isCreateK8sModalOpen, setIsCreateK8sModalOpen] = useState(false);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [alertHistory, setAlertHistory] = useState<Alert[]>([]);
   const [_selectedVMId, setSelectedVMId] = useState<number | null>(null);
   const [activePage, setActivePage] = useState<Page>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  const role = auth?.role ?? 'admin';
+
+  // Redirect to dashboard if current page is inaccessible for the role
+  useEffect(() => {
+    const restricted = role === 'viewer'
+      ? ['users', 'audit', 'settings']
+      : role === 'operator'
+        ? ['users', 'audit', 'settings']
+        : [];
+    if (restricted.includes(activePage)) setActivePage('dashboard');
+  }, [role]);
 
   const addAlert = (message: string, type: string): void => {
     const id = `${Date.now()}-${Math.random()}`;
@@ -102,6 +116,9 @@ function App() {
           activePage={activePage}
           onNavigate={setActivePage}
           onCreateClick={() => setIsCreateModalOpen(true)}
+          onCreateLXCClick={() => addAlert('Create LXC Container — coming soon.', 'info')}
+          onCreateK8sClick={() => setIsCreateK8sModalOpen(true)}
+          role={role}
           isOpen={sidebarOpen}
           pageTitle={pageTitles[activePage]}
         />
@@ -150,17 +167,17 @@ function App() {
             )}
 
             {/* ── User Management ── */}
-            {activePage === 'users' && (
+            {activePage === 'users' && role === 'admin' && (
               <UserManagementView addAlert={addAlert} />
             )}
 
             {/* ── Audit Log ── */}
-            {activePage === 'audit' && (
+            {activePage === 'audit' && role === 'admin' && (
               <AuditLogView />
             )}
 
             {/* ── Settings ── */}
-            {activePage === 'settings' && (
+            {activePage === 'settings' && role === 'admin' && (
               <SettingsView addAlert={addAlert} />
             )}
           </div>
@@ -174,6 +191,12 @@ function App() {
         auth={auth}
         node={NODE}
         queryClient={queryClient}
+        addAlert={addAlert}
+      />
+      <CreateK8sModal
+        isOpen={isCreateK8sModalOpen}
+        closeModal={() => setIsCreateK8sModalOpen(false)}
+        node={NODE}
         addAlert={addAlert}
       />
     </div>

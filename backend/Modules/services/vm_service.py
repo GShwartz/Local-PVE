@@ -166,6 +166,10 @@ class VMService:
             "scsi0": "local-lvm:32"
         }
 
+        if vm_create.uefi:
+            data["bios"] = "ovmf"
+            data["efidisk0"] = "local-lvm:1,format=raw,efitype=4m,pre-enrolled-keys=0"
+
         if vm_create.source == "ISO":
             data["ide2"] = "local:iso/ubuntu-22.04.3-live-server-amd64.iso,media=cdrom"
             data["boot"] = "order=ide2;scsi0;net0"
@@ -242,12 +246,16 @@ class VMService:
             data=payload,
             headers={"CSRFPreventionToken": csrf_token}
         )
-        try:
-            response.raise_for_status()
-            return response.json().get("data")
-        except requests.exceptions.HTTPError:
-            self.logger.error(f"Failed to clone VM {vmid}: {response.text}")
-            return None
+        if not response.ok:
+            err = response.text
+            try:
+                body = response.json()
+                err = body.get("errors", {}).get("name") or body.get("message") or err
+            except ValueError:
+                pass
+            self.logger.error(f"Failed to clone VM {vmid}: {err}")
+            raise HTTPException(status_code=response.status_code, detail=err)
+        return response.json().get("data")
 
     def delete_vm(self, node: str, vmid: int, csrf_token: str, ticket: str) -> str:
         self.logger.info(f"Deleting VM {vmid} on node {node}")

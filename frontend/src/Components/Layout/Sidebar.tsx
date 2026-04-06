@@ -1,30 +1,40 @@
 import { useState } from 'react';
-import { LayoutDashboard, Users, ClipboardList, Settings, Plus, Github, Linkedin, Globe, ChevronDown, Monitor, type LucideIcon } from 'lucide-react';
+import { LayoutDashboard, Users, ClipboardList, Settings, Plus, Github, Linkedin, Globe, ChevronDown, Monitor, Box, Layers, type LucideIcon } from 'lucide-react';
 
 export type Page = 'dashboard' | 'users' | 'audit' | 'settings';
+export type Role = 'admin' | 'operator' | 'viewer';
 
 interface SidebarProps {
   activePage: Page;
   onNavigate: (page: Page) => void;
   onCreateClick: () => void;
+  onCreateLXCClick?: () => void;
+  onCreateK8sClick?: () => void;
   isOpen: boolean;
   pageTitle: string;
+  role?: Role;
 }
 
-const navItems: { page: Page; label: string; icon: LucideIcon }[] = [
-  { page: 'dashboard', label: 'Dashboard',       icon: LayoutDashboard },
-  { page: 'users',     label: 'User Management', icon: Users           },
-  { page: 'audit',     label: 'Audit Log',        icon: ClipboardList   },
-  { page: 'settings',  label: 'Settings',         icon: Settings        },
+const allNavItems: { page: Page; label: string; icon: LucideIcon; minRole: Role }[] = [
+  { page: 'dashboard', label: 'Dashboard',       icon: LayoutDashboard, minRole: 'viewer'   },
+  { page: 'users',     label: 'User Management', icon: Users,           minRole: 'admin'    },
+  { page: 'audit',     label: 'Audit Log',        icon: ClipboardList,   minRole: 'admin'    },
+  { page: 'settings',  label: 'Settings',         icon: Settings,        minRole: 'admin'    },
 ];
 
-const Sidebar = ({ activePage, onNavigate, onCreateClick, isOpen, pageTitle }: SidebarProps) => {
+const roleRank: Record<Role, number> = { viewer: 0, operator: 1, admin: 2 };
+const canAccess = (role: Role, minRole: Role) => roleRank[role] >= roleRank[minRole];
+
+const Sidebar = ({ activePage, onNavigate, onCreateClick, onCreateLXCClick, onCreateK8sClick, isOpen, pageTitle, role = 'admin' }: SidebarProps) => {
   const [vmMenuOpen, setVmMenuOpen] = useState(true);
+
+  const visibleNavItems = allNavItems.filter(item => canAccess(role, item.minRole));
+  const showVmManagement = role !== 'viewer';
 
   return (
     <aside className={`flex flex-col bg-white border-r border-gray-200 h-full overflow-hidden
-                       transition-[width,min-width] duration-200 ease-in-out
-                       ${isOpen ? 'w-60 min-w-[240px]' : 'w-0 min-w-0'}`}>
+                       transition-[width,min-width,opacity] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
+                       ${isOpen ? 'w-60 min-w-[240px] opacity-100' : 'w-0 min-w-0 opacity-0'}`}>
 
       {/* ── Page title ── */}
       <div className="flex items-center gap-2 px-5 h-14 border-b border-gray-100 flex-shrink-0">
@@ -35,37 +45,62 @@ const Sidebar = ({ activePage, onNavigate, onCreateClick, isOpen, pageTitle }: S
       <nav className="flex-1 px-3 py-3 overflow-y-auto sidebar-scroll space-y-4">
 
         {/* VM Management collapsible section */}
-        <div>
-          <button
-            onClick={() => setVmMenuOpen(v => !v)}
-            className="w-full flex items-center justify-between px-3 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-widest hover:text-gray-600 transition-colors focus:outline-none"
-          >
-            <span className="flex items-center gap-1.5">
-              <Monitor size={11} />
-              VM Management
-            </span>
-            <ChevronDown
-              size={12}
-              className={`transition-transform duration-150 ${vmMenuOpen ? '' : '-rotate-90'}`}
-            />
-          </button>
+        {showVmManagement && (
+          <div>
+            <button
+              onClick={() => setVmMenuOpen(v => !v)}
+              className="w-full flex items-center justify-between px-3 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-widest hover:text-gray-600 transition-colors focus:outline-none"
+            >
+              <span className="flex items-center gap-1.5">
+                <Monitor size={11} />
+                VM Management
+              </span>
+              <ChevronDown
+                size={12}
+                className={`transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${vmMenuOpen ? '' : '-rotate-90'}`}
+              />
+            </button>
 
-          {vmMenuOpen && (
-            <ul className="mt-1 space-y-0.5">
-              <li>
-                <button
-                  onClick={onCreateClick}
-                  className="w-full flex items-center gap-3 pl-6 pr-3 py-2 rounded-lg text-sm font-medium
-                             text-gray-600 hover:bg-gray-100 hover:text-gray-900
-                             transition-all duration-150 group focus:outline-none"
-                >
-                  <Plus size={16} strokeWidth={2} className="text-gray-400 group-hover:text-gray-600 flex-shrink-0" />
-                  Create VM
-                </button>
-              </li>
-            </ul>
-          )}
-        </div>
+            <div className={`overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
+                             ${vmMenuOpen ? 'max-h-48 opacity-100' : 'max-h-0 opacity-0'}`}>
+              <ul className="mt-1 space-y-0.5">
+                <li>
+                  <button
+                    onClick={onCreateClick}
+                    className="w-full flex items-center gap-3 pl-6 pr-3 py-2 rounded-lg text-sm font-medium
+                               text-gray-600 hover:bg-gray-100 hover:text-gray-900
+                               transition-all duration-150 group focus:outline-none"
+                  >
+                    <Plus size={16} strokeWidth={2} className="text-gray-400 group-hover:text-gray-600 flex-shrink-0" />
+                    Create VM
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={onCreateLXCClick}
+                    className="w-full flex items-center gap-3 pl-6 pr-3 py-2 rounded-lg text-sm font-medium
+                               text-gray-600 hover:bg-gray-100 hover:text-gray-900
+                               transition-all duration-150 group focus:outline-none"
+                  >
+                    <Box size={16} strokeWidth={2} className="text-gray-400 group-hover:text-gray-600 flex-shrink-0" />
+                    Create LXC Container
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={onCreateK8sClick}
+                    className="w-full flex items-center gap-3 pl-6 pr-3 py-2 rounded-lg text-sm font-medium
+                               text-gray-600 hover:bg-gray-100 hover:text-gray-900
+                               transition-all duration-150 group focus:outline-none"
+                  >
+                    <Layers size={16} strokeWidth={2} className="text-gray-400 group-hover:text-gray-600 flex-shrink-0" />
+                    Create K8s Cluster
+                  </button>
+                </li>
+              </ul>
+            </div>
+          </div>
+        )}
 
         {/* Navigate section */}
         <div>
@@ -73,7 +108,7 @@ const Sidebar = ({ activePage, onNavigate, onCreateClick, isOpen, pageTitle }: S
             Navigate
           </p>
           <ul className="space-y-0.5">
-            {navItems.map(({ page, label, icon: Icon }) => {
+            {visibleNavItems.map(({ page, label, icon: Icon }) => {
               const isActive = activePage === page;
               return (
                 <li key={page}>

@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Server, Database, ShieldAlert, Save, RefreshCw, Check, type LucideIcon } from 'lucide-react';
+import { Server, Database, ShieldAlert, Save, RefreshCw, Check, Network, Plus, Trash2, X, type LucideIcon } from 'lucide-react';
 
 interface SettingsViewProps {
   addAlert: (message: string, type: string) => void;
@@ -27,6 +27,17 @@ const Field = ({
   </div>
 );
 
+interface PVENode { name: string; host: string; port: string; username: string; }
+
+const NODES_KEY = 'local-pve-nodes';
+const loadNodes = (): PVENode[] => {
+  try { const raw = localStorage.getItem(NODES_KEY); if (raw) return JSON.parse(raw); } catch { /**/ }
+  return [];
+};
+const saveNodes = (nodes: PVENode[]) => {
+  try { localStorage.setItem(NODES_KEY, JSON.stringify(nodes)); } catch { /**/ }
+};
+
 const SettingsView = ({ addAlert }: SettingsViewProps) => {
   const [proxmoxHost, setProxmoxHost] = useState(
     typeof window !== 'undefined' ? localStorage.getItem('proxmox_host') || 'pve.home.lab' : 'pve.home.lab'
@@ -37,6 +48,40 @@ const SettingsView = ({ addAlert }: SettingsViewProps) => {
   const [verifySSL, setVerifySSL] = useState(false);
   const [refetchInterval, setRefetchInterval] = useState('2000');
   const [saved, setSaved] = useState(false);
+
+  // PVE Nodes
+  const [pveNodes, setPveNodes] = useState<PVENode[]>(loadNodes);
+  const [nodeModalOpen, setNodeModalOpen] = useState(false);
+  const [nodeName,     setNodeName]     = useState('');
+  const [nodeHost,     setNodeHost]     = useState('');
+  const [nodePort,     setNodePort]     = useState('8006');
+  const [nodeUsername, setNodeUsername] = useState('');
+  const [nodePassword, setNodePassword] = useState('');
+
+  const openNodeModal  = () => setNodeModalOpen(true);
+  const closeNodeModal = () => {
+    setNodeModalOpen(false);
+    setNodeName(''); setNodeHost(''); setNodePort('8006'); setNodeUsername(''); setNodePassword('');
+  };
+
+  const handleAddNode = () => {
+    if (!nodeName.trim() || !nodeHost.trim()) {
+      addAlert('Node name and host are required.', 'error');
+      return;
+    }
+    const updated = [...pveNodes, { name: nodeName.trim(), host: nodeHost.trim(), port: nodePort.trim() || '8006', username: nodeUsername.trim() }];
+    setPveNodes(updated);
+    saveNodes(updated);
+    addAlert(`Node "${nodeName.trim()}" added.`, 'success');
+    closeNodeModal();
+  };
+
+  const handleRemoveNode = (name: string) => {
+    const updated = pveNodes.filter(n => n.name !== name);
+    setPveNodes(updated);
+    saveNodes(updated);
+    addAlert(`Node "${name}" removed.`, 'info');
+  };
 
   const handleSave = () => {
     localStorage.setItem('proxmox_host', proxmoxHost);
@@ -136,6 +181,96 @@ const SettingsView = ({ addAlert }: SettingsViewProps) => {
           </div>
         </Field>
       </Section>
+
+      {/* Infrastructure */}
+      <Section title="Infrastructure" icon={Network}>
+        <Field label="PVE Nodes" description="Proxmox VE nodes managed by this application">
+          <button
+            onClick={openNodeModal}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold transition-colors shadow-sm"
+          >
+            <Plus size={13} /> Add Node
+          </button>
+        </Field>
+        <div className="mt-3 space-y-2">
+          {/* Local node — non-removable */}
+          <div className="flex items-center justify-between px-3 py-2 bg-blue-50 rounded-lg border border-blue-100">
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-medium text-gray-800">{proxmoxHost}</p>
+                <span className="text-[10px] font-semibold text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded uppercase tracking-wide">local</span>
+              </div>
+              <p className="text-xs text-gray-400 font-mono">{proxmoxHost}:{proxmoxPort}</p>
+            </div>
+          </div>
+          {/* Additional nodes */}
+          {pveNodes.map(node => (
+            <div key={node.name} className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg border border-gray-100">
+              <div>
+                <p className="text-sm font-medium text-gray-800">{node.name}</p>
+                <p className="text-xs text-gray-400 font-mono">{node.host}:{node.port}{node.username && ` · ${node.username}`}</p>
+              </div>
+              <button
+                onClick={() => handleRemoveNode(node.name)}
+                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                title="Remove node"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      {/* Add Node Modal */}
+      {nodeModalOpen && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-sm mx-4">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-md bg-blue-600 flex items-center justify-center">
+                  <Network size={13} className="text-white" />
+                </div>
+                <h2 className="text-sm font-semibold text-gray-900">Add PVE Node</h2>
+              </div>
+              <button onClick={closeNodeModal} className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              {[
+                { label: 'Node Name',   value: nodeName,     setter: setNodeName,     placeholder: 'e.g. pve-node-1', type: 'text' },
+                { label: 'Host / IP',   value: nodeHost,     setter: setNodeHost,     placeholder: 'e.g. 192.168.1.10', type: 'text' },
+                { label: 'Port',        value: nodePort,     setter: setNodePort,     placeholder: '8006', type: 'text' },
+                { label: 'Username',    value: nodeUsername, setter: setNodeUsername, placeholder: 'e.g. root@pam', type: 'text' },
+                { label: 'Password',    value: nodePassword, setter: setNodePassword, placeholder: '••••••••', type: 'password' },
+              ].map(({ label, value, setter, placeholder, type }) => (
+                <div key={label}>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{label}</label>
+                  <input
+                    type={type}
+                    value={value}
+                    onChange={e => setter(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') handleAddNode(); }}
+                    placeholder={placeholder}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-colors"
+                  />
+                </div>
+              ))}
+              <div className="flex gap-3 pt-1">
+                <button onClick={closeNodeModal}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                  Cancel
+                </button>
+                <button onClick={handleAddNode}
+                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors">
+                  Add Node
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* About */}
       <Section title="About" icon={ShieldAlert}>

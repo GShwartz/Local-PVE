@@ -121,6 +121,7 @@ async def login(
     from fastapi.responses import JSONResponse
 
     auth_response = None
+    role = 'admin'  # default for direct Proxmox users
 
     # Try Proxmox auth first (handles user@realm style usernames)
     try:
@@ -131,6 +132,7 @@ async def login(
             app_user = await get_user_by_username(db, login_data.username)
             if app_user and app_user.is_active:
                 if app_user.password_hash == _hash_password(login_data.password):
+                    role = app_user.role  # use role from app_users table
                     # Authenticate via admin Proxmox account on behalf of the app user
                     proxmox_user = os.getenv('PROXMOX_USER', 'app@pve')
                     proxmox_password = os.getenv('PROXMOX_PASSWORD', '')
@@ -157,12 +159,12 @@ async def login(
             proxmox_username=login_data.username,
         )
         await log_action(db, action="login", username=login_data.username,
-                         details={"proxmox_user": login_data.username})
+                         details={"proxmox_user": login_data.username, "role": role})
     except Exception as e:
         logger.warning(f"Audit log failed for login: {e}")
 
     # Create response with Proxmox cookies for console access
-    response = JSONResponse(content=auth_response)
+    response = JSONResponse(content={**auth_response, "role": role})
 
     # Set Proxmox authentication cookies for console
     # This allows the console to work without separate Proxmox login
@@ -315,6 +317,8 @@ async def clone_vm(
     db: AsyncSession = Depends(get_db),
 ):
     result = svc.clone_vm(node, vmid, clone_req, csrf_token, ticket)
+    if not result:
+        raise HTTPException(status_code=500, detail="Clone request succeeded but Proxmox returned no task ID")
     try:
         await log_action(db, action="vm_clone", node=node, vmid=vmid,
                          details={"new_name": clone_req.name, "target": clone_req.target})

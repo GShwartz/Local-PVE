@@ -109,7 +109,6 @@ const MainVMRow = ({
           auth={auth}
           addAlert={addAlert}
           refreshVMs={refreshVMs}
-          queryClient={queryClient}
           isApplying={isApplying}
         />
       </td>

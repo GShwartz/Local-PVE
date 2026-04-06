@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import axios from 'axios';
+import { Server } from 'lucide-react';
 import { Auth, TaskStatus, VMCreate } from '../../types'; // Adjust path as needed
 
 const API_BASE = 'http://localhost:8000';
@@ -337,14 +338,14 @@ export const useCreateSnapshotMutation = (
 
 export const useCreateVMMutation = (
   auth: Auth,
-  node: string,
   queryClient: any,
   addAlert: (message: string, type: string) => void,
   closeModal: () => void
 ) => {
   return useMutation({
-    mutationFn: (vmCreate: VMCreate) => createVM({ node, vmCreate, csrf: auth.csrf_token, ticket: auth.ticket }),
-    onSuccess: (upid: string) => {
+    mutationFn: ({ vmCreate, node }: { vmCreate: VMCreate; node: string }) =>
+      createVM({ node, vmCreate, csrf: auth.csrf_token, ticket: auth.ticket }),
+    onSuccess: (upid: string, { node }: { vmCreate: VMCreate; node: string }) => {
       addAlert('VM creation initiated successfully', 'success');
       const pollTask = async () => {
         try {
@@ -430,10 +431,23 @@ interface CreateVMModalProps {
 
 const CreateVMModal = ({ isOpen, closeModal, auth, node, queryClient, addAlert }: CreateVMModalProps) => {
   // Form state
-  const [vmName,    setVmName]    = useState('');
-  const [cpus,      setCpus]      = useState(1);
-  const [ram,       setRam]       = useState(2048);
-  const [osVersion, setOsVersion] = useState('');   // selected version label — sent as `source`
+  const [vmName,       setVmName]       = useState('');
+  const [cpus,         setCpus]         = useState(1);
+  const [ram,          setRam]          = useState(2048);
+  const [osVersion,    setOsVersion]    = useState('');   // selected version label — sent as `source`
+  const [useUEFI,      setUseUEFI]      = useState(false);
+  const [selectedNode, setSelectedNode] = useState(node);
+
+  // Build node list from localStorage + local node
+  const extraNodes: { name: string; host: string; port: string }[] = (() => {
+    try { const raw = localStorage.getItem('local-pve-nodes'); if (raw) return JSON.parse(raw); } catch { /**/ }
+    return [];
+  })();
+  const localLabel = localStorage.getItem('proxmox_host') || node;
+  const nodeOptions = [
+    { id: node, label: `${localLabel} (local)` },
+    ...extraNodes.map(n => ({ id: n.name, label: `${n.name} — ${n.host}` })),
+  ];
 
   // Validation
   const [nameError, setNameError] = useState(true);
@@ -442,8 +456,9 @@ const CreateVMModal = ({ isOpen, closeModal, auth, node, queryClient, addAlert }
   const [osError,   setOsError]   = useState(false);
 
   // OS dropdown
-  const [osOpen,      setOsOpen]      = useState(false);
-  const [adminOpen,   setAdminOpen]   = useState(false);
+  const [osOpen,        setOsOpen]        = useState(false);
+  const [hoveredFamily, setHoveredFamily] = useState('');
+  const [adminOpen,     setAdminOpen]     = useState(false);
   const osDropdownRef = useRef<HTMLDivElement>(null);
 
   // Admin form state
@@ -454,7 +469,7 @@ const CreateVMModal = ({ isOpen, closeModal, auth, node, queryClient, addAlert }
   // OS catalog
   const [catalog, setCatalog] = useState<OSFamily[]>(loadCatalog);
 
-  const createVMMutation = useCreateVMMutation(auth, node, queryClient, addAlert, closeModal);
+  const createVMMutation = useCreateVMMutation(auth, queryClient, addAlert, closeModal);
 
   const cpuOptions = [1, 2, 4];
   const ramOptions = [512, 1024, 2048, 4096, 8192];
@@ -468,6 +483,13 @@ const CreateVMModal = ({ isOpen, closeModal, auth, node, queryClient, addAlert }
     };
     if (osOpen) document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
+  }, [osOpen]);
+
+  // When dropdown opens, default hovered family to selected version's family or first family
+  useEffect(() => {
+    if (!osOpen) return;
+    const selected = catalog.find(f => f.versions.some(v => v.label === osVersion));
+    setHoveredFamily(selected?.id ?? catalog[0]?.id ?? '');
   }, [osOpen]);
 
   const isValidName = (name: string) => /^[a-zA-Z0-9_-]{1,40}$/.test(name);
@@ -545,7 +567,7 @@ const CreateVMModal = ({ isOpen, closeModal, auth, node, queryClient, addAlert }
     } else { setOsError(false); }
 
     if (!hasError) {
-      createVMMutation.mutate({ name: vmName, cpus, ram, source: osVersion });
+      createVMMutation.mutate({ vmCreate: { name: vmName, cpus, ram, source: osVersion, uefi: useUEFI }, node: selectedNode });
     }
   };
 
@@ -564,9 +586,7 @@ const CreateVMModal = ({ isOpen, closeModal, auth, node, queryClient, addAlert }
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 rounded-md bg-blue-600 flex items-center justify-center">
-              <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-              </svg>
+              <Server size={13} className="text-white" />
             </div>
             <h2 className="text-sm font-semibold text-gray-900">Create Virtual Machine</h2>
           </div>
@@ -623,36 +643,48 @@ const CreateVMModal = ({ isOpen, closeModal, auth, node, queryClient, addAlert }
               {/* Dropdown panel */}
               {osOpen && (
                 <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden">
-                  {/* OS families + versions */}
-                  <div className="max-h-52 overflow-y-auto">
-                    {catalog.map(family => (
-                      <div key={family.id}>
-                        {/* Family header — not selectable */}
-                        <div className="px-3 py-1.5 bg-gray-50 border-b border-gray-100 flex items-center gap-1.5">
-                          <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-                            {family.label}
-                          </span>
-                        </div>
-                        {/* Versions */}
-                        {family.versions.length === 0 ? (
-                          <div className="px-5 py-2 text-xs text-gray-400 italic">No versions yet</div>
-                        ) : (
-                          family.versions.map(ver => (
-                            <button
-                              key={ver.id}
-                              type="button"
-                              onClick={() => handleOsSelect(ver.label)}
-                              className={`w-full text-left px-5 py-2 text-sm transition-colors
-                                ${osVersion === ver.label
-                                  ? 'bg-blue-50 text-blue-700 font-medium'
-                                  : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'}`}
-                            >
-                              {ver.label}
-                            </button>
-                          ))
-                        )}
-                      </div>
-                    ))}
+                  {/* Two-panel cascading menu */}
+                  <div className="flex" style={{ maxHeight: '200px' }}>
+                    {/* Left: family list */}
+                    <div className="w-2/5 flex-shrink-0 border-r border-gray-100 overflow-y-auto bg-gray-50">
+                      {catalog.map(family => (
+                        <button
+                          key={family.id}
+                          type="button"
+                          onMouseEnter={() => setHoveredFamily(family.id)}
+                          onClick={() => setHoveredFamily(family.id)}
+                          className={`w-full text-left flex items-center justify-between px-3 py-2.5 text-xs font-semibold transition-colors
+                            ${hoveredFamily === family.id
+                              ? 'bg-blue-50 text-blue-700'
+                              : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800'}`}
+                        >
+                          <span className="truncate">{family.label}</span>
+                          <span className="ml-1 text-gray-400">›</span>
+                        </button>
+                      ))}
+                    </div>
+                    {/* Right: versions for hovered family */}
+                    <div className="flex-1 overflow-y-auto">
+                      {(() => {
+                        const family = catalog.find(f => f.id === hoveredFamily);
+                        if (!family) return null;
+                        if (family.versions.length === 0)
+                          return <div className="px-3 py-3 text-xs text-gray-400 italic">No versions yet</div>;
+                        return family.versions.map(ver => (
+                          <button
+                            key={ver.id}
+                            type="button"
+                            onClick={() => handleOsSelect(ver.label)}
+                            className={`w-full text-left px-3 py-2.5 text-sm transition-colors
+                              ${osVersion === ver.label
+                                ? 'bg-blue-50 text-blue-700 font-medium'
+                                : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'}`}
+                          >
+                            {ver.label}
+                          </button>
+                        ));
+                      })()}
+                    </div>
                   </div>
 
                   {/* Admin section */}
@@ -746,6 +778,41 @@ const CreateVMModal = ({ isOpen, closeModal, auth, node, queryClient, addAlert }
               )}
             </div>
             {osError && <p className="mt-1 text-xs text-red-500">Please select an OS.</p>}
+          </div>
+
+          {/* Target Node */}
+          {nodeOptions.length > 1 && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                Target Node
+              </label>
+              <select
+                value={selectedNode}
+                onChange={e => setSelectedNode(e.target.value)}
+                className={`${fieldBase} ${fieldOk}`}
+              >
+                {nodeOptions.map(opt => (
+                  <option key={opt.id} value={opt.id}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* UEFI */}
+          <div className="flex items-center justify-between py-1">
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">UEFI Boot</p>
+              <p className="text-xs text-gray-400 mt-0.5">Enables OVMF firmware + EFI disk (required for Secure Boot)</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setUseUEFI(v => !v)}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0
+                          ${useUEFI ? 'bg-blue-600' : 'bg-gray-200'}`}
+            >
+              <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform
+                                ${useUEFI ? 'translate-x-[18px]' : 'translate-x-[3px]'}`} />
+            </button>
           </div>
 
           {/* CPUs + RAM */}
