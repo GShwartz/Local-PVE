@@ -15,35 +15,41 @@ interface StartButtonProps {
   /** Deprecated for now (loader moved under buttons), kept for compatibility */
   showLoader?: boolean;
 
-  /** NEW: called right after the action is sent (used to trigger the wide loader) */
+  /** Called right after the action is sent (used to trigger the wide loader) */
   onSent?: () => void;
+  /** Called when the mutation errors — parent uses this to reset state after notification duration */
+  onError?: () => void;
 }
 
 const StartButton = ({
   vm,
   disabled,
-  isStarting, // kept for parity
+  isStarting: _isStarting,
   setIsStarting,
   vmMutation,
   addAlert,
   onSent,
+  onError,
 }: StartButtonProps) => {
   const handleStart = (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsStarting(true);
     addAlert(`Starting VM "${vm.name}"...`, 'info');
 
+    // Inform parent so it can show the wide loader under the buttons
+    onSent?.();
+
     // Send the action
     vmMutation.mutate(
       { vmid: vm.vmid, action: 'start', name: vm.name },
       {
         onSuccess: () => addAlert(`VM "${vm.name}" successfully started.`, 'success'),
-        onError: () => addAlert(`Failed to start VM "${vm.name}".`, 'error'),
+        onError: () => {
+          addAlert(`Failed to start VM "${vm.name}".`, 'error');
+          onError?.();
+        },
       }
     );
-
-    // Inform parent so it can show the wide loader under the buttons
-    onSent?.();
   };
 
   // Explicitly enable only when the VM is 'stopped' and not globally disabled.
@@ -55,9 +61,7 @@ const StartButton = ({
       disabled={isInactive}
       variant="blue"
     >
-      <span style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', transform: 'translateX(10px)' }}>
-        <FiPlay size={14} /> Start
-      </span>
+      <FiPlay size={13} /> Start
     </ActionButton>
   );
 };

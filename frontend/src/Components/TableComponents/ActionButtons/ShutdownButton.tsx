@@ -16,7 +16,7 @@ const ShutdownButton = ({ disabled, onClick }: ShutdownButtonProps) => {
       disabled={disabled}
       variant="purple"
     >
-      <FiPower size={14} /> Shutdown
+      <FiPower size={13} /> Shutdown
     </ActionButton>
   );
 };

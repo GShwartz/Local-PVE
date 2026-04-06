@@ -16,9 +16,7 @@ const RebootButton = ({ disabled, onClick }: RebootButtonProps) => {
       disabled={disabled}
       variant="yellow"
     >
-      <span style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', transform: 'translateX(10px)' }}>
-        <FiRotateCw size={14} /> Reboot
-      </span>
+      <FiRotateCw size={13} /> Reboot
     </ActionButton>
   );
 };

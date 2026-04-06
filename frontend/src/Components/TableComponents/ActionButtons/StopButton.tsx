@@ -36,9 +36,7 @@ const StopButton = ({
       disabled={isDisabled}
       variant="cyan"
     >
-      <span style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', transform: 'translateX(10px)' }}>
-        <FiSquare size={14} /> Stop
-      </span>
+      <FiSquare size={13} /> Stop
     </ActionButton>
   );
 };

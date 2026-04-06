@@ -1,8 +1,13 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query, Body
-from urllib.parse import unquote
-from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 from urllib.parse import quote_plus
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, update as sa_update
 import websockets
 import uvicorn
 import asyncio
@@ -25,6 +30,19 @@ from Modules.services.snapshot_service import SnapshotService
 from Modules.services.disk_service import DiskService
 from Modules.services.task_service import TaskService
 from Modules.services.vnc_service import VNCService
+from Modules.database.connection import get_db, init_db, close_db, validate_db_connection
+from Modules.services.db_service import (
+    log_action,
+    get_audit_logs,
+    get_vm_metadata,
+    upsert_vm_metadata,
+    create_session,
+    get_disk_metadata,
+    upsert_disk_metadata,
+    get_user_by_username,
+    create_app_user,
+)
+from Modules.database.db_models import AppUser
 
 class DiskExpandRequest(BaseModel):
     new_size: int  # GB
@@ -44,7 +62,14 @@ class SnapRequest(BaseModel):
     vmstate: int = 0
 
 # FastAPI app
-app = FastAPI(title="Proxmox Controller API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await validate_db_connection()  # abort early with a clear message if DB is unreachable
+    await init_db()                 # creates all tables on first run
+    yield
+    await close_db()                # disposes connection pool on shutdown
+
+app = FastAPI(title="Proxmox Controller API", lifespan=lifespan)
 
 # CORS
 app.add_middleware(
@@ -91,19 +116,58 @@ def get_vnc_service() -> VNCService:
 async def login(
     login_data: LoginRequest,
     auth: AuthService = Depends(get_auth_service),
+    db: AsyncSession = Depends(get_db),
 ):
     from fastapi.responses import JSONResponse
-    
-    # Authenticate with Proxmox
-    auth_response = auth.login(login_data.username, login_data.password)
-    
+
+    auth_response = None
+
+    # Try Proxmox auth first (handles user@realm style usernames)
+    try:
+        auth_response = auth.login(login_data.username, login_data.password)
+    except Exception:
+        # Fall back to app-user auth for plain usernames (no '@')
+        if '@' not in login_data.username:
+            app_user = await get_user_by_username(db, login_data.username)
+            if app_user and app_user.is_active:
+                if app_user.password_hash == _hash_password(login_data.password):
+                    # Authenticate via admin Proxmox account on behalf of the app user
+                    proxmox_user = os.getenv('PROXMOX_USER', 'app@pve')
+                    proxmox_password = os.getenv('PROXMOX_PASSWORD', '')
+                    try:
+                        auth_response = auth.login(proxmox_user, proxmox_password)
+                    except Exception as admin_err:
+                        raise HTTPException(status_code=401, detail=f"Admin Proxmox login failed: {admin_err}")
+                else:
+                    raise HTTPException(status_code=401, detail="Invalid credentials")
+            else:
+                raise HTTPException(status_code=401, detail="Invalid credentials")
+        else:
+            raise HTTPException(status_code=401, detail="Proxmox authentication failed")
+
+    if auth_response is None:
+        raise HTTPException(status_code=401, detail="Authentication failed")
+
+    # Store session server-side
+    try:
+        await create_session(
+            db,
+            proxmox_ticket=auth_response["ticket"],
+            proxmox_csrf_token=auth_response["csrf_token"],
+            proxmox_username=login_data.username,
+        )
+        await log_action(db, action="login", username=login_data.username,
+                         details={"proxmox_user": login_data.username})
+    except Exception as e:
+        logger.warning(f"Audit log failed for login: {e}")
+
     # Create response with Proxmox cookies for console access
     response = JSONResponse(content=auth_response)
-    
+
     # Set Proxmox authentication cookies for console
     # This allows the console to work without separate Proxmox login
     proxmox_host = os.getenv('PROXMOX_HOST', 'pve.home.lab')
-    
+
     response.set_cookie(
         key="PVEAuthCookie",
         value=auth_response["ticket"],
@@ -114,7 +178,7 @@ async def login(
         samesite="none",
         max_age=7200  # 2 hours
     )
-    
+
     response.set_cookie(
         key="CSRFPreventionToken",
         value=auth_response["csrf_token"],
@@ -125,7 +189,7 @@ async def login(
         samesite="none",
         max_age=7200  # 2 hours
     )
-    
+
     return response
 
 @app.get("/vms/{node}")
@@ -215,9 +279,16 @@ async def update_vm_config(
     csrf_token: str,
     ticket: str,
     svc: VMService = Depends(get_vm_service),
+    db: AsyncSession = Depends(get_db),
 ):
     try:
-        return svc.update_vm_config(node, vmid, updates, csrf_token, ticket)
+        result = svc.update_vm_config(node, vmid, updates, csrf_token, ticket)
+        try:
+            await log_action(db, action="vm_config_update", node=node, vmid=vmid,
+                             details={"updates": updates.model_dump(exclude_none=True)})
+        except Exception as e:
+            logger.warning(f"Audit log failed for vm_config_update: {e}")
+        return result
     except HTTPException as e:
         raise HTTPException(status_code=e.status_code, detail=f"Failed to update VM config: {e.detail}")
     except Exception as e:
@@ -241,8 +312,15 @@ async def clone_vm(
     csrf_token: str,
     ticket: str,
     svc: VMService = Depends(get_vm_service),
+    db: AsyncSession = Depends(get_db),
 ):
-    return svc.clone_vm(node, vmid, clone_req, csrf_token, ticket)
+    result = svc.clone_vm(node, vmid, clone_req, csrf_token, ticket)
+    try:
+        await log_action(db, action="vm_clone", node=node, vmid=vmid,
+                         details={"new_name": clone_req.name, "target": clone_req.target})
+    except Exception as e:
+        logger.warning(f"Audit log failed for vm_clone: {e}")
+    return result
 
 @app.post("/vm/{node}/qemu/{vmid}/snapshot")
 async def create_snapshot(
@@ -252,10 +330,11 @@ async def create_snapshot(
     csrf_token: str,
     ticket: str,
     svc: SnapshotService = Depends(get_snapshot_service),
+    db: AsyncSession = Depends(get_db),
 ):
     if not snap_request.snapname.strip():
         raise HTTPException(status_code=400, detail="Snapshot name cannot be empty")
-    return svc.create_snapshot(
+    result = svc.create_snapshot(
         node,
         vmid,
         snap_request.snapname.strip(),
@@ -264,6 +343,12 @@ async def create_snapshot(
         csrf_token,
         ticket,
     )
+    try:
+        await log_action(db, action="snapshot_create", node=node, vmid=vmid,
+                         details={"snapname": snap_request.snapname.strip()})
+    except Exception as e:
+        logger.warning(f"Audit log failed for snapshot_create: {e}")
+    return result
 
 @app.post("/vm/{node}/qemu/{vmid}/snapshot/{snapname}/revert")
 async def revert_snapshot(
@@ -273,8 +358,15 @@ async def revert_snapshot(
     csrf_token: str,
     ticket: str,
     svc: SnapshotService = Depends(get_snapshot_service),
+    db: AsyncSession = Depends(get_db),
 ):
-    return svc.revert_snapshot(node, vmid, snapname, csrf_token, ticket)
+    result = svc.revert_snapshot(node, vmid, snapname, csrf_token, ticket)
+    try:
+        await log_action(db, action="snapshot_revert", node=node, vmid=vmid,
+                         details={"snapname": snapname})
+    except Exception as e:
+        logger.warning(f"Audit log failed for snapshot_revert: {e}")
+    return result
 
 @app.delete("/vm/{node}/qemu/{vmid}/snapshot/{snapname}")
 async def delete_snapshot(
@@ -284,8 +376,15 @@ async def delete_snapshot(
     csrf_token: str,
     ticket: str,
     svc: SnapshotService = Depends(get_snapshot_service),
+    db: AsyncSession = Depends(get_db),
 ):
-    return svc.delete_snapshot(node, vmid, snapname, csrf_token, ticket)
+    result = svc.delete_snapshot(node, vmid, snapname, csrf_token, ticket)
+    try:
+        await log_action(db, action="snapshot_delete", node=node, vmid=vmid,
+                         details={"snapname": snapname})
+    except Exception as e:
+        logger.warning(f"Audit log failed for snapshot_delete: {e}")
+    return result
 
 @app.post("/vm/{node}/qemu/{vmid}/vncproxy")
 async def get_vnc_proxy(
@@ -311,8 +410,15 @@ async def create_vm(
     csrf_token: str,
     ticket: str,
     svc: VMService = Depends(get_vm_service),
+    db: AsyncSession = Depends(get_db),
 ):
-    return svc.create_vm(node, vm_create, csrf_token, ticket)
+    result = svc.create_vm(node, vm_create, csrf_token, ticket)
+    try:
+        await log_action(db, action="vm_create", node=node,
+                         details={"name": vm_create.name, "cpus": vm_create.cpus, "ram": vm_create.ram})
+    except Exception as e:
+        logger.warning(f"Audit log failed for vm_create: {e}")
+    return result
 
 @app.post("/vm/{node}/qemu/{vmid}/add-disk")
 async def add_disk(
@@ -322,8 +428,15 @@ async def add_disk(
     csrf_token: str,
     ticket: str,
     svc: DiskService = Depends(get_disk_service),
+    db: AsyncSession = Depends(get_db),
 ):
-    return svc.add_disk(node, vmid, req, csrf_token, ticket)
+    result = svc.add_disk(node, vmid, req, csrf_token, ticket)
+    try:
+        await log_action(db, action="disk_add", node=node, vmid=vmid,
+                         details={"storage": req.storage, "size": req.size, "controller": req.controller})
+    except Exception as e:
+        logger.warning(f"Audit log failed for disk_add: {e}")
+    return result
 
 @app.delete("/vm/{node}/qemu/{vmid}/disk/{disk_key}")
 async def delete_disk(
@@ -333,8 +446,15 @@ async def delete_disk(
     csrf_token: str,
     ticket: str,
     svc: DiskService = Depends(get_disk_service),
+    db: AsyncSession = Depends(get_db),
 ):
-    return svc.delete_disk(node, vmid, disk_key, csrf_token, ticket)
+    result = svc.delete_disk(node, vmid, disk_key, csrf_token, ticket)
+    try:
+        await log_action(db, action="disk_delete", node=node, vmid=vmid,
+                         details={"disk_key": disk_key})
+    except Exception as e:
+        logger.warning(f"Audit log failed for disk_delete: {e}")
+    return result
 
 @app.post("/vm/{node}/qemu/{vmid}/activate-unused-disk/{unused_key}")
 async def activate_unused_disk(
@@ -345,8 +465,15 @@ async def activate_unused_disk(
     ticket: str,
     target_controller: str = "scsi",
     svc: DiskService = Depends(get_disk_service),
+    db: AsyncSession = Depends(get_db),
 ):
-    return await svc.activate_unused_disk(node, vmid, unused_key, target_controller, csrf_token, ticket)
+    result = await svc.activate_unused_disk(node, vmid, unused_key, target_controller, csrf_token, ticket)
+    try:
+        await log_action(db, action="disk_activate", node=node, vmid=vmid,
+                         details={"unused_key": unused_key, "target_controller": target_controller})
+    except Exception as e:
+        logger.warning(f"Audit log failed for disk_activate: {e}")
+    return result
 
 @app.delete("/vm/{node}/qemu/{vmid}")
 async def delete_vm(
@@ -355,8 +482,14 @@ async def delete_vm(
     csrf_token: str,
     ticket: str,
     svc: VMService = Depends(get_vm_service),
+    db: AsyncSession = Depends(get_db),
 ):
-    return svc.delete_vm(node, vmid, csrf_token, ticket)
+    result = svc.delete_vm(node, vmid, csrf_token, ticket)
+    try:
+        await log_action(db, action="vm_delete", node=node, vmid=vmid)
+    except Exception as e:
+        logger.warning(f"Audit log failed for vm_delete: {e}")
+    return result
 
 @app.post("/vm/{node}/qemu/{vmid}/{action}")
 async def control_vm(
@@ -366,6 +499,7 @@ async def control_vm(
     csrf_token: str,
     ticket: str,
     svc: VMService = Depends(get_vm_service),
+    db: AsyncSession = Depends(get_db),
 ):
     # Convert hibernate to suspend
     if action == "hibernate":
@@ -373,7 +507,12 @@ async def control_vm(
 
     if action not in ["start", "stop", "shutdown", "reboot", "suspend", "resume"]:
         raise HTTPException(status_code=400, detail="Invalid action")
-    return svc.vm_action(node, vmid, action, csrf_token, ticket)
+    result = svc.vm_action(node, vmid, action, csrf_token, ticket)
+    try:
+        await log_action(db, action=f"vm_{action}", node=node, vmid=vmid)
+    except Exception as e:
+        logger.warning(f"Audit log failed for vm_{action}: {e}")
+    return result
 
 @app.websocket("/ws/console/{node}/{vmid}")
 async def websocket_console(
@@ -455,8 +594,15 @@ async def expand_disk(
     csrf_token: str,
     ticket: str,
     svc: DiskService = Depends(get_disk_service),
+    db: AsyncSession = Depends(get_db),
 ):
-    return svc.expand_disk(node, vmid, disk_key, req.new_size, csrf_token, ticket)
+    result = svc.expand_disk(node, vmid, disk_key, req.new_size, csrf_token, ticket)
+    try:
+        await log_action(db, action="disk_expand", node=node, vmid=vmid,
+                         details={"disk_key": disk_key, "new_size_gb": req.new_size})
+    except Exception as e:
+        logger.warning(f"Audit log failed for disk_expand: {e}")
+    return result
 
 @app.delete("/vm/{node}/qemu/{vmid}/network")
 async def remove_network_interface(
@@ -465,12 +611,20 @@ async def remove_network_interface(
     nic: str = Query(...),
     csrf_token: str = Query(...),
     ticket: str = Query(...),
-    svc: VMService = Depends(get_vm_service)
+    svc: VMService = Depends(get_vm_service),
+    db: AsyncSession = Depends(get_db),
 ):
     if not nic:
         raise HTTPException(status_code=400, detail="NIC name is required")
     try:
-        return svc.modify_vm_network(node, vmid, net=None, delete=nic, csrf_token=csrf_token, ticket=ticket)
+        result = svc.modify_vm_network(node, vmid, net=None, delete=nic, csrf_token=csrf_token, ticket=ticket)
+        try:
+            await log_action(db, action="nic_remove", node=node, vmid=vmid, details={"nic": nic})
+        except Exception as e:
+            logger.warning(f"Audit log failed for nic_remove: {e}")
+        return result
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -481,12 +635,171 @@ async def update_network_interface(
     config: dict = Body(...),
     csrf_token: str = Query(...),
     ticket: str = Query(...),
-    svc: VMService = Depends(get_vm_service)
+    svc: VMService = Depends(get_vm_service),
+    db: AsyncSession = Depends(get_db),
 ):
     try:
-        return svc.modify_vm_network(node, vmid, net=config, delete=None, csrf_token=csrf_token, ticket=ticket)
+        result = svc.modify_vm_network(node, vmid, net=config, delete=None, csrf_token=csrf_token, ticket=ticket)
+        try:
+            await log_action(db, action="nic_update", node=node, vmid=vmid, details={"config": config})
+        except Exception as e:
+            logger.warning(f"Audit log failed for nic_update: {e}")
+        return result
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# ── DB-backed endpoints ───────────────────────────────────────────────────────
+
+class VMMetadataRequest(BaseModel):
+    notes: str = None
+    tags: str = None
+
+class DiskMetadataRequest(BaseModel):
+    disk_uuid: str = None
+    disk_type: str = None
+    note: str = None
+
+@app.get("/vm/{node}/{vmid}/metadata")
+async def get_vm_metadata_endpoint(
+    node: str,
+    vmid: int,
+    db: AsyncSession = Depends(get_db),
+):
+    meta = await get_vm_metadata(db, node, vmid)
+    if meta is None:
+        return {"node": node, "vmid": vmid, "notes": None, "tags": None}
+    return {"node": node, "vmid": vmid, "notes": meta.notes, "tags": meta.tags, "updated_at": meta.updated_at}
+
+@app.put("/vm/{node}/{vmid}/metadata")
+async def set_vm_metadata_endpoint(
+    node: str,
+    vmid: int,
+    body: VMMetadataRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    meta = await upsert_vm_metadata(db, node, vmid, notes=body.notes, tags=body.tags)
+    return {"node": node, "vmid": vmid, "notes": meta.notes, "tags": meta.tags, "updated_at": meta.updated_at}
+
+@app.get("/audit-log")
+async def get_audit_log_endpoint(
+    vmid: int = None,
+    node: str = None,
+    action: str = None,
+    limit: int = 100,
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db),
+):
+    logs = await get_audit_logs(db, vmid=vmid, node=node, action=action, limit=limit, offset=offset)
+    return [
+        {
+            "id": entry.id,
+            "action": entry.action,
+            "node": entry.node,
+            "vmid": entry.vmid,
+            "username": entry.username_snapshot,
+            "details": entry.details,
+            "status": entry.status,
+            "error_message": entry.error_message,
+            "timestamp": entry.timestamp,
+        }
+        for entry in logs
+    ]
+
+@app.get("/vm/{node}/{vmid}/disk/{disk_key}/metadata")
+async def get_disk_metadata_endpoint(
+    node: str,
+    vmid: int,
+    disk_key: str,
+    db: AsyncSession = Depends(get_db),
+):
+    meta = await get_disk_metadata(db, vmid, disk_key)
+    if meta is None:
+        return {"vmid": vmid, "node": node, "disk_key": disk_key, "disk_uuid": None, "disk_type": None, "note": None}
+    return {
+        "vmid": meta.vmid, "node": meta.node, "disk_key": meta.disk_key,
+        "disk_uuid": meta.disk_uuid, "disk_type": meta.disk_type,
+        "note": meta.note, "updated_at": meta.updated_at,
+    }
+
+@app.put("/vm/{node}/{vmid}/disk/{disk_key}/metadata")
+async def set_disk_metadata_endpoint(
+    node: str,
+    vmid: int,
+    disk_key: str,
+    body: DiskMetadataRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    meta = await upsert_disk_metadata(db, vmid=vmid, node=node, disk_key=disk_key,
+                                      disk_uuid=body.disk_uuid, disk_type=body.disk_type, note=body.note)
+    return {
+        "vmid": meta.vmid, "node": meta.node, "disk_key": meta.disk_key,
+        "disk_uuid": meta.disk_uuid, "disk_type": meta.disk_type,
+        "note": meta.note, "updated_at": meta.updated_at,
+    }
+
+
+# ── User management endpoints ─────────────────────────────────────────────────
+
+import hashlib
+
+class CreateUserRequest(BaseModel):
+    username: str
+    password: str
+    role: str = "viewer"
+
+class UpdateUserRequest(BaseModel):
+    role: str
+
+def _hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
+
+@app.get("/users")
+async def list_users(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(AppUser).order_by(AppUser.created_at.desc()))
+    users = result.scalars().all()
+    return [
+        {
+            "id": u.id,
+            "username": u.username,
+            "role": u.role,
+            "is_active": u.is_active,
+            "created_at": u.created_at,
+            "last_login": u.last_login,
+        }
+        for u in users
+    ]
+
+@app.post("/users", status_code=201)
+async def create_user(body: CreateUserRequest, db: AsyncSession = Depends(get_db)):
+    existing = await get_user_by_username(db, body.username)
+    if existing:
+        raise HTTPException(status_code=409, detail=f"Username '{body.username}' already exists.")
+    if body.role not in ("viewer", "operator", "admin"):
+        raise HTTPException(status_code=400, detail="Role must be viewer, operator, or admin.")
+    user = await create_app_user(db, body.username, _hash_password(body.password), body.role)
+    return {"id": user.id, "username": user.username, "role": user.role, "is_active": user.is_active}
+
+@app.patch("/users/{user_id}")
+async def update_user_role(user_id: int, body: UpdateUserRequest, db: AsyncSession = Depends(get_db)):
+    if body.role not in ("viewer", "operator", "admin"):
+        raise HTTPException(status_code=400, detail="Role must be viewer, operator, or admin.")
+    result = await db.execute(select(AppUser).where(AppUser.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+    await db.execute(sa_update(AppUser).where(AppUser.id == user_id).values(role=body.role))
+    return {"id": user_id, "role": body.role}
+
+@app.delete("/users/{user_id}", status_code=204)
+async def deactivate_user(user_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(AppUser).where(AppUser.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+    await db.execute(sa_update(AppUser).where(AppUser.id == user_id).values(is_active=False))
 
 
 if __name__ == "__main__":

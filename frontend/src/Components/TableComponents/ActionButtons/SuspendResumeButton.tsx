@@ -133,7 +133,7 @@ const SuspendResumeButton: React.FC<SuspendResumeButtonProps> = ({
       disabled={isButtonDisabled}
       variant={localSuspended ? 'green' : 'yellow'}
     >
-      {localSuspended ? <><FiPlay size={14} /> Resume</> : <><FiPause size={14} /> Suspend</>}
+      {localSuspended ? <><FiPlay size={13} /> Resume</> : <><FiPause size={13} /> Suspend</>}
     </ActionButton>
   );
 };

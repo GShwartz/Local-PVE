@@ -114,7 +114,7 @@ const SnapshotsView = ({
   };
 
   return (
-    <div className="w-full flex-1 min-h-[300px] max-h-[600px] overflow-y-auto p-4 bg-white border border-gray-200 rounded-lg shadow-sm sm:p-6 dark:bg-gray-800 dark:border-gray-700">
+    <div className="w-full flex-1 min-h-[300px] max-h-[600px] overflow-y-auto">
       {snapshotsLoading && <p className="sr-only">Loading snapshots...</p>}
       {snapshotsError && <p className="text-red-500">Error loading snapshots: {snapshotsError.message}</p>}
 
@@ -167,7 +167,7 @@ const SnapshotsView = ({
 
       {/* Always show snapshot list */}
       {snapshots && snapshots.length === 0 ? (
-        <div className="flex items-center justify-center p-8 text-gray-500 text-sm italic border border-dashed border-white/10 rounded-lg">
+        <div className="flex items-center justify-center p-8 text-gray-500 text-sm italic border border-dashed border-gray-300 rounded-lg">
           No snapshots available
         </div>
       ) : (
@@ -178,7 +178,7 @@ const SnapshotsView = ({
                 <li key={snapshot.name} className={styles.listItem}>
                   <div className="flex justify-between items-center">
                     <div className="flex flex-col text-left">
-                      <span className="font-medium text-gray-200">{snapshot.name}</span>
+                      <span className="font-medium text-gray-800">{snapshot.name}</span>
                       {snapshot.snaptime && (
                         <span className="text-xs text-gray-400 mt-0.5">
                           {new Date(snapshot.snaptime * 1000).toLocaleString()}
@@ -194,7 +194,7 @@ const SnapshotsView = ({
                           </span>
                         ) : (
                           <>
-                            <span className="text-xs text-red-300">
+                            <span className="text-xs text-red-600">
                               {pendingSnapshotRemoval ? 'Confirm Snapshot Removal' : 'Confirm Revert'}
                             </span>
                             <button
@@ -257,7 +257,7 @@ const SnapshotsView = ({
                     )}
                   </div>
                   {snapshot.description && (
-                    <span className="text-xs text-gray-500 line-clamp-2 mt-2 border-t border-white/5 pt-2">
+                    <span className="text-xs text-gray-500 line-clamp-2 mt-2 border-t border-gray-100 pt-2">
                       {snapshot.description}
                     </span>
                   )}

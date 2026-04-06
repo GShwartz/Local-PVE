@@ -1,40 +1,41 @@
 import React from 'react';
 
+export type Variant = 'blue' | 'green' | 'red' | 'purple' | 'yellow' | 'cyan' | 'orange';
+
 interface ActionButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode;
-  variant?: 'blue' | 'green' | 'red' | 'purple' | 'yellow' | 'cyan';
+  variant?: Variant;
 }
 
-const ActionButton = ({ children, variant = 'blue', disabled, ...props }: ActionButtonProps) => {
-  const baseClasses = "inline-flex items-center justify-center px-4 py-2 text-xs font-semibold rounded-lg transition-all duration-200 border border-transparent shadow-lg transform hover:scale-[1.02] active:scale-[0.98] text-white";
+const variantClasses: Record<Variant, string> = {
+  blue:   'bg-blue-600 hover:bg-blue-700',
+  green:  'bg-emerald-600 hover:bg-emerald-700',
+  red:    'bg-red-600 hover:bg-red-700',
+  purple: 'bg-violet-600 hover:bg-violet-700',
+  yellow: 'bg-amber-500 hover:bg-amber-600',
+  cyan:   'bg-sky-600 hover:bg-sky-700',
+  orange: 'bg-orange-600 hover:bg-orange-700',
+};
 
-  const gradients = {
-    blue: 'linear-gradient(to right, rgb(37, 99, 235), rgb(147, 51, 234))',
-    green: 'linear-gradient(to right, rgb(37, 99, 235), rgb(147, 51, 234))',
-    red: 'linear-gradient(to right, rgb(220, 38, 38), rgb(219, 39, 119))', // Keep red for Remove button
-    purple: 'linear-gradient(to right, rgb(37, 99, 235), rgb(147, 51, 234))',
-    yellow: 'linear-gradient(to right, rgb(37, 99, 235), rgb(147, 51, 234))',
-    cyan: 'linear-gradient(to right, rgb(37, 99, 235), rgb(147, 51, 234))',
-  };
-
-  const disabledStyle = {
-    background: 'rgba(55, 65, 81, 0.5)',
-    cursor: 'not-allowed',
-    opacity: 0.7,
-    color: 'rgb(156, 163, 175)',
-  };
+// className from outside is intentionally ignored — use variant for colour control
+const ActionButton = ({
+  children,
+  variant = 'blue',
+  disabled,
+  className: _,
+  ...props
+}: ActionButtonProps) => {
+  const base =
+    'inline-flex items-center justify-center px-3 text-xs font-semibold rounded-md transition-colors duration-150 border-0 shadow-sm whitespace-nowrap select-none';
 
   return (
     <button
       {...props}
       disabled={disabled}
-      className={baseClasses}
-      style={{
-        height: '34px',
-        ...(disabled ? disabledStyle : { backgroundImage: gradients[variant] }),
-      }}
+      className={`${base} ${disabled ? 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none' : `text-white ${variantClasses[variant]}`}`}
+      style={{ height: '30px' }}
     >
-      <span style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+      <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem', lineHeight: 1 }}>
         {children}
       </span>
     </button>

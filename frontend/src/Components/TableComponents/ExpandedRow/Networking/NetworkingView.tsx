@@ -201,7 +201,7 @@ const NetworkingView = ({ vm, node, auth, addAlert, refreshVMs }: NetworkingView
   };
 
   return (
-    <div className="w-full flex-1 min-h-[300px] max-h-[600px] overflow-y-auto p-4 bg-white border border-gray-200 rounded-lg shadow-sm sm:p-6 dark:bg-gray-800 dark:border-gray-700">
+    <div className="w-full flex-1 min-h-[300px] max-h-[600px] overflow-y-auto">
       <div className={styles.cardHeader}>
         <h5 className={styles.cardTitle}>{getHeaderTitle()}</h5>
         {isModalOpen ? (

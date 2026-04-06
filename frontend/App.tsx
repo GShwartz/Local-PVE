@@ -2,18 +2,26 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Navbar from './src/Components/Layout/Navbar';
-import Footer from './src/Components/Layout/Footer';
+import Sidebar, { Page } from './src/Components/Layout/Sidebar';
 import MachinesTable from './src/Components/TableComponents/MachinesTable';
 import LoginError from './src/Components/LoginError';
 import Login from './src/Components/Login';
 import CreateVMModal from './src/Components/Layout/CreateVMModal';
 import Alerts, { Alert } from './src/Components/Alerts';
+import UserManagementView from './src/Components/UserManagement/UserManagementView';
+import AuditLogView from './src/Components/AuditLog/AuditLogView';
+import SettingsView from './src/Components/Settings/SettingsView';
 import { Auth, VM } from './src/types';
 
-// Define types for API responses and state
+const API_BASE = 'http://localhost:8000';
+const NODE = 'pve';
 
-const API_BASE = 'http://localhost:8000'; // Backend URL (env var in prod)
-const NODE = 'pve'; // Fixed node name
+const pageTitles: Record<Page, string> = {
+  dashboard: 'Dashboard',
+  users:     'User Management',
+  audit:     'Audit Log',
+  settings:  'Settings',
+};
 
 const fetchVMs = async ({ node, csrf, ticket }: { node: string; csrf: string; ticket: string }): Promise<VM[]> => {
   const { data } = await axios.get<VM[]>(`${API_BASE}/vms/${node}`, { params: { csrf_token: csrf, ticket } });
@@ -28,30 +36,20 @@ function App() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [alertHistory, setAlertHistory] = useState<Alert[]>([]);
   const [_selectedVMId, setSelectedVMId] = useState<number | null>(null);
+  const [activePage, setActivePage] = useState<Page>('dashboard');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const addAlert = (message: string, type: string): void => {
-    const id: string = `${Date.now()}-${Math.random()}`;
+    const id = `${Date.now()}-${Math.random()}`;
     const newAlert = { id, message, type, read: false, timestamp: Date.now() };
-    setAlerts((prev) => [...prev, newAlert]);
-    setAlertHistory((prev) => [...prev, newAlert]);
-    setTimeout(() => {
-      setAlerts((prev) => prev.filter((alert) => alert.id !== id));
-    }, 5000);
+    setAlerts(prev => [...prev, newAlert]);
+    setAlertHistory(prev => [...prev, newAlert]);
+    setTimeout(() => setAlerts(prev => prev.filter(a => a.id !== id)), 5000);
   };
 
-  const markAsRead = (id: string): void => {
-    setAlertHistory((prev) => prev.map(alert =>
-      alert.id === id ? { ...alert, read: true } : alert
-    ));
-  };
-
-  const markAllAsRead = (): void => {
-    setAlertHistory((prev) => prev.map(alert => ({ ...alert, read: true })));
-  };
-
-  const dismissAlert = (id: string): void => {
-    setAlerts((prevState) => prevState.filter((alert) => alert.id !== id));
-  };
+  const markAsRead    = (id: string) => setAlertHistory(prev => prev.map(a => a.id === id ? { ...a, read: true } : a));
+  const markAllAsRead = ()           => setAlertHistory(prev => prev.map(a => ({ ...a, read: true })));
+  const dismissAlert  = (id: string) => setAlerts(prev => prev.filter(a => a.id !== id));
 
   const openConsole = (vmid: number) => {
     setSelectedVMId(vmid);
@@ -66,61 +64,81 @@ function App() {
   });
 
   useEffect(() => {
-    if (vms) {
-      console.log('VMs data:', vms); // Log raw data for debugging
-    }
+    if (vms) console.log('VMs data:', vms);
   }, [vms]);
 
-  if (loginError) {
-    return <LoginError error={loginError} onRetry={() => setLoginError(null)} />;
-  }
+  if (loginError) return <LoginError error={loginError} onRetry={() => setLoginError(null)} />;
 
   if (!auth) {
-    return <Login onLoginSuccess={(authData) => {
-      console.log('Login success, setting auth:', authData);
-      setAuth(authData);
-    }} />;
+    return (
+      <Login onLoginSuccess={authData => {
+        console.log('Login success:', authData);
+        setAuth(authData);
+      }} />
+    );
   }
 
-  console.log('Rendering main app with auth:', auth);
-
   return (
-    <>
-      {/* Global Background Ambience */}
-      <div className="fixed inset-0 bg-gray-900 -z-20" />
-      <div className="fixed top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-blue-600/20 blur-[120px] pointer-events-none -z-10" />
-      <div className="fixed bottom-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full bg-purple-600/20 blur-[120px] pointer-events-none -z-10" />
+    <div className="flex flex-col h-screen bg-gray-50 overflow-hidden">
 
-      <div className="flex flex-col min-h-screen">
+      {/* ── TopBar ── */}
+      <div className="flex-shrink-0" style={{ height: '56px' }}>
         <Navbar
-          onCreateClick={() => setIsCreateModalOpen(true)}
+          username={auth.username}
           onLogout={() => setAuth(null)}
           alertHistory={alertHistory}
           markAsRead={markAsRead}
           markAllAsRead={markAllAsRead}
+          sidebarOpen={sidebarOpen}
+          onToggleSidebar={() => setSidebarOpen(v => !v)}
+        />
+      </div>
+
+      {/* ── Body: sidebar + main ── */}
+      <div className="flex flex-1 overflow-hidden">
+
+        {/* Sidebar */}
+        <Sidebar
+          activePage={activePage}
+          onNavigate={setActivePage}
+          onCreateClick={() => setIsCreateModalOpen(true)}
+          isOpen={sidebarOpen}
+          pageTitle={pageTitles[activePage]}
         />
 
-        <div className="flex flex-1 relative z-10">
-          <div className="flex-1 flex flex-col">
-            <Alerts alerts={alerts} dismissAlert={dismissAlert} />
-            <main className="flex-1 p-4 sm:p-8 overflow-y-auto w-full">
-              <div className="w-full">
-                {vmsError && <p className="text-red-400 mb-4 text-center bg-red-900/20 p-4 rounded-lg border border-red-500/20">Error fetching machines: {vmsError.message}</p>}
+        {/* Main content */}
+        <main className="flex-1 overflow-y-auto bg-gray-50 relative">
+          {/* Floating alerts */}
+          <Alerts alerts={alerts} dismissAlert={dismissAlert} />
+
+          <div className="p-6 min-h-full">
+            {/* ── Dashboard ── */}
+            {activePage === 'dashboard' && (
+              <>
+                {vmsError && (
+                  <div className="mb-4 p-4 rounded-xl border border-red-200 bg-red-50 text-red-600 text-sm">
+                    Error fetching machines: {vmsError.message}
+                  </div>
+                )}
                 {isLoading && (
                   <div className="flex justify-center items-center py-20">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500" />
                   </div>
                 )}
                 {!isLoading && !vms?.length && (
-                  <p className="mb-4 text-gray-400 text-center py-20 bg-gray-800/40 rounded-xl border border-white/5">
-                    No machines available. Create one to get started.
-                  </p>
+                  <div className="flex flex-col items-center justify-center py-24 text-gray-400">
+                    <svg className="w-12 h-12 mb-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                        d="M5 12h14M12 5l7 7-7 7" />
+                    </svg>
+                    <p className="text-sm">No machines available. Create one to get started.</p>
+                  </div>
                 )}
                 {vms && vms.length > 0 && (
                   <div className="animate-fade-in-up">
                     <MachinesTable
-                      vms={vms!}
-                      auth={auth!}
+                      vms={vms}
+                      auth={auth}
                       queryClient={queryClient}
                       node={NODE}
                       addAlert={addAlert}
@@ -128,13 +146,28 @@ function App() {
                     />
                   </div>
                 )}
-              </div>
-            </main>
+              </>
+            )}
+
+            {/* ── User Management ── */}
+            {activePage === 'users' && (
+              <UserManagementView addAlert={addAlert} />
+            )}
+
+            {/* ── Audit Log ── */}
+            {activePage === 'audit' && (
+              <AuditLogView />
+            )}
+
+            {/* ── Settings ── */}
+            {activePage === 'settings' && (
+              <SettingsView addAlert={addAlert} />
+            )}
           </div>
-        </div>
-        <Footer />
+        </main>
       </div>
 
+      {/* ── Modals ── */}
       <CreateVMModal
         isOpen={isCreateModalOpen}
         closeModal={() => setIsCreateModalOpen(false)}
@@ -143,7 +176,7 @@ function App() {
         queryClient={queryClient}
         addAlert={addAlert}
       />
-    </>
+    </div>
   );
 }
 

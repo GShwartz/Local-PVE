@@ -3,6 +3,7 @@
 export interface Auth {
   ticket: string;
   csrf_token: string;
+  username?: string;
 }
 
 export interface VM {

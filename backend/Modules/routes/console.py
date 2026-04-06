@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, HTMLResponse
 from Modules.services.vnc_service import VNCService
 from Modules.services.vm_service import VMService
+from urllib.parse import quote
 import os
 
 router = APIRouter()
@@ -62,10 +63,11 @@ async def get_console(
         console_host = f"{PROXMOX_HOST}:{PROXMOX_PORT}"
 
     # Construct Proxmox web interface URL (HTTP, not HTTPS)
+    # vncticket must be URL-encoded — it contains colons and other special chars
     console_url = (
         f"http://{console_host}/?console=kvm&novnc=1"
-        f"&vmid={vmid}&vmname={vm_name}&node={node}"
-        f"&resize=off&cmd=&vncticket={vnc_ticket}"
+        f"&vmid={vmid}&vmname={quote(vm_name, safe='')}&node={node}"
+        f"&resize=off&cmd=&vncticket={quote(vnc_ticket, safe='')}"
     )
 
     # Redirect to Proxmox web interface

@@ -111,7 +111,7 @@ const VMNameCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToAp
 
   return (
     <td
-      className="px-6 py-4 text-center relative"
+      className="px-3 py-3 text-center relative min-w-[180px]"
       ref={cellRef}
       style={{ height: '48px', verticalAlign: 'middle' }}
       onClick={(e) => e.stopPropagation()}
@@ -124,7 +124,7 @@ const VMNameCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToAp
             ref={inputRef}
             onClick={(e) => e.stopPropagation()}
             onChange={(e) => setEditVMName(e.target.value)}
-            className="w-32 p-1 bg-gray-900 text-white rounded-md text-sm"
+            className="w-32 p-1 bg-white text-gray-800 border border-gray-300 rounded-md text-sm"
             placeholder="New VM Name"
             style={{ height: '32px', lineHeight: '1.5' }}
             disabled={editButtonDisabled}
@@ -157,7 +157,7 @@ const VMNameCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToAp
         </form>
       ) : (
         <div className="flex flex-col items-center justify-center" style={{ height: '48px' }}>
-          <div className="flex items-center" style={{ height: '32px', lineHeight: '1.5' }}>
+          <div className="flex items-center whitespace-nowrap" style={{ height: '32px', lineHeight: '1.5' }}>
             {editVMName}
             <button
               onClick={(e) => {
@@ -175,7 +175,7 @@ const VMNameCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToAp
               onMouseEnter={handleMouseEnter}
               onMouseLeave={handleMouseLeave}
               disabled={editButtonDisabled}
-              className={`ml-2 text-gray-400 hover:text-white ${editButtonDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`ml-2 text-gray-400 hover:text-blue-500 ${editButtonDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />

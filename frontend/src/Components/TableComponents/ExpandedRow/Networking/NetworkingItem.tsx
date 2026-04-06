@@ -55,7 +55,7 @@ const NetworkingItem = ({
   };
 
   return (
-    <div className="p-3 text-sm text-gray-900 rounded-lg bg-gray-700 dark:text-white flex flex-col gap-1 relative">
+    <div className="p-3 text-sm text-gray-800 rounded-lg bg-gray-50 border border-gray-200 flex flex-col gap-1 relative">
       <div className="flex justify-between items-center">
         <div>
           <span className="font-semibold">{net.name}</span>
@@ -91,7 +91,7 @@ const NetworkingItem = ({
       </div>
 
       {net.macaddr && (
-        <div className="text-gray-300 text-xs flex items-center gap-1 relative">
+        <div className="text-gray-600 text-xs flex items-center gap-1 relative">
           <span className="select-none">MAC Address: {net.macaddr}</span>
           <button
             onClick={() => onCopyMac(net.macaddr!)}
@@ -107,7 +107,7 @@ const NetworkingItem = ({
               }, 1000);
             }}
             onMouseLeave={clearTooltip}
-            className="text-gray-400 hover:text-white p-0.5"
+            className="text-gray-400 hover:text-gray-700 p-0.5"
             style={{ width: '20px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
           >
             <Copy size={14} />
@@ -116,7 +116,7 @@ const NetworkingItem = ({
       )}
 
       {/* IP Address Line - Positioned between MAC and Firewall */}
-      <div className="text-gray-300 text-xs flex items-center gap-1 relative">
+      <div className="text-gray-600 text-xs flex items-center gap-1 relative">
         <span className="select-none">IP Address: {ipAddress || '—'}</span>
       </div>
 
@@ -132,27 +132,27 @@ const NetworkingItem = ({
         </div>
       )}
 
-      <div className="flex justify-between text-gray-300 text-xs">
+      <div className="flex justify-between text-gray-600 text-xs">
         <span>Firewall: {net.firewall ? 'Enabled' : 'Disabled'}</span>
         <span>Link: {net.link_down ? 'Down' : 'Up'}</span>
       </div>
 
       {net.queues !== undefined && (
-        <div className="flex justify-between text-gray-300 text-xs">
+        <div className="flex justify-between text-gray-600 text-xs">
           <span>Queues: {net.queues}</span>
           <span>Rate: {net.rate ?? '-'} Mbps</span>
         </div>
       )}
 
       {net.tag !== undefined && (
-        <div className="flex justify-between text-gray-300 text-xs">
+        <div className="flex justify-between text-gray-600 text-xs">
           <span>VLAN Tag: {net.tag}</span>
           <span>Trunks: {net.trunks ?? '-'}</span>
         </div>
       )}
 
       {net.mtu !== undefined && (
-        <div className="flex justify-between text-gray-300 text-xs">
+        <div className="flex justify-between text-gray-600 text-xs">
           <span>MTU: {net.mtu}</span>
         </div>
       )}

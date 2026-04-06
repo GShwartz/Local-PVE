@@ -24,7 +24,7 @@ const CloneButton = ({
   onCancel,
 }: CloneButtonProps) => {
   return (
-    <div className="flex-1 min-w-[5rem] text-center relative">
+    <div className="flex-1 text-center relative">
       <ActionButton
         onClick={(e) => {
           e.stopPropagation();
@@ -33,7 +33,7 @@ const CloneButton = ({
         disabled={disabled}
         variant="purple"
       >
-        <FiCopy size={14} /> {showCloningLabel ? 'Cloning...' : 'Clone'}
+        <FiCopy size={13} /> {showCloningLabel ? 'Cloning…' : 'Clone'}
       </ActionButton>
 
       {isCloning && (

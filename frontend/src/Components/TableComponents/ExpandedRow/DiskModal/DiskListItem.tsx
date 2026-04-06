@@ -173,7 +173,7 @@ const DiskListItem = ({
       <div className={styles.listItemHeader}>
         <div className="flex items-center space-x-4">
           <span className="text-[16px] font-semibold">💾 {controllerLabel} {controllerNumber}</span>
-          <span className="text-base font-medium text-gray-200">{size}</span>
+          <span className="text-base font-medium text-gray-700">{size}</span>
         </div>
 
         {isPending ? (
@@ -181,7 +181,7 @@ const DiskListItem = ({
             <Loader />
           ) : (
             <div className="flex items-center space-x-2 ml-auto">
-              <span className="text-xs text-red-300">
+              <span className="text-xs text-red-600">
                 {vm.status === 'running' ? 'Shutdown + Remove?' : 'Confirm remove?'}
               </span>
               <button
@@ -240,7 +240,7 @@ const DiskListItem = ({
       )}
 
       {isExpanded && (
-        <div className="mt-3 pt-3 border-t border-gray-600">
+        <div className="mt-3 pt-3 border-t border-gray-200">
           <DiskExpandForm
             vm={vm}
             node={node}

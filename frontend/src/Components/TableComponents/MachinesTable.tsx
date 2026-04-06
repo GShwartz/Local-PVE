@@ -23,6 +23,22 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: 
   const [sortConfig, setSortConfig] = useState<{ key: keyof VM; direction: 'asc' | 'desc' }>({ key: 'vmid', direction: 'asc' });
   const [pendingActions, setPendingActions] = useState<{ [vmid: number]: string[] }>({});
   const [editingVmid, setEditingVmid] = useState<number | null>(null);
+  const [selectedVmids, setSelectedVmids] = useState<Set<number>>(new Set());
+
+  const toggleSelect = (vmid: number) => {
+    setSelectedVmids(prev => {
+      const next = new Set(prev);
+      if (next.has(vmid)) next.delete(vmid); else next.add(vmid);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    setSelectedVmids(selectedVmids.size === sortedVms.length
+      ? new Set()
+      : new Set(sortedVms.map(vm => vm.vmid))
+    );
+  };
 
   const LOADER_MIN_DURATION = 5000;
 
@@ -96,48 +112,91 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: 
 
   const refreshVMs = () => queryClient.invalidateQueries(['vms']);
 
+  const broadcastAction = (action: string) => {
+    const label: Record<string, string> = { start: 'Starting', stop: 'Stopping', shutdown: 'Shutting down', reboot: 'Rebooting' };
+    selectedVmids.forEach(vmid => {
+      vmMutation.mutate({ vmid, action });
+    });
+    addAlert(`${label[action] ?? action} ${selectedVmids.size} VMs…`, 'info');
+  };
+
+  const broadcastButtons: { action: string; label: string; color: string }[] = [
+    { action: 'start',    label: 'Start All',    color: 'bg-green-600 hover:bg-green-700' },
+    { action: 'shutdown', label: 'Shutdown All',  color: 'bg-amber-500 hover:bg-amber-600' },
+    { action: 'reboot',   label: 'Reboot All',   color: 'bg-blue-600 hover:bg-blue-700'   },
+    { action: 'stop',     label: 'Force Stop All', color: 'bg-red-600 hover:bg-red-700'   },
+  ];
+
   return (
     <>
-      <div className="overflow-x-auto mb-10 glass-panel rounded-xl border border-white/10 shadow-2xl backdrop-blur-md">
-        <div className="min-w-[640px] sm:min-w-full">
-          <table className="w-full text-xs sm:text-sm text-gray-200 border-collapse">
-            <TableHeader
-              sortConfig={sortConfig}
-              handleSort={handleSort}
-              isSticky={expandedRows.size === 0}
-            />
-            <tbody>
-              {sortedVms.map((vm, idx) => {
-                const prevVm = sortedVms[idx - 1];
-                const hasRowAboveExpanded = prevVm ? expandedRows.has(prevVm.vmid) : false;
-                return (
-                  <TableRow
-                    key={vm.vmid}
-                    vm={vm}
-                    expandedRows={expandedRows}
-                    toggleRow={toggleRow}
-                    snapshotView={snapshotView}
-                    showSnapshots={showSnapshots}
-                    pendingActions={pendingActions}
-                    vmMutation={vmMutation}
-                    snapshotMutation={snapshotMutation}
-                    deleteSnapshotMutation={deleteSnapshotMutation}
-                    auth={auth}
-                    node={node}
-                    openEditModal={openEditModal}
-                    editingVmid={editingVmid}
-                    cancelEdit={cancelEdit}
-                    hasRowAboveExpanded={hasRowAboveExpanded}
-                    addAlert={addAlert}
-                    openConsole={openConsole}
-                    refreshVMs={refreshVMs}
-                    loaderMinDuration={LOADER_MIN_DURATION}
-                  />
-                );
-              })}
-            </tbody>
-          </table>
+      {/* Broadcast bar — visible when 2+ VMs selected */}
+      {selectedVmids.size > 1 && (
+        <div className="flex items-center gap-3 mb-3 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl shadow-sm">
+          <span className="text-sm font-semibold text-blue-700 mr-1">
+            {selectedVmids.size} VMs selected
+          </span>
+          <div className="h-4 w-px bg-blue-200" />
+          {broadcastButtons.map(({ action, label, color }) => (
+            <button
+              key={action}
+              onClick={() => broadcastAction(action)}
+              className={`px-3 py-1.5 rounded-lg text-white text-xs font-semibold transition-colors ${color}`}
+            >
+              {label}
+            </button>
+          ))}
+          <button
+            onClick={() => setSelectedVmids(new Set())}
+            className="ml-auto px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 text-xs font-medium hover:bg-blue-100 transition-colors"
+          >
+            Clear
+          </button>
         </div>
+      )}
+
+      <div className="overflow-hidden mb-6 bg-white rounded-xl border border-gray-200 shadow-sm">
+        <table className="w-full text-sm text-gray-700 border-collapse">
+          <TableHeader
+            sortConfig={sortConfig}
+            handleSort={handleSort}
+            isSticky={expandedRows.size === 0}
+            isAllSelected={sortedVms.length > 0 && selectedVmids.size === sortedVms.length}
+            isIndeterminate={selectedVmids.size > 0 && selectedVmids.size < sortedVms.length}
+            onToggleAll={toggleAll}
+          />
+          <tbody>
+            {sortedVms.map((vm, idx) => {
+              const prevVm = sortedVms[idx - 1];
+              const hasRowAboveExpanded = prevVm ? expandedRows.has(prevVm.vmid) : false;
+              return (
+                <TableRow
+                  key={vm.vmid}
+                  vm={vm}
+                  expandedRows={expandedRows}
+                  toggleRow={toggleRow}
+                  snapshotView={snapshotView}
+                  showSnapshots={showSnapshots}
+                  pendingActions={pendingActions}
+                  vmMutation={vmMutation}
+                  snapshotMutation={snapshotMutation}
+                  deleteSnapshotMutation={deleteSnapshotMutation}
+                  auth={auth}
+                  node={node}
+                  openEditModal={openEditModal}
+                  editingVmid={editingVmid}
+                  cancelEdit={cancelEdit}
+                  hasRowAboveExpanded={hasRowAboveExpanded}
+                  addAlert={addAlert}
+                  openConsole={openConsole}
+                  refreshVMs={refreshVMs}
+                  loaderMinDuration={LOADER_MIN_DURATION}
+                  isSelected={selectedVmids.has(vm.vmid)}
+                  onToggleSelect={() => toggleSelect(vm.vmid)}
+                />
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </>
   );

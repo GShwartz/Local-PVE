@@ -51,15 +51,15 @@ const IPAddressCell = ({ vm }: IPAddressCellProps) => {
     vm.ip_address === 'N/A' && vm.status === 'stopped';
 
   return (
-    <td className="px-2 sm:px-6 py-2 sm:py-4 text-center relative">
-      <div className="flex items-center justify-center gap-1 text-sm text-white">
+    <td className="px-3 py-3 text-center relative">
+      <div className="flex items-center justify-center gap-1 text-sm text-gray-700">
         <span className="select-none">{vm.ip_address}</span>
         {shouldShowCopy && !hideCopy && (
           <button
             onClick={handleCopy}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
-            className="text-gray-400 hover:text-white p-0.5"
+            className="text-gray-400 hover:text-blue-500 p-0.5"
           >
             <Copy size={14} />
           </button>

@@ -84,7 +84,7 @@ const CPUCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply
 
   return (
     <td
-      className="px-6 py-4 text-center narrow-col relative"
+      className="px-3 py-3 text-center narrow-col relative"
       ref={cpuCellRef}
       style={{ height: '48px', verticalAlign: 'middle', position: 'relative' }}
       onClick={(e) => e.stopPropagation()}
@@ -96,7 +96,7 @@ const CPUCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply
               <select
                 value={editCPUs}
                 onChange={(e) => handleCPUChange(Number(e.target.value))}
-                className="w-16 bg-gray-800 text-white border border-gray-600 rounded-md text-center"
+                className="w-16 bg-white text-gray-800 border border-gray-300 rounded-md text-center"
                 autoFocus
                 disabled={isApplying}
               >
@@ -126,7 +126,7 @@ const CPUCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
                 disabled={isApplying}
-                className={`ml-2 text-gray-400 hover:text-white ${isApplying ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`ml-2 text-gray-400 hover:text-blue-500 ${isApplying ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />

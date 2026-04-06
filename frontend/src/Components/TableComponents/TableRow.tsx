@@ -15,14 +15,6 @@ import ActionButtons from './ActionButtons/ActionButtons';
 import ApplyButton from './ActionButtons/ApplyButton';
 import ExpandedRow from './ExpandedRow/ExpandedRow';
 
-// Color schemes for different rows
-const colorSchemes = [
-  { primary: 'blue', secondary: 'purple', bg: 'from-blue-500/40 via-purple-500/60 to-blue-500/40', connector: 'rgba(59, 130, 246, 0.8), rgba(147, 51, 234, 0.8)', shadow: 'shadow-blue-500/10', border: 'border-b-blue-500/30' },
-  { primary: 'green', secondary: 'teal', bg: 'from-green-500/40 via-teal-500/60 to-green-500/40', connector: 'rgba(34, 197, 94, 0.8), rgba(20, 184, 166, 0.8)', shadow: 'shadow-green-500/10', border: 'border-b-green-500/30' },
-  { primary: 'orange', secondary: 'red', bg: 'from-orange-500/40 via-red-500/60 to-orange-500/40', connector: 'rgba(249, 115, 22, 0.8), rgba(239, 68, 68, 0.8)', shadow: 'shadow-orange-500/10', border: 'border-b-orange-500/30' },
-  { primary: 'purple', secondary: 'pink', bg: 'from-purple-500/40 via-pink-500/60 to-purple-500/40', connector: 'rgba(147, 51, 234, 0.8), rgba(236, 72, 153, 0.8)', shadow: 'shadow-purple-500/10', border: 'border-b-purple-500/30' },
-  { primary: 'cyan', secondary: 'blue', bg: 'from-cyan-500/40 via-blue-500/60 to-cyan-500/40', connector: 'rgba(6, 182, 212, 0.8), rgba(59, 130, 246, 0.8)', shadow: 'shadow-cyan-500/10', border: 'border-b-cyan-500/30' }
-];
 
 interface TableRowProps {
   vm: VM;
@@ -44,6 +36,8 @@ interface TableRowProps {
   openConsole: (vmid: number) => void;
   hasRowAboveExpanded: boolean;
   loaderMinDuration: number;
+  isSelected: boolean;
+  onToggleSelect: () => void;
 }
 
 const getSnapshots = async ({
@@ -81,11 +75,10 @@ const TableRow = ({
   addAlert,
   refreshVMs,
   loaderMinDuration,
+  isSelected,
+  onToggleSelect,
 }: TableRowProps) => {
   const queryClient = useQueryClient();
-
-  // Get color scheme based on VM ID for consistent coloring
-  const colorScheme = colorSchemes[vm.vmid % colorSchemes.length];
 
   // Move applying state to individual row level
   const [isApplying, setIsApplying] = useState(false);
@@ -213,7 +206,7 @@ const TableRow = ({
     <>
       {requiresVMStopped && (
         <tr>
-          <td colSpan={11} className="bg-yellow-600 text-white text-center py-2 text-xs sm:text-sm">
+          <td colSpan={12} className="bg-yellow-600 text-white text-center py-2 text-xs sm:text-sm">
             <span className="font-medium">
               CPU or RAM changes require the VM to be stopped. Please stop the VM before applying changes.
             </span>
@@ -221,9 +214,25 @@ const TableRow = ({
         </tr>
       )}
 
-      <tr className={`group bg-gray-800/30 border-b border-white/5 hover:bg-white/5 transition-all duration-200 text-xs sm:text-sm hover:shadow-lg hover:z-10 relative shadow-lg ${colorScheme.shadow}`}>
+      <tr className={`group border-b border-gray-100 hover:bg-blue-50/40 transition-colors duration-150 text-sm
+                      ${isSelected ? 'bg-blue-50' : ''}`}>
+        {/* Checkbox */}
         <td
-          className="px-2 py-4 text-center cursor-pointer text-gray-400 group-hover:text-blue-400 transition-colors"
+          className="px-3 py-3 text-center"
+          onClick={e => { e.stopPropagation(); onToggleSelect(); }}
+        >
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={onToggleSelect}
+            onClick={e => e.stopPropagation()}
+            className="w-4 h-4 rounded border-gray-300 text-blue-600 cursor-pointer
+                       focus:ring-2 focus:ring-blue-500/30 focus:ring-offset-0 accent-blue-600"
+          />
+        </td>
+
+        <td
+          className="px-2 py-3 text-center cursor-pointer text-gray-400 group-hover:text-blue-500 transition-colors"
           onClick={() => toggleRow(vm.vmid)}
         >
           {expandedRows.has(vm.vmid) ? (
@@ -233,7 +242,7 @@ const TableRow = ({
           )}
         </td>
 
-        <td className="px-2 sm:px-6 py-2 sm:py-4 text-center font-medium text-blue-300">{vm.vmid}</td>
+        <td className="px-3 py-3 text-center font-semibold text-blue-600">{vm.vmid}</td>
 
         <VMNameCell
           {...{ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply, isApplying: isApplyingOrCooldown }}
@@ -242,7 +251,7 @@ const TableRow = ({
         {/* Use masked VM for IP address display */}
         <IPAddressCell vm={maskedVM} />
 
-        <td className="px-2 sm:px-6 py-2 sm:py-4 text-center text-gray-300">{vm.os}</td>
+        <td className="px-3 py-3 text-center text-gray-600">{vm.os}</td>
 
         <CPUCell
           {...{ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply, isApplying: isApplyingOrCooldown }}
@@ -263,7 +272,7 @@ const TableRow = ({
           />
         </td>
 
-        <td className="px-2 sm:px-6 py-2 sm:py-4 text-center narrow-col border-gray-700">
+        <td className="px-2 py-3 text-center narrow-col">
           {/* Use masked status for StatusBadge */}
           <StatusBadge
             status={maskedVM.status}

@@ -14,15 +14,15 @@ export interface AlertsProps {
 const getAlertStyles = (type: string) => {
   switch (type) {
     case 'success':
-      return 'flex items-center p-4 text-green-800 rounded-lg bg-green-50/50 dark:bg-gray-800/50 dark:text-green-400';
+      return 'flex items-center p-4 text-green-800 rounded-lg bg-green-50 border border-green-200 shadow-sm';
     case 'error':
-      return 'flex items-center p-4 text-red-800 rounded-lg bg-red-50/50 dark:bg-gray-800/50 dark:text-red-400';
+      return 'flex items-center p-4 text-red-800 rounded-lg bg-red-50 border border-red-200 shadow-sm';
     case 'info':
-      return 'flex items-center p-4 text-blue-800 rounded-lg bg-blue-50/50 dark:bg-gray-800/50 dark:text-blue-400';
+      return 'flex items-center p-4 text-blue-800 rounded-lg bg-blue-50 border border-blue-200 shadow-sm';
     case 'warning':
-      return 'flex items-center p-4 text-yellow-800 rounded-lg bg-yellow-50/50 dark:bg-gray-800/50 dark:text-yellow-300';
+      return 'flex items-center p-4 text-yellow-800 rounded-lg bg-yellow-50 border border-yellow-200 shadow-sm';
     default:
-      return 'flex items-center p-4 rounded-lg bg-gray-50/50 dark:bg-gray-800/50 dark:text-gray-300';
+      return 'flex items-center p-4 text-gray-700 rounded-lg bg-gray-50 border border-gray-200 shadow-sm';
   }
 };
 

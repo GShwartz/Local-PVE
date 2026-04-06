@@ -34,7 +34,7 @@ const HDDCell = ({ hdd_sizes }: { hdd_sizes: string }) => {
   }
 
   return (
-    <td className="px-6 py-4 text-center narrow-col">
+    <td className="px-3 py-3 text-center narrow-col text-gray-700">
       {displayList.map((disk, i) => (
         <div key={i}>{disk}</div>
       ))}

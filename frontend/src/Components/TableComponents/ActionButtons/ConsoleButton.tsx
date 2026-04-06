@@ -13,7 +13,7 @@ const ConsoleButton = ({ onClick, disabled }: ConsoleButtonProps) => (
     disabled={disabled}
     variant="blue"
   >
-    <FiTerminal size={14} /> Console
+    <FiTerminal size={13} /> Console
   </ActionButton>
 );
 
