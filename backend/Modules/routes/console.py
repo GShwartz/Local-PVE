@@ -26,12 +26,9 @@ async def get_console(
     Redirects to Proxmox web interface VNC console.
     This provides direct console access without WebSocket proxying.
     """
-    # Get VNC proxy data for the ticket
-    vnc_data = svc.get_vnc_proxy(node, vmid, csrf_token, ticket)
+    # get_vnc_proxy now raises HTTPException if it can't get a ticket
+    vnc_data   = svc.get_vnc_proxy(node, vmid, csrf_token, ticket)
     vnc_ticket = vnc_data.get("ticket", "")
-
-    if not vnc_ticket:
-        return HTMLResponse(content="<h1>Error: Could not get VNC ticket</h1>", status_code=500)
 
     # Get VM info for the URL (simple approach without logging)
     vm_name = f"VM{vmid}"  # Default fallback

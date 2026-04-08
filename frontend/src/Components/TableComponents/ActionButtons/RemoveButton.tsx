@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react';
 import ActionButton from './ActionButton';
+import RemoveConfirmModal from './RemoveConfirmModal';
 
 interface RemoveButtonProps {
   disabled: boolean;
+  vmName: string;
   onConfirm: () => void;
   showConfirm: boolean;
   setShowConfirm: React.Dispatch<React.SetStateAction<boolean>>;
@@ -10,44 +11,15 @@ interface RemoveButtonProps {
 
 const RemoveButton = ({
   disabled,
+  vmName,
   onConfirm,
   showConfirm,
   setShowConfirm,
 }: RemoveButtonProps) => {
-  const popupRef = useRef<HTMLDivElement>(null);
-
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setShowConfirm((v) => !v);
+    setShowConfirm(true);
   };
-
-  const handleCancel = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setShowConfirm(false);
-  };
-
-  const handleConfirm = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setShowConfirm(false);
-    onConfirm();
-  };
-
-  // Close when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
-        setShowConfirm(false);
-      }
-    };
-
-    if (showConfirm) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showConfirm, setShowConfirm]);
 
   return (
     <div className="flex-1 text-center relative inline-block">
@@ -60,36 +32,14 @@ const RemoveButton = ({
       </ActionButton>
 
       {showConfirm && (
-        <div
-          ref={popupRef}
-          className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-[999999] animate-fadeIn"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <span className="bg-white border border-gray-200 rounded-md p-3 flex items-center space-x-2 shadow-md">
-            <button
-              onClick={handleConfirm}
-              className="text-white bg-green-600 hover:bg-green-500 rounded-md px-3 py-1"
-              style={{
-                fontSize: '1.25rem',
-                fontFamily: 'Arial, sans-serif',
-                lineHeight: '1',
-              }}
-            >
-              ✔
-            </button>
-            <button
-              onClick={handleCancel}
-              className="text-white bg-red-600 hover:bg-red-500 rounded-md px-3 py-1"
-              style={{
-                fontSize: '1.25rem',
-                fontFamily: 'Arial, sans-serif',
-                lineHeight: '1',
-              }}
-            >
-              ✖
-            </button>
-          </span>
-        </div>
+        <RemoveConfirmModal
+          vmName={vmName}
+          onConfirm={() => {
+            setShowConfirm(false);
+            onConfirm();
+          }}
+          onCancel={() => setShowConfirm(false)}
+        />
       )}
     </div>
   );

@@ -126,19 +126,30 @@ const SnapshotsView = ({
           {!isModalOpen && (
             <button
               onClick={openModal}
-              disabled={isCreatingSnapshot || isRevertingSnapshot || isAddingDisk || isDeletingAnySnapshot}
-              className={`${styles.button} ${isCreatingSnapshot || isRevertingSnapshot || isAddingDisk || isDeletingAnySnapshot
+              disabled={createSnapshotMutation.isPending || isCreatingSnapshot || isRevertingSnapshot || isAddingDisk || isDeletingAnySnapshot}
+              className={`${styles.button} ${createSnapshotMutation.isPending || isCreatingSnapshot || isRevertingSnapshot || isAddingDisk || isDeletingAnySnapshot
                 ? styles['button-disabled']
                 : styles['button-blue']
                 }`}
             >
-              <FiPlus className="inline-block mr-1" /> Take Snapshot
+              {createSnapshotMutation.isPending ? (
+                <>
+                  <svg className="animate-spin h-3.5 w-3.5 mr-1 inline-block" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Creating…
+                </>
+              ) : (
+                <><FiPlus className="inline-block mr-1" /> Take Snapshot</>
+              )}
             </button>
           )}
           {isModalOpen && (
             <button
               onClick={closeModal}
-              className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/50 hover:text-red-600 dark:hover:text-red-400 rounded-md transition-all duration-200 group"
+              disabled={createSnapshotMutation.isPending}
+              className="p-1.5 hover:bg-red-50 hover:text-red-600 rounded-md transition-all duration-200 group disabled:opacity-40 disabled:cursor-not-allowed"
               aria-label="Close snapshot form"
             >
               <svg className="w-4 h-4 group-hover:rotate-90 group-hover:scale-110 transition-all duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -189,13 +200,17 @@ const SnapshotsView = ({
                       <div className="flex items-center space-x-2 ml-auto">
                         {(pendingSnapshotRemoval && deleteSnapshotMutation.isPending) ||
                          (pendingSnapshotRevert && snapshotMutation.isPending) ? (
-                          <span className="text-xs text-gray-400">
-                            {pendingSnapshotRemoval ? 'Removing...' : 'Reverting...'}
+                          <span className="flex items-center gap-1.5 text-xs text-gray-500">
+                            <svg className="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                            </svg>
+                            {pendingSnapshotRemoval ? 'Removing…' : 'Reverting…'}
                           </span>
                         ) : (
                           <>
                             <span className="text-xs text-red-600">
-                              {pendingSnapshotRemoval ? 'Confirm Snapshot Removal' : 'Confirm Revert'}
+                              {pendingSnapshotRemoval ? 'Confirm removal?' : 'Confirm revert?'}
                             </span>
                             <button
                               onClick={() => {

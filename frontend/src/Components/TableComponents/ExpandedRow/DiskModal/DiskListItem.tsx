@@ -146,7 +146,7 @@ const DiskListItem = ({
     if (disableRemove) {
       const rect = e.currentTarget.getBoundingClientRect();
       setTooltipPosition({
-        top: rect.top - 30,
+        top: rect.top,
         left: rect.left + rect.width / 2
       });
 
@@ -231,8 +231,9 @@ const DiskListItem = ({
         <div
           className="note-tooltip show"
           style={{
-            top: `${tooltipPosition.top}px`,
-            left: `${tooltipPosition.left}px`
+            top: `${tooltipPosition.top - 6}px`,
+            left: `${tooltipPosition.left}px`,
+            transform: 'translate(-50%, -100%)',
           }}
         >
           {tooltipMessage}

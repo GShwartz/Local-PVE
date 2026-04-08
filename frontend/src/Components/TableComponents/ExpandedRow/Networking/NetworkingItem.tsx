@@ -38,7 +38,7 @@ const NetworkingItem = ({
 
     const rect = e.currentTarget.getBoundingClientRect();
     setTooltipPosition({
-      top: rect.top - 30,
+      top: rect.top,
       left: rect.left + rect.width / 2
     });
 
@@ -98,7 +98,7 @@ const NetworkingItem = ({
             onMouseEnter={(e) => {
               const rect = e.currentTarget.getBoundingClientRect();
               setTooltipPosition({
-                top: rect.top - 30,
+                top: rect.top,
                 left: rect.left + rect.width / 2
               });
               hoverTimerRef.current = setTimeout(() => {
@@ -124,8 +124,9 @@ const NetworkingItem = ({
         <div
           className="note-tooltip show"
           style={{
-            top: `${tooltipPosition.top}px`,
-            left: `${tooltipPosition.left}px`
+            top: `${tooltipPosition.top - 6}px`,
+            left: `${tooltipPosition.left}px`,
+            transform: 'translate(-50%, -100%)',
           }}
         >
           {tooltipMessage}

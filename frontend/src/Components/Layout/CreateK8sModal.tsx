@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { Layers } from 'lucide-react';
+import { useDraggable } from '../../hooks/useDraggable';
+import { useModalSettings } from '../../hooks/useModalSettings';
 
 interface CreateK8sModalProps {
   isOpen: boolean;
@@ -11,14 +13,20 @@ interface CreateK8sModalProps {
 const CNI_OPTIONS = ['Flannel', 'Calico', 'Cilium'];
 
 const CreateK8sModal = ({ isOpen, closeModal, node, addAlert }: CreateK8sModalProps) => {
+  const modalSettings = useModalSettings('createK8s');
+  const _saved = modalSettings.load();
+
   const [clusterName,   setClusterName]   = useState('');
   const [selectedNode,  setSelectedNode]  = useState(node);
-  const [masters,       setMasters]       = useState(1);
-  const [workers,       setWorkers]       = useState(2);
-  const [cpuPerNode,    setCpuPerNode]    = useState(2);
-  const [ramPerNode,    setRamPerNode]    = useState(2048);
-  const [cni,           setCni]           = useState('Flannel');
+  const [masters,       setMasters]       = useState<number>(_saved.masters    ?? 3);
+  const [workers,       setWorkers]       = useState<number>(_saved.workers    ?? 2);
+  const [cpuPerNode,    setCpuPerNode]    = useState<number>(_saved.cpuPerNode ?? 2);
+  const [ramPerNode,    setRamPerNode]    = useState<number>(_saved.ramPerNode ?? 2048);
+  const [cni,           setCni]           = useState<string>(_saved.cni        ?? 'Flannel');
   const [nameError,     setNameError]     = useState(false);
+  const [ciTemplateId,  setCiTemplateId]  = useState('');
+  const [sshPublicKey,  setSshPublicKey]  = useState('');
+  const [sshKeyError,   setSshKeyError]   = useState(false);
 
   // Build node list from localStorage + local node
   const extraNodes: { name: string; host: string }[] = (() => {
@@ -31,6 +39,15 @@ const CreateK8sModal = ({ isOpen, closeModal, node, addAlert }: CreateK8sModalPr
     ...extraNodes.map(n => ({ id: n.name, label: `${n.name} — ${n.host}` })),
   ];
 
+  // Load saved cloud-init templates
+  const ciTemplates: { id: string; name: string; targetOS: string }[] = (() => {
+    try {
+      const raw = localStorage.getItem('local-pve-ci-templates');
+      if (raw) return JSON.parse(raw);
+    } catch { /**/ }
+    return [];
+  })();
+
   const isValidName = (name: string) => /^[a-zA-Z0-9_-]{1,40}$/.test(name);
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -41,6 +58,7 @@ const CreateK8sModal = ({ isOpen, closeModal, node, addAlert }: CreateK8sModalPr
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    modalSettings.save({ masters, workers, cpuPerNode, ramPerNode, cni });
     if (!clusterName || !isValidName(clusterName)) {
       setNameError(true);
       addAlert('Cluster name must be 1–40 characters: letters, numbers, hyphens, underscores.', 'error');
@@ -52,6 +70,8 @@ const CreateK8sModal = ({ isOpen, closeModal, node, addAlert }: CreateK8sModalPr
     );
     closeModal();
   };
+
+  const { containerRef: dragRef, handleMouseDown: handleDragStart } = useDraggable();
 
   if (!isOpen) return null;
 
@@ -77,11 +97,17 @@ const CreateK8sModal = ({ isOpen, closeModal, node, addAlert }: CreateK8sModalPr
   );
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-sm mx-4 max-h-[90vh] overflow-y-auto">
-
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
+    <div className="fixed inset-0 z-50 pointer-events-none">
+      <div
+        ref={dragRef}
+        className="pointer-events-auto bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-sm max-h-[90vh] overflow-y-auto"
+        style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
+      >
+        {/* Header — drag handle */}
+        <div
+          className="flex items-center justify-between px-5 py-4 border-b border-gray-100 sticky top-0 bg-white z-10 cursor-grab active:cursor-grabbing select-none"
+          onMouseDown={handleDragStart}
+        >
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 rounded-md bg-indigo-600 flex items-center justify-center">
               <Layers size={13} className="text-white" />
@@ -89,7 +115,9 @@ const CreateK8sModal = ({ isOpen, closeModal, node, addAlert }: CreateK8sModalPr
             <h2 className="text-sm font-semibold text-gray-900">Create K8s Cluster</h2>
           </div>
           <button type="button" onClick={closeModal}
-            className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+            className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
+            onMouseDown={e => e.stopPropagation()}
+          >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -205,6 +233,46 @@ const CreateK8sModal = ({ isOpen, closeModal, node, addAlert }: CreateK8sModalPr
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Cloud-Init Template */}
+          {ciTemplates.length > 0 && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                Cloud-Init Template <span className="font-normal normal-case text-gray-400">(optional)</span>
+              </label>
+              <select
+                value={ciTemplateId}
+                onChange={e => setCiTemplateId(e.target.value)}
+                className={`${fieldBase} ${fieldOk}`}
+              >
+                <option value="">None</option>
+                {ciTemplates.map(t => (
+                  <option key={t.id} value={t.id}>{t.name}{t.targetOS ? ` — ${t.targetOS}` : ''}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* SSH Public Key */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+              SSH Public Key <span className="font-normal normal-case text-gray-400">(optional)</span>
+            </label>
+            <textarea
+              value={sshPublicKey}
+              onChange={e => {
+                const v = e.target.value;
+                setSshPublicKey(v);
+                setSshKeyError(v.trim() !== '' && !v.trim().startsWith('ssh-'));
+              }}
+              rows={2}
+              placeholder="ssh-rsa AAAA… user@host"
+              className={`${fieldBase} font-mono text-xs resize-none ${sshKeyError ? fieldErr : fieldOk}`}
+            />
+            {sshKeyError && (
+              <p className="mt-1 text-xs text-red-500">Must start with ssh-rsa, ssh-ed25519, etc.</p>
+            )}
           </div>
 
           {/* Summary */}

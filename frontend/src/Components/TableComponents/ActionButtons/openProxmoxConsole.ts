@@ -1,8 +1,5 @@
 import toast from 'react-hot-toast';
 
-const PROXMOX_HOST = 'pve.home.lab';
-const PROXMOX_PORT = '8006';
-
 export async function openProxmoxConsole(
   node: string,
   vmid: number,

@@ -38,6 +38,7 @@ interface TableRowProps {
   loaderMinDuration: number;
   isSelected: boolean;
   onToggleSelect: () => void;
+  existingVmNames: string[];
 }
 
 const getSnapshots = async ({
@@ -77,6 +78,7 @@ const TableRow = ({
   loaderMinDuration,
   isSelected,
   onToggleSelect,
+  existingVmNames,
 }: TableRowProps) => {
   const queryClient = useQueryClient();
 
@@ -206,7 +208,7 @@ const TableRow = ({
     <>
       {requiresVMStopped && (
         <tr>
-          <td colSpan={12} className="bg-yellow-600 text-white text-center py-2 text-xs sm:text-sm">
+          <td colSpan={13} className="bg-yellow-600 text-white text-center py-2 text-xs sm:text-sm">
             <span className="font-medium">
               CPU or RAM changes require the VM to be stopped. Please stop the VM before applying changes.
             </span>
@@ -247,6 +249,12 @@ const TableRow = ({
         <VMNameCell
           {...{ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply, isApplying: isApplyingOrCooldown }}
         />
+
+        <td className="px-3 py-3 text-center">
+          <span className="text-xs font-mono bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded border border-gray-200">
+            {vm.node || node}
+          </span>
+        </td>
 
         {/* Use masked VM for IP address display */}
         <IPAddressCell vm={maskedVM} />
@@ -291,7 +299,8 @@ const TableRow = ({
           addAlert={addAlert}
           refreshVMs={refreshVMs}
           queryClient={queryClient}
-          isApplying={isApplying} // Pass the local applying state
+          isApplying={isApplying}
+          existingVmNames={existingVmNames}
           onResumeHintsChange={setResumeHints}
           onRebootingHintChange={setRebootingHint}
           onStoppingHintChange={setStoppingHint}

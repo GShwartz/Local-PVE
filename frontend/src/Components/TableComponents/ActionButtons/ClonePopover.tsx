@@ -1,18 +1,22 @@
 interface ClonePopoverProps {
   cloneName: string;
+  existingNames: string[];
   onChange: (name: string) => void;
   onConfirm: () => void;
   onCancel: () => void;
 }
 
-// Proxmox hostname rule: letters, numbers, hyphens; 1–63 chars; no leading/trailing hyphen
-const isValidCloneName = (n: string) => /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/.test(n);
+// Proxmox hostname rule: letters, numbers, hyphens, dots; 1–63 chars; no leading/trailing hyphen
+const isValidCloneName = (n: string) => /^[a-zA-Z0-9]([a-zA-Z0-9.-]{0,61}[a-zA-Z0-9])?$/.test(n);
 
-const ClonePopover = ({ cloneName, onChange, onConfirm, onCancel }: ClonePopoverProps) => {
+const ClonePopover = ({ cloneName, existingNames, onChange, onConfirm, onCancel }: ClonePopoverProps) => {
   const valid = isValidCloneName(cloneName);
+  const isDuplicate = valid && existingNames.includes(cloneName);
+  const canConfirm = valid && !isDuplicate;
+
   return (
     <span
-      className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-white border border-gray-200 rounded-md p-3 flex flex-col gap-1.5 z-50 min-w-[200px] shadow-md"
+      className="absolute bottom-full mb-2 right-0 bg-white border border-gray-200 rounded-md p-3 flex flex-col gap-1.5 z-50 min-w-[220px] shadow-md"
       onClick={(e) => e.stopPropagation()}
     >
       <div className="flex items-center gap-2">
@@ -20,12 +24,15 @@ const ClonePopover = ({ cloneName, onChange, onConfirm, onCancel }: ClonePopover
           type="text"
           value={cloneName}
           onChange={(e) => onChange(e.target.value)}
-          className={`flex-1 p-1 bg-gray-100 text-gray-900 rounded-md text-sm border ${valid || !cloneName ? 'border-gray-300' : 'border-red-500'}`}
+          className={`flex-1 p-1 bg-gray-50 text-gray-900 rounded-md text-sm border ${
+            isDuplicate ? 'border-orange-400' : valid || !cloneName ? 'border-gray-300' : 'border-red-500'
+          }`}
           placeholder="Clone name"
+          autoFocus
         />
         <button
-          onClick={valid ? onConfirm : undefined}
-          disabled={!valid}
+          onClick={canConfirm ? onConfirm : undefined}
+          disabled={!canConfirm}
           className="text-white bg-green-600 hover:bg-green-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-md px-3 py-1"
           style={{ fontSize: '1.25rem', fontFamily: 'Arial, sans-serif', lineHeight: '1' }}
         >
@@ -40,7 +47,10 @@ const ClonePopover = ({ cloneName, onChange, onConfirm, onCancel }: ClonePopover
         </button>
       </div>
       {cloneName && !valid && (
-        <p className="text-red-400 text-[10px] leading-tight">Letters, numbers, hyphens only. No underscores.</p>
+        <p className="text-red-500 text-[10px] leading-tight">Letters, numbers, hyphens and dots only.</p>
+      )}
+      {isDuplicate && (
+        <p className="text-orange-500 text-[10px] leading-tight">A VM with this name already exists.</p>
       )}
     </span>
   );

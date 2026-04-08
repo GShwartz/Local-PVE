@@ -16,9 +16,7 @@ const CPUCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply
   const [oldCPUs, setOldCPUs] = useState<number | null>(null);
   const cpuCellRef = useRef<HTMLTableCellElement>(null);
   const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const [tooltipMessage, setTooltipMessage] = useState('');
   const [showTooltip, setShowTooltip] = useState(false);
-  const [tooltipPosition, setTooltipPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
 
   const validCPUs = [1, 2, 4, 6];
 
@@ -61,17 +59,9 @@ const CPUCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply
     cancelEdit();
   };
 
-  const handleMouseEnter = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleMouseEnter = () => {
     if (isEditingCPU || isApplying) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    setTooltipPosition({
-      top: rect.top - 30,
-      left: rect.left + rect.width / 2,
-    });
-    hoverTimerRef.current = setTimeout(() => {
-      setTooltipMessage('Edit CPU count');
-      setShowTooltip(true);
-    }, 1000);
+    hoverTimerRef.current = setTimeout(() => setShowTooltip(true), 1000);
   };
 
   const handleMouseLeave = () => {
@@ -110,28 +100,40 @@ const CPUCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply
           ) : (
             <>
               <span className="px-2 py-1">{editCPUs}</span>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (!isApplying) {
-                    setIsEditingCPU(true);
-                    setShowTooltip(false);
-                    if (hoverTimerRef.current) {
-                      clearTimeout(hoverTimerRef.current);
-                      hoverTimerRef.current = null;
+              <span className="relative inline-flex items-center ml-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!isApplying) {
+                      setIsEditingCPU(true);
+                      setShowTooltip(false);
+                      if (hoverTimerRef.current) {
+                        clearTimeout(hoverTimerRef.current);
+                        hoverTimerRef.current = null;
+                      }
+                      openEditModal(vm);
                     }
-                    openEditModal(vm);
-                  }
-                }}
-                onMouseEnter={handleMouseEnter}
-                onMouseLeave={handleMouseLeave}
-                disabled={isApplying}
-                className={`ml-2 text-gray-400 hover:text-blue-500 ${isApplying ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                </svg>
-              </button>
+                  }}
+                  onMouseEnter={handleMouseEnter}
+                  onMouseLeave={handleMouseLeave}
+                  disabled={isApplying}
+                  className={`text-gray-400 hover:text-blue-500 ${isApplying ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                </button>
+                {showTooltip && !isEditingCPU && (
+                  <span
+                    className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5
+                               whitespace-nowrap rounded bg-white text-gray-700 text-xs font-medium
+                               px-2 py-0.5 border border-gray-200 shadow-sm"
+                    style={{ zIndex: 9999 }}
+                  >
+                    Edit CPU count
+                  </span>
+                )}
+              </span>
             </>
           )}
         </div>
@@ -140,19 +142,6 @@ const CPUCell = ({ vm, editingVmid, openEditModal, cancelEdit, setChangesToApply
         )}
       </div>
 
-      {showTooltip && !isEditingCPU && (
-        <div
-          className="note-tooltip show absolute z-10 bg-black text-white text-xs rounded px-2 py-1"
-          style={{
-            top: `${tooltipPosition.top}px`,
-            left: `${tooltipPosition.left}px`,
-            transform: 'translate(-50%, -100%)',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {tooltipMessage}
-        </div>
-      )}
     </td>
   );
 };

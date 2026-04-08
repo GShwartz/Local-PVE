@@ -2,8 +2,7 @@
 
 ###############################################################################
 # PostgreSQL Installation and Configuration Script (Debian)
-# Refined: Bind PostgreSQL ONLY to WAN interface IP
-# Best practices: strict mode, logging, error handling, idempotency
+# Refined: Install latest PostgreSQL (18+) and bind ONLY to WAN interface IP
 ###############################################################################
 
 set -Eeuo pipefail
@@ -12,14 +11,11 @@ set -Eeuo pipefail
 # Global Variables
 ############################
 LOG_FILE="/var/log/postgresql_install.log"
-PG_VERSION="15"
-PG_CONF_DIR="/etc/postgresql/${PG_VERSION}/main"
 
 DB_NAME="local_pve"
 DB_USER="gil"
 DB_PASS='Pass12344321!!'
 
-# Optional: manually override WAN interface (e.g., eth0)
 WAN_IFACE="${WAN_IFACE:-}"
 
 ############################
@@ -77,17 +73,38 @@ get_ip_from_interface() {
     ip -4 addr show "$iface" | awk '/inet / {print $2}' | cut -d/ -f1 | head -n1
 }
 
+get_pg_version() {
+    pg_lsclusters -h | awk 'NR==1 {print $1}'
+}
+
+get_pg_conf_dir() {
+    local version="$1"
+    echo "/etc/postgresql/${version}/main"
+}
+
 ############################
-# Install PostgreSQL
+# Install PostgreSQL (Latest)
 ############################
 install_postgresql() {
+    info "Adding PostgreSQL official repository..."
+
+    apt-get update -y
+    apt-get install -y wget gnupg lsb-release
+
+    if [[ ! -f /etc/apt/sources.list.d/pgdg.list ]]; then
+        echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            > /etc/apt/sources.list.d/pgdg.list
+
+        wget -qO - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
+    fi
+
     info "Updating package list..."
     apt-get update -y
 
-    info "Installing PostgreSQL..."
+    info "Installing latest PostgreSQL..."
     DEBIAN_FRONTEND=noninteractive apt-get install -y \
-        postgresql-"${PG_VERSION}" \
-        postgresql-client-"${PG_VERSION}" \
+        postgresql \
+        postgresql-client \
         postgresql-contrib
 
     info "PostgreSQL installation completed."
@@ -97,6 +114,23 @@ install_postgresql() {
 # Configure PostgreSQL
 ############################
 configure_postgresql() {
+    info "Detecting installed PostgreSQL version..."
+
+    local pg_version
+    pg_version="$(get_pg_version)"
+
+    if [[ -z "$pg_version" ]]; then
+        error "Unable to detect PostgreSQL version."
+        exit 1
+    fi
+
+    info "Detected PostgreSQL version: $pg_version"
+
+    local PG_CONF_DIR
+    PG_CONF_DIR="$(get_pg_conf_dir "$pg_version")"
+
+    info "Config directory: $PG_CONF_DIR"
+
     info "Detecting WAN interface..."
 
     local iface
@@ -124,10 +158,8 @@ configure_postgresql() {
     sed -i "s/^#listen_addresses =.*/listen_addresses = '${wan_ip}'/" \
         "${PG_CONF_DIR}/postgresql.conf"
 
-    # Clean previous generic rules (optional safety)
     sed -i '/0.0.0.0\/0/d' "${PG_CONF_DIR}/pg_hba.conf"
 
-    # Allow only WAN subnet (calculated /24 by default)
     local subnet
     subnet="$(echo "$wan_ip" | awk -F. '{print $1"."$2"."$3".0/24"}')"
 
@@ -148,13 +180,11 @@ configure_postgresql() {
 setup_database() {
     info "Setting up database and user..."
 
-    # Ensure PostgreSQL is ready
     if ! pg_isready -q; then
         error "PostgreSQL is not ready"
         exit 1
     fi
 
-    # Create role
     runuser -u postgres -- bash -c "cd /tmp && psql <<'EOF'
 DO
 \$do\$
@@ -168,7 +198,6 @@ END
 \$do\$;
 EOF"
 
-    # Create database
     if ! runuser -u postgres -- bash -c "cd /tmp && psql -tAc \"SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'\"" | grep -q 1; then
         runuser -u postgres -- bash -c "cd /tmp && createdb -O '${DB_USER}' '${DB_NAME}'"
         info "Database ${DB_NAME} created."
@@ -189,21 +218,17 @@ install_and_configure_firewall() {
         apt-get install -y ufw
     fi
 
-    # Default policies
     ufw default deny incoming
     ufw default allow outgoing
 
-    # Allow SSH (critical — prevent lockout)
     ufw allow ssh || warn "SSH rule may already exist"
 
-    # Allow PostgreSQL only on WAN interface
     local iface
     iface="$(get_wan_interface)"
 
     ufw allow in on "$iface" to any port 5432 proto tcp \
         || warn "PostgreSQL rule may already exist"
 
-    # Enable UFW (non-interactive)
     if ! ufw status | grep -q "Status: active"; then
         echo "y" | ufw enable
     fi
@@ -215,7 +240,7 @@ install_and_configure_firewall() {
 # Main Execution
 ############################
 main() {
-    info "Starting PostgreSQL installation (WAN-bound)..."
+    info "Starting PostgreSQL installation (latest, WAN-bound)..."
 
     install_postgresql
     configure_postgresql

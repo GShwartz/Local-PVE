@@ -44,6 +44,11 @@ export interface VMCreate {
   ram: number;
   source: string;
   uefi?: boolean;
+  create_mode?: 'qcow2' | 'iso';
+  disk_size?: number;
+  disk_controller?: string;
+  extra_disks?: { size: number; storage: string; controller: string }[];
+  extra_nics?: { bridge: string; model: string }[];
 }
 
 export interface VMUpdate {

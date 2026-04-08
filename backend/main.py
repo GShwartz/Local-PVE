@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query, Body
+from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query, Body, UploadFile, File
 from contextlib import asynccontextmanager
 from urllib.parse import quote_plus
 from fastapi.middleware.cors import CORSMiddleware
@@ -61,11 +61,34 @@ class SnapRequest(BaseModel):
     description: str = ""
     vmstate: int = 0
 
+# ── Image path validation ────────────────────────────────────────────────────
+
+def _check_image_paths() -> None:
+    """
+    Validate that the configured qcow2 and ISO image directories exist on the
+    host running the backend.  Logs a WARNING for each missing path so the
+    operator knows to create the directory or update Settings before using the
+    affected features.  Never raises — missing paths are non-fatal at startup.
+    """
+    paths = {
+        "qcow2 images": os.getenv("QCOW2_IMAGES_PATH", "/var/lib/vz/images"),
+        "ISO images":   os.getenv("ISO_IMAGES_PATH",   "/var/lib/vz/template/iso"),
+    }
+    for label, path in paths.items():
+        if os.path.isdir(path):
+            logger.info(f"Image path OK [{label}]: {path}")
+        else:
+            logger.warning(
+                f"Image path NOT FOUND [{label}]: {path}  "
+                f"— create the directory or update the path in Settings."
+            )
+
 # FastAPI app
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await validate_db_connection()  # abort early with a clear message if DB is unreachable
     await init_db()                 # creates all tables on first run
+    _check_image_paths()            # warn if qcow2 / ISO directories are missing
     yield
     await close_db()                # disposes connection pool on shutdown
 
@@ -406,6 +429,20 @@ async def get_vnc_proxy(
         "node": node,
         "vmid": vmid,
     }
+
+@app.post("/vm/{node}/upload-iso")
+async def upload_iso(
+    node: str,
+    csrf_token: str,
+    ticket: str,
+    file: UploadFile = File(...),
+    svc: VMService = Depends(get_vm_service),
+):
+    if not file.filename or not file.filename.lower().endswith('.iso'):
+        raise HTTPException(status_code=400, detail="Only .iso files are allowed")
+    content = await file.read()
+    return svc.upload_iso(node, file.filename, content, csrf_token, ticket)
+
 
 @app.post("/vm/{node}")
 async def create_vm(
@@ -804,6 +841,198 @@ async def deactivate_user(user_id: int, db: AsyncSession = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
     await db.execute(sa_update(AppUser).where(AppUser.id == user_id).values(is_active=False))
+
+
+# ── Helpers file server ───────────────────────────────────────────────────────
+
+HELPERS_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), "helpers")
+
+@app.get("/helpers/{category}/{filename}")
+async def get_helper_file(category: str, filename: str):
+    """Serve a file from the helpers/ directory (cloud-init scripts, templates, etc.)."""
+    safe_cat  = os.path.basename(category)
+    safe_file = os.path.basename(filename)
+    path = os.path.join(HELPERS_ROOT, safe_cat, safe_file)
+    if not os.path.isfile(path):
+        raise HTTPException(status_code=404, detail=f"Helper file not found: {category}/{filename}")
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+    return {"category": safe_cat, "filename": safe_file, "content": content}
+
+@app.get("/helpers/{category}")
+async def list_helper_files(category: str):
+    """List available files in a helpers sub-directory."""
+    safe_cat = os.path.basename(category)
+    path = os.path.join(HELPERS_ROOT, safe_cat)
+    if not os.path.isdir(path):
+        raise HTTPException(status_code=404, detail=f"Helper category not found: {category}")
+    files = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
+    return {"category": safe_cat, "files": sorted(files)}
+
+
+# ── Disk-clone endpoint ───────────────────────────────────────────────────────
+
+class DiskCloneRequest(BaseModel):
+    disk_key: str = "scsi0"       # which disk key to clone (e.g. scsi0)
+    target_storage: str           # Proxmox storage ID to copy into
+    save_path: str = ""           # optional dest path hint (informational / future use)
+
+@app.post("/vm/{node}/qemu/{vmid}/clone-disk")
+async def clone_disk(
+    node: str,
+    vmid: int,
+    req: DiskCloneRequest,
+    csrf_token: str,
+    ticket: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Copy a single VM disk to a target Proxmox storage.
+
+    Strategy:
+      1. GET the VM config to resolve the source volume ID for the requested disk key.
+      2. GET /cluster/nextid to obtain a free VMID for the clone shell.
+      3. POST /nodes/{node}/qemu/{vmid}/clone  with full=1 and storage=<target_storage>
+         so Proxmox physically copies the disk data.
+      The resulting VM can be treated as a disk-only template or deleted after
+      extracting the volume.
+    """
+    import requests as _requests
+
+    proxmox_base = (
+        f"https://{os.getenv('PROXMOX_HOST', 'pve.home.lab')}"
+        f":{os.getenv('PROXMOX_PORT', '8006')}/api2/json"
+    )
+    session = _requests.Session()
+    session.verify = False
+    session.cookies.set("PVEAuthCookie", ticket)
+    headers = {"CSRFPreventionToken": csrf_token}
+
+    # 1. Verify disk key exists in VM config
+    cfg_resp = session.get(f"{proxmox_base}/nodes/{node}/qemu/{vmid}/config")
+    if cfg_resp.status_code != 200:
+        raise HTTPException(status_code=cfg_resp.status_code, detail="Failed to fetch VM config")
+    cfg = cfg_resp.json().get("data", {})
+    if req.disk_key not in cfg:
+        raise HTTPException(status_code=400, detail=f"Disk '{req.disk_key}' not found in VM config")
+
+    # 2. Get next available VMID
+    next_resp = session.get(f"{proxmox_base}/cluster/nextid")
+    if next_resp.status_code != 200:
+        raise HTTPException(status_code=500, detail="Could not obtain next VMID from Proxmox")
+    new_vmid = int(next_resp.json().get("data", 0))
+    if not new_vmid:
+        raise HTTPException(status_code=500, detail="Invalid VMID returned by Proxmox")
+
+    vm_name = cfg.get("name", f"vm-{vmid}")
+    clone_name = f"disk-clone-{vm_name}-{req.disk_key}"[:63]  # Proxmox name limit
+
+    # 3. Clone VM (Proxmox copies the disk to target_storage)
+    clone_payload = {
+        "newid":   new_vmid,
+        "name":    clone_name,
+        "full":    1,
+        "storage": req.target_storage.strip(),
+        "target":  node,
+    }
+    clone_resp = session.post(
+        f"{proxmox_base}/nodes/{node}/qemu/{vmid}/clone",
+        data=clone_payload,
+        headers=headers,
+    )
+    if clone_resp.status_code not in (200, 201):
+        raise HTTPException(
+            status_code=clone_resp.status_code,
+            detail=f"Proxmox disk clone failed: {clone_resp.text}",
+        )
+
+    upid = clone_resp.json().get("data", "")
+    try:
+        await log_action(db, action="disk_clone", node=node, vmid=vmid,
+                         details={"disk_key": req.disk_key, "target_storage": req.target_storage,
+                                  "new_vmid": new_vmid, "clone_name": clone_name})
+    except Exception as e:
+        logger.warning(f"Audit log failed for disk_clone: {e}")
+
+    return {
+        "upid":       upid,
+        "new_vmid":   new_vmid,
+        "clone_name": clone_name,
+        "disk_key":   req.disk_key,
+        "storage":    req.target_storage,
+    }
+
+
+# ── Storage management endpoints ──────────────────────────────────────────────
+
+class CreateStorageRequest(BaseModel):
+    storage_id: str
+    path: str
+    content: str        # comma-separated Proxmox content types, e.g. "images,iso"
+    node: str = None    # optional: restrict storage to a specific node
+
+@app.post("/storage")
+async def create_storage(
+    req: CreateStorageRequest,
+    csrf_token: str,
+    ticket: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a new directory-type storage in Proxmox."""
+    import requests as _requests
+    proxmox_base = (
+        f"https://{os.getenv('PROXMOX_HOST', 'pve.home.lab')}"
+        f":{os.getenv('PROXMOX_PORT', '8006')}/api2/json"
+    )
+    session = _requests.Session()
+    session.verify = False
+    session.cookies.set("PVEAuthCookie", ticket)
+    headers = {"CSRFPreventionToken": csrf_token}
+
+    payload: dict = {
+        "storage": req.storage_id.strip(),
+        "type": "dir",
+        "path": req.path.strip(),
+        "content": req.content,
+    }
+    if req.node:
+        payload["nodes"] = req.node.strip()
+
+    resp = session.post(f"{proxmox_base}/storage", data=payload, headers=headers)
+    if resp.status_code not in (200, 201):
+        raise HTTPException(
+            status_code=resp.status_code,
+            detail=f"Proxmox storage creation failed: {resp.text}",
+        )
+
+    try:
+        await log_action(db, action="storage_create",
+                         details={"storage_id": req.storage_id, "path": req.path,
+                                  "content": req.content, "node": req.node})
+    except Exception as e:
+        logger.warning(f"Audit log failed for storage_create: {e}")
+
+    return resp.json().get("data", {}) or {"storage": req.storage_id, "path": req.path}
+
+@app.get("/storage/{node}")
+async def list_storage(
+    node: str,
+    csrf_token: str,
+    ticket: str,
+):
+    """List all storage pools visible to a node."""
+    import requests as _requests
+    proxmox_base = (
+        f"https://{os.getenv('PROXMOX_HOST', 'pve.home.lab')}"
+        f":{os.getenv('PROXMOX_PORT', '8006')}/api2/json"
+    )
+    session = _requests.Session()
+    session.verify = False
+    session.cookies.set("PVEAuthCookie", ticket)
+    resp = session.get(f"{proxmox_base}/nodes/{node}/storage")
+    if resp.status_code != 200:
+        raise HTTPException(status_code=resp.status_code, detail=resp.text)
+    return resp.json().get("data", [])
 
 
 if __name__ == "__main__":

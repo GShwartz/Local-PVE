@@ -27,6 +27,7 @@ interface ActionButtonsProps {
   addAlert: (message: string, type: string) => void;
   refreshVMs: () => void;
   isApplying: boolean;
+  existingVmNames?: string[];
   onResumeHintsChange?: (hints: { resumeShowing: boolean; resumeEnabled: boolean }) => void;
   onRebootingHintChange?: (isRebooting: boolean) => void;
   onStoppingHintChange?: (isStopping: boolean) => void;
@@ -44,6 +45,7 @@ const ActionButtons = ({
   addAlert,
   refreshVMs,
   isApplying,
+  existingVmNames = [],
   onResumeHintsChange,
   onRebootingHintChange,
   onStoppingHintChange,
@@ -52,15 +54,17 @@ const ActionButtons = ({
   const [activeOperations, setActiveOperations] = useState<Set<string>>(new Set());
 
   // UI-specific states
-  const [isCloning, setIsCloning] = useState(false);
-  const [cloneName, setCloneName] = useState(vm.name);
-  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
-  const [isSuspending, setIsSuspending] = useState(false);
+  const [isVMCloning,        setIsVMCloning]        = useState(false);
+  const [isDiskCloning,      setIsDiskCloning]      = useState(false);
+  const [isDiskCloneLoading, setIsDiskCloneLoading] = useState(false);
+  const [cloneName,          setCloneName]          = useState(vm.name);
+  const [showRemoveConfirm,  setShowRemoveConfirm]  = useState(false);
+  const [isSuspending,       setIsSuspending]       = useState(false);
 
   // Keep clone name in sync with VM name (e.g. after config loads)
   useEffect(() => {
-    if (!isCloning) setCloneName(vm.name);
-  }, [vm.name, isCloning]);
+    if (!isVMCloning) setCloneName(vm.name);
+  }, [vm.name, isVMCloning]);
 
   // Inject animation keyframes for the professional loader
   useEffect(() => {
@@ -142,6 +146,19 @@ const ActionButtons = ({
 
     return () => timers.forEach(clearTimeout);
   }, [activeOperations, refreshVMs]);
+
+  // Derive connected disk keys from VM config (excludes CDROMs)
+  const vmDisks = useMemo(() => {
+    const config = vm.config;
+    const diskPattern = /^(scsi|virtio|sata|ide)\d+$/;
+    // If config hasn't loaded yet (empty/undefined), return a minimal safe default
+    if (!config || Object.keys(config).length === 0) {
+      return ['scsi0'];
+    }
+    return Object.keys(config)
+      .filter(k => diskPattern.test(k) && !String(config[k]).includes('media=cdrom'))
+      .sort();
+  }, [vm.config]);
 
   // Simple status logic
   const status = vm.status?.toLowerCase() || '';
@@ -259,7 +276,7 @@ const ActionButtons = ({
   }, [vm.vmid, vm.name, vmMutation, addAlert, vm.status, actionsForVm, pendingActions]);
 
   const handleCloneConfirm = useCallback(() => {
-    setIsCloning(false);
+    setIsVMCloning(false);
     setActiveOperations(prev => new Set([...prev, 'clone']));
     addAlert(`Cloning VM "${vm.name}" to "${cloneName}"...`, 'info');
 
@@ -287,6 +304,32 @@ const ActionButtons = ({
     );
   }, [vm.vmid, vm.name, cloneName, vmMutation, addAlert]);
 
+  const handleDiskCloneConfirm = useCallback(async (diskKey: string, targetStorage: string, savePath: string) => {
+    setIsDiskCloning(false);
+    setIsDiskCloneLoading(true);
+    addAlert(`Cloning disk "${diskKey}" of VM "${vm.name}"...`, 'info');
+    try {
+      const resp = await fetch(
+        `${API_BASE_URL}/vm/${PROXMOX_NODE}/qemu/${vm.vmid}/clone-disk` +
+        `?csrf_token=${encodeURIComponent(auth.csrf_token)}&ticket=${encodeURIComponent(auth.ticket)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ disk_key: diskKey, target_storage: targetStorage, save_path: savePath }),
+        }
+      );
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err?.detail ?? resp.statusText);
+      }
+      addAlert(`Disk "${diskKey}" clone initiated.`, 'success');
+    } catch (e: any) {
+      addAlert(`Disk clone failed: ${e.message}`, 'error');
+    } finally {
+      setIsDiskCloneLoading(false);
+    }
+  }, [vm.vmid, vm.name, auth.csrf_token, auth.ticket, addAlert]);
+
   const handleRemove = useCallback(async () => {
     setShowRemoveConfirm(false);
     addAlert(`Removing VM "${vm.name}"...`, 'warning');
@@ -311,7 +354,7 @@ const ActionButtons = ({
   return (
     <td
       className="px-2 py-2 text-center"
-      style={{ verticalAlign: 'middle' }}
+      style={{ verticalAlign: 'middle', overflow: 'visible', position: 'relative' }}
       onClick={onToggleRow}
     >
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', width: '100%', gap: '5px' }}>
@@ -382,19 +425,27 @@ const ActionButtons = ({
           <CloneButton
             disabled={!buttonStates.canClone}
             showCloningLabel={actionsForVm.includes('clone')}
-            isCloning={isCloning}
+            vmName={vm.name}
+            vmDisks={vmDisks}
+            // VM clone
+            isVMCloning={isVMCloning}
             cloneName={cloneName}
-            onToggle={() => setIsCloning(!isCloning)}
+            existingNames={existingVmNames}
+            onVMCloneToggle={() => setIsVMCloning(v => !v)}
             onChange={setCloneName}
-            onConfirm={handleCloneConfirm}
-            onCancel={() => {
-              setIsCloning(false);
-              setCloneName(vm.name);
-            }}
+            onVMCloneConfirm={handleCloneConfirm}
+            onVMCloneCancel={() => { setIsVMCloning(false); setCloneName(vm.name); }}
+            // Disk clone
+            isDiskCloning={isDiskCloning}
+            isDiskCloneLoading={isDiskCloneLoading}
+            onDiskCloneToggle={() => setIsDiskCloning(v => !v)}
+            onDiskCloneConfirm={handleDiskCloneConfirm}
+            onDiskCloneCancel={() => setIsDiskCloning(false)}
           />
 
           <RemoveButton
             disabled={!buttonStates.canRemove}
+            vmName={vm.name}
             onConfirm={handleRemove}
             showConfirm={showRemoveConfirm}
             setShowConfirm={setShowRemoveConfirm}
@@ -402,8 +453,8 @@ const ActionButtons = ({
 
         </div>
 
-        {/* Professional loader */}
-        {(activeOperations.size > 0 || isSuspending || actionsForVm.includes('reboot') || actionsForVm.includes('clone')) && (
+        {/* Professional loader — shows for ANY pending or active operation */}
+        {(activeOperations.size > 0 || isSuspending || actionsForVm.length > 0) && (
           <div
             aria-live="polite"
             style={{

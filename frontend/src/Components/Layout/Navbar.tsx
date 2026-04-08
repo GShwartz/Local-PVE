@@ -12,9 +12,10 @@ interface NavbarProps {
   markAllAsRead: () => void;
   sidebarOpen?: boolean;
   onToggleSidebar?: () => void;
+  onNavigateDashboard?: () => void;
 }
 
-const Navbar = ({ username, onLogout, alertHistory, markAsRead, markAllAsRead, sidebarOpen = true, onToggleSidebar }: NavbarProps) => {
+const Navbar = ({ username, onLogout, alertHistory, markAsRead, markAllAsRead, sidebarOpen = true, onToggleSidebar, onNavigateDashboard }: NavbarProps) => {
   const [showHistory, setShowHistory] = useState(false);
   const [order, setOrder] = useState<'newToOld' | 'oldToNew'>('newToOld');
   const [alerts, setAlerts] = useState(alertHistory);
@@ -126,13 +127,18 @@ const Navbar = ({ username, onLogout, alertHistory, markAsRead, markAllAsRead, s
 
         {/* Left: Local-PVE logo + sidebar toggle */}
         <div className={styles['navbar-left']}>
-          {/* Logo */}
-          <div className="flex items-center gap-2 mr-1">
+          {/* Logo — click to go to dashboard */}
+          <button
+            type="button"
+            onClick={onNavigateDashboard}
+            className="flex items-center gap-2 mr-1 rounded-lg px-1 py-0.5 hover:bg-gray-100 transition-colors"
+            title="Go to Dashboard"
+          >
             <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-blue-600 text-white shadow-sm flex-shrink-0">
               <Server size={14} strokeWidth={2.2} />
             </div>
             <span className="text-sm font-bold text-gray-900 tracking-tight select-none">Local-PVE</span>
-          </div>
+          </button>
 
           {/* Sidebar toggle */}
           {onToggleSidebar && (
@@ -169,7 +175,6 @@ const Navbar = ({ username, onLogout, alertHistory, markAsRead, markAllAsRead, s
                 </span>
               )}
             </div>
-            <span className="ml-1 hidden sm:inline text-sm">Notifications</span>
           </button>
 
           <button onClick={onLogout} className={styles['logout-button']}>

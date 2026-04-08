@@ -44,7 +44,7 @@ const ExpandedRow = ({
 
   return expandedRows.has(vm.vmid) ? (
     <tr className="relative">
-      <td colSpan={12} className="px-2 py-2 align-top relative" style={{ background: '#edf2f7' }}>
+      <td colSpan={13} className="px-2 py-2 align-top relative" style={{ background: '#edf2f7' }}>
         <div className={styles.container}>
           {/* Disks card */}
           <div className={styles.column}>

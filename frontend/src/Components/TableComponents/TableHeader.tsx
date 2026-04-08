@@ -22,6 +22,7 @@ const TableHeader = ({ sortConfig, handleSort, isSticky, isAllSelected, isIndete
   const headers: { key: keyof VM; label: string }[] = [
     { key: 'vmid',      label: 'ID'         },
     { key: 'name',      label: 'Name'       },
+    { key: 'node',      label: 'Node'       },
     { key: 'ip_address',label: 'IP Address' },
     { key: 'os',        label: 'OS'         },
     { key: 'cpus',      label: 'Cores'      },

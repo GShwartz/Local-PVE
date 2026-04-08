@@ -2,7 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── TopBar shell ── */
 .navbar {
   @apply w-full h-full flex items-center bg-white border-b border-gray-200;
 }
@@ -23,7 +22,6 @@
   @apply flex items-center gap-2 relative;
 }
 
-/* ── Buttons ── */
 .logout-button {
   @apply flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600
          rounded-lg transition-all duration-150 hover:bg-red-50 hover:text-red-600
@@ -40,7 +38,6 @@
   @apply flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600;
 }
 
-/* ── Notification history dropdown ── */
 .history-container {
   @apply absolute top-[3.2rem] right-0 w-[500px] max-h-80 overflow-y-auto
          bg-white rounded-xl shadow-xl z-[100] text-gray-700
@@ -55,7 +52,6 @@
 .history-container::-webkit-scrollbar-thumb { background: #d1d5db !important; border-radius: 4px !important; }
 .history-container::-webkit-scrollbar-thumb:hover { background: #9ca3af !important; }
 
-/* ── History table ── */
 .history-table {
   @apply w-full text-sm text-left text-gray-600 bg-white table-fixed border-0;
   margin-left: 1px;
@@ -80,7 +76,6 @@
   text-align: left !important;
 }
 
-/* ── Controls ── */
 .filter-container {
   @apply flex items-center space-x-2;
 }
@@ -114,7 +109,6 @@
   @apply opacity-40 cursor-not-allowed;
 }
 
-/* ── Popconfirm ── */
 .popconfirm {
   @apply absolute top-6 right-0 bg-white text-gray-800 rounded-xl shadow-xl
          p-4 z-[1000] border border-gray-200 w-64;

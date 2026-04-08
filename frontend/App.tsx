@@ -8,20 +8,23 @@ import LoginError from './src/Components/LoginError';
 import Login from './src/Components/Login';
 import CreateVMModal from './src/Components/Layout/CreateVMModal';
 import CreateK8sModal from './src/Components/Layout/CreateK8sModal';
+import DeployAppModal from './src/Components/Layout/DeployAppModal';
 import Alerts, { Alert } from './src/Components/Alerts';
 import UserManagementView from './src/Components/UserManagement/UserManagementView';
 import AuditLogView from './src/Components/AuditLog/AuditLogView';
 import SettingsView from './src/Components/Settings/SettingsView';
+import IntegrationsView from './src/Components/Integrations/IntegrationsView';
 import { Auth, VM } from './src/types';
 
 const API_BASE = 'http://localhost:8000';
 const NODE = 'pve';
 
 const pageTitles: Record<Page, string> = {
-  dashboard: 'Dashboard',
-  users:     'User Management',
-  audit:     'Audit Log',
-  settings:  'Settings',
+  dashboard:    'Dashboard',
+  users:        'User Management',
+  audit:        'Audit Log',
+  integrations: 'Integrations',
+  settings:     'Settings',
 };
 
 const fetchVMs = async ({ node, csrf, ticket }: { node: string; csrf: string; ticket: string }): Promise<VM[]> => {
@@ -33,13 +36,31 @@ function App() {
   const [auth, setAuth] = useState<Auth | null>(null);
   const [loginError, setLoginError] = useState<string | null>(null);
   const queryClient = useQueryClient();
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isCreateModalOpen,    setIsCreateModalOpen]    = useState(false);
   const [isCreateK8sModalOpen, setIsCreateK8sModalOpen] = useState(false);
+  const [isDeployAppModalOpen, setIsDeployAppModalOpen] = useState(false);
+
+  const closeAllModals = () => {
+    setIsCreateModalOpen(false);
+    setIsCreateK8sModalOpen(false);
+    setIsDeployAppModalOpen(false);
+  };
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [alertHistory, setAlertHistory] = useState<Alert[]>([]);
   const [_selectedVMId, setSelectedVMId] = useState<number | null>(null);
   const [activePage, setActivePage] = useState<Page>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // Restore auth from localStorage on mount (survives backend restarts + page refreshes)
+  useEffect(() => {
+    const ticket     = localStorage.getItem('ticket');
+    const csrf_token = localStorage.getItem('csrf_token');
+    if (ticket && csrf_token) {
+      const username = localStorage.getItem('username') ?? undefined;
+      const role     = (localStorage.getItem('role') as Auth['role']) ?? 'admin';
+      setAuth({ ticket, csrf_token, username, role });
+    }
+  }, []);
 
   const role = auth?.role ?? 'admin';
 
@@ -93,18 +114,22 @@ function App() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50 overflow-hidden">
+    <div className="flex flex-col h-full bg-gray-50 overflow-hidden">
 
       {/* ── TopBar ── */}
-      <div className="flex-shrink-0" style={{ height: '56px' }}>
+      <div className="flex-shrink-0">
         <Navbar
           username={auth.username}
-          onLogout={() => setAuth(null)}
+          onLogout={() => {
+            ['ticket', 'csrf_token', 'username', 'role'].forEach(k => localStorage.removeItem(k));
+            setAuth(null);
+          }}
           alertHistory={alertHistory}
           markAsRead={markAsRead}
           markAllAsRead={markAllAsRead}
           sidebarOpen={sidebarOpen}
           onToggleSidebar={() => setSidebarOpen(v => !v)}
+          onNavigateDashboard={() => setActivePage('dashboard')}
         />
       </div>
 
@@ -114,10 +139,11 @@ function App() {
         {/* Sidebar */}
         <Sidebar
           activePage={activePage}
-          onNavigate={setActivePage}
-          onCreateClick={() => setIsCreateModalOpen(true)}
-          onCreateLXCClick={() => addAlert('Create LXC Container — coming soon.', 'info')}
-          onCreateK8sClick={() => setIsCreateK8sModalOpen(true)}
+          onNavigate={page => { closeAllModals(); setActivePage(page); }}
+          onCreateClick={() => { closeAllModals(); setIsCreateModalOpen(true); }}
+          onCreateLXCClick={() => { closeAllModals(); addAlert('Create LXC Container — coming soon.', 'info'); }}
+          onCreateK8sClick={() => { closeAllModals(); setIsCreateK8sModalOpen(true); }}
+          onDeployAppClick={() => { closeAllModals(); setIsDeployAppModalOpen(true); }}
           role={role}
           isOpen={sidebarOpen}
           pageTitle={pageTitles[activePage]}
@@ -176,9 +202,14 @@ function App() {
               <AuditLogView />
             )}
 
+            {/* ── Integrations ── */}
+            {activePage === 'integrations' && role === 'admin' && (
+              <IntegrationsView addAlert={addAlert} />
+            )}
+
             {/* ── Settings ── */}
             {activePage === 'settings' && role === 'admin' && (
-              <SettingsView addAlert={addAlert} />
+              <SettingsView addAlert={addAlert} auth={auth} />
             )}
           </div>
         </main>
@@ -192,11 +223,20 @@ function App() {
         node={NODE}
         queryClient={queryClient}
         addAlert={addAlert}
+        onNavigateToCloudInit={() => { setIsCreateModalOpen(false); setActivePage('integrations'); }}
       />
       <CreateK8sModal
         isOpen={isCreateK8sModalOpen}
         closeModal={() => setIsCreateK8sModalOpen(false)}
         node={NODE}
+        addAlert={addAlert}
+      />
+      <DeployAppModal
+        isOpen={isDeployAppModalOpen}
+        closeModal={() => setIsDeployAppModalOpen(false)}
+        node={NODE}
+        auth={auth}
+        queryClient={queryClient}
         addAlert={addAlert}
       />
     </div>

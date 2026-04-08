@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { LayoutDashboard, Users, ClipboardList, Settings, Plus, Github, Linkedin, Globe, ChevronDown, Monitor, Box, Layers, type LucideIcon } from 'lucide-react';
+import { LayoutDashboard, Users, ClipboardList, Settings, Plus, Github, Linkedin, Globe, ChevronDown, Monitor, Box, Layers, Plug, Rocket, type LucideIcon } from 'lucide-react';
 
-export type Page = 'dashboard' | 'users' | 'audit' | 'settings';
+export type Page = 'dashboard' | 'users' | 'audit' | 'settings' | 'integrations';
 export type Role = 'admin' | 'operator' | 'viewer';
 
 interface SidebarProps {
@@ -10,22 +10,23 @@ interface SidebarProps {
   onCreateClick: () => void;
   onCreateLXCClick?: () => void;
   onCreateK8sClick?: () => void;
+  onDeployAppClick?: () => void;
   isOpen: boolean;
   pageTitle: string;
   role?: Role;
 }
 
 const allNavItems: { page: Page; label: string; icon: LucideIcon; minRole: Role }[] = [
-  { page: 'dashboard', label: 'Dashboard',       icon: LayoutDashboard, minRole: 'viewer'   },
-  { page: 'users',     label: 'User Management', icon: Users,           minRole: 'admin'    },
-  { page: 'audit',     label: 'Audit Log',        icon: ClipboardList,   minRole: 'admin'    },
-  { page: 'settings',  label: 'Settings',         icon: Settings,        minRole: 'admin'    },
+  { page: 'users',        label: 'User Management', icon: Users,           minRole: 'admin'    },
+  { page: 'audit',        label: 'Audit Log',        icon: ClipboardList,   minRole: 'admin'    },
+  { page: 'integrations', label: 'Integrations',     icon: Plug,            minRole: 'admin'    },
+  { page: 'settings',     label: 'Settings',         icon: Settings,        minRole: 'admin'    },
 ];
 
 const roleRank: Record<Role, number> = { viewer: 0, operator: 1, admin: 2 };
 const canAccess = (role: Role, minRole: Role) => roleRank[role] >= roleRank[minRole];
 
-const Sidebar = ({ activePage, onNavigate, onCreateClick, onCreateLXCClick, onCreateK8sClick, isOpen, pageTitle, role = 'admin' }: SidebarProps) => {
+const Sidebar = ({ activePage, onNavigate, onCreateClick, onCreateLXCClick, onCreateK8sClick, onDeployAppClick, isOpen, pageTitle, role = 'admin' }: SidebarProps) => {
   const [vmMenuOpen, setVmMenuOpen] = useState(true);
 
   const visibleNavItems = allNavItems.filter(item => canAccess(role, item.minRole));
@@ -36,13 +37,31 @@ const Sidebar = ({ activePage, onNavigate, onCreateClick, onCreateLXCClick, onCr
                        transition-[width,min-width,opacity] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
                        ${isOpen ? 'w-60 min-w-[240px] opacity-100' : 'w-0 min-w-0 opacity-0'}`}>
 
-      {/* ── Page title ── */}
-      <div className="flex items-center gap-2 px-5 h-14 border-b border-gray-100 flex-shrink-0">
-        <span className="text-base font-bold text-gray-900 tracking-tight truncate">{pageTitle}</span>
-      </div>
-
       {/* ── Navigation ── */}
       <nav className="flex-1 px-3 py-3 overflow-y-auto sidebar-scroll space-y-4">
+
+        {/* Dashboard — standalone top item */}
+        <div>
+          <button
+            onClick={() => onNavigate('dashboard')}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
+                       transition-all duration-150 group focus:outline-none
+                       ${activePage === 'dashboard'
+                         ? 'bg-blue-50 text-blue-700'
+                         : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                       }`}
+          >
+            <LayoutDashboard
+              size={17}
+              strokeWidth={activePage === 'dashboard' ? 2.2 : 1.8}
+              className={activePage === 'dashboard' ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'}
+            />
+            Dashboard
+            {activePage === 'dashboard' && (
+              <span className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-600" />
+            )}
+          </button>
+        </div>
 
         {/* VM Management collapsible section */}
         {showVmManagement && (
@@ -62,7 +81,7 @@ const Sidebar = ({ activePage, onNavigate, onCreateClick, onCreateLXCClick, onCr
             </button>
 
             <div className={`overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
-                             ${vmMenuOpen ? 'max-h-48 opacity-100' : 'max-h-0 opacity-0'}`}>
+                             ${vmMenuOpen ? 'max-h-64 opacity-100' : 'max-h-0 opacity-0'}`}>
               <ul className="mt-1 space-y-0.5">
                 <li>
                   <button
@@ -73,6 +92,17 @@ const Sidebar = ({ activePage, onNavigate, onCreateClick, onCreateLXCClick, onCr
                   >
                     <Plus size={16} strokeWidth={2} className="text-gray-400 group-hover:text-gray-600 flex-shrink-0" />
                     Create VM
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={onDeployAppClick}
+                    className="w-full flex items-center gap-3 pl-6 pr-3 py-2 rounded-lg text-sm font-medium
+                               text-gray-600 hover:bg-gray-100 hover:text-gray-900
+                               transition-all duration-150 group focus:outline-none"
+                  >
+                    <Rocket size={16} strokeWidth={2} className="text-gray-400 group-hover:text-gray-600 flex-shrink-0" />
+                    Deploy App
                   </button>
                 </li>
                 <li>

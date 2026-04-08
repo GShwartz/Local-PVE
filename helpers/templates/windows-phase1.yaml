@@ -1,0 +1,31 @@
+# Windows Server Phase 1 — Sysprep / Unattend
+# Delivered as a ConfigDrive snippet via Proxmox cicustom.
+# Phase 2 runs after the first reboot (cloud-init re-run triggered by sysprep).
+#
+# Usage in Proxmox:
+#   qm set <vmid> --cicustom "user=local:snippets/windows-phase1.yaml"
+#
+# Variables: ${VM_HOSTNAME}, ${ADMIN_PASSWORD}, ${TIMEZONE}, ${LOCALE}
+
+#ps1_sysnative
+# PowerShell Phase 1
+$hostname  = "${VM_HOSTNAME}"
+$adminPass = "${ADMIN_PASSWORD}"
+$tz        = "${TIMEZONE}"
+
+Rename-Computer -NewName $hostname -Force
+Set-TimeZone -Name $tz
+
+# Enable WinRM for remote management
+Enable-PSRemoting -Force
+winrm quickconfig -Force
+
+# Log phase completion
+"Phase 1 complete: $(Get-Date)" | Out-File C:\deploy-phase1.log -Encoding utf8
+
+# Trigger phase 2 on next boot
+New-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" -Force | Out-Null
+Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" `
+  -Name "CloudInitPhase2" -Value "powershell -File C:\phase2.ps1"
+
+Restart-Computer -Force

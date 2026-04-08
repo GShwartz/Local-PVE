@@ -103,6 +103,7 @@ class VMService:
                         "hdd_sizes": ", ".join(disks) if disks else "N/A",
                         "ip_address": "N/A",
                         "hdd_free": "N/A",
+                        "node": node,
                     })
 
                     if status == "running":
@@ -155,6 +156,8 @@ class VMService:
         resp_id.raise_for_status()
         vmid = resp_id.json().get("data")
 
+        disk_gb = max(1, vm_create.disk_size)
+        main_ctrl = vm_create.disk_controller.strip().lower() or "scsi"
         data = {
             "vmid": vmid,
             "name": vm_create.name,
@@ -163,18 +166,35 @@ class VMService:
             "net0": "virtio,bridge=vmbr0",
             "agent": 1,
             "ostype": "l26",
-            "scsi0": "local-lvm:32"
+            f"{main_ctrl}0": f"local-lvm:{disk_gb}"
         }
+
+        # Extra disks — each uses its own controller, numbered from 0 per controller type
+        ctrl_counters: dict = {main_ctrl: 1}
+        for disk in vm_create.extra_disks:
+            ctrl = disk.controller.strip().lower() or "scsi"
+            idx  = ctrl_counters.get(ctrl, 0)
+            ctrl_counters[ctrl] = idx + 1
+            storage = disk.storage.strip() or "local-lvm"
+            data[f"{ctrl}{idx}"] = f"{storage}:{disk.size}"
+
+        # Extra NICs (net1, net2, …)
+        for i, nic in enumerate(vm_create.extra_nics, start=1):
+            bridge = nic.bridge.strip() or "vmbr0"
+            model  = nic.model.strip()  or "virtio"
+            data[f"net{i}"] = f"{model},bridge={bridge}"
 
         if vm_create.uefi:
             data["bios"] = "ovmf"
             data["efidisk0"] = "local-lvm:1,format=raw,efitype=4m,pre-enrolled-keys=0"
 
-        if vm_create.source == "ISO":
-            data["ide2"] = "local:iso/ubuntu-22.04.3-live-server-amd64.iso,media=cdrom"
-            data["boot"] = "order=ide2;scsi0;net0"
+        if vm_create.create_mode == "iso" and vm_create.source:
+            # source contains the ISO filename that was already uploaded to Proxmox local storage
+            iso_name = vm_create.source.strip().lstrip('/')
+            data["ide2"] = f"local:iso/{iso_name},media=cdrom"
+            data["boot"] = f"order=ide2;{main_ctrl}0;net0"
         else:
-            data["boot"] = "order=scsi0;net0"
+            data["boot"] = f"order={main_ctrl}0;net0"
 
         headers = {"CSRFPreventionToken": csrf_token}
         response = self.session.post(
@@ -270,6 +290,28 @@ class VMService:
             raise HTTPException(status_code=response.status_code, detail=response.text)
         
         return response.json().get("data")
+
+    def upload_iso(self, node: str, filename: str, file_content: bytes, csrf_token: str, ticket: str) -> Any:
+        """Upload an ISO file to Proxmox local storage."""
+        self.logger.info(f"Uploading ISO '{filename}' to node {node}")
+        headers = self.set_auth_headers(csrf_token, ticket)
+
+        response = self.session.post(
+            f"{PROXMOX_BASE_URL}/nodes/{node}/storage/local/upload",
+            headers=headers,
+            data={"content": "iso"},
+            files={"filename": (filename, file_content, "application/octet-stream")},
+        )
+        self.logger.info(f"ISO upload response: {response.status_code}")
+        if not response.ok:
+            err = response.text
+            try:
+                err = response.json().get("errors", err) or err
+            except ValueError:
+                pass
+            self.logger.error(f"ISO upload failed: {err}")
+            raise HTTPException(status_code=response.status_code, detail=err)
+        return response.json().get("data", filename)
 
     def modify_vm_network(self, node: str, vmid: int, net: Optional[dict], delete: Optional[str], csrf_token: str, ticket: str) -> str:
         self.logger.info(f"Modifying network for VM {vmid} on node {node} with net={net}, delete={delete}")

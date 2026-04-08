@@ -1,0 +1,30 @@
+#cloud-config
+# Base template: Ubuntu 22.04 LTS
+# Variables: ${VM_HOSTNAME}, ${ADMIN_USER}, ${SSH_PUBLIC_KEY}
+
+hostname: ${VM_HOSTNAME}
+manage_etc_hosts: true
+
+users:
+  - name: ${ADMIN_USER}
+    groups: sudo
+    shell: /bin/bash
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    ssh_authorized_keys:
+      - ${SSH_PUBLIC_KEY}
+
+package_update: true
+package_upgrade: true
+packages:
+  - curl
+  - wget
+  - vim
+  - htop
+  - net-tools
+  - qemu-guest-agent
+  - unattended-upgrades
+
+runcmd:
+  - systemctl enable --now qemu-guest-agent
+
+final_message: "Ubuntu 22.04 base setup complete after $UPTIME seconds"

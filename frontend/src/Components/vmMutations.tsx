@@ -1,5 +1,5 @@
 import { useMutation } from '@tanstack/react-query';
-import { Auth, TaskStatus, VMCloneRequest } from '../types';
+import { Auth, TaskStatus, VMCloneRequest, VMCreate } from '../types';
 import axios from 'axios';
 
 const API_BASE = 'http://localhost:8000';
@@ -404,6 +404,59 @@ export const useCreateSnapshotMutation = (
         ...prev,
         [vmid]: (prev[vmid] || []).filter(a => a !== `create-${snapname}`),
       }));
+    },
+  });
+};
+
+// ── VM Creation ────────────────────────────────────────────────────────────────
+
+const createVM = async ({ node, vmCreate, csrf, ticket }: { node: string; vmCreate: VMCreate; csrf: string; ticket: string }): Promise<string> => {
+  const { data } = await axios.post<string>(
+    `${API_BASE}/vm/${node}`,
+    vmCreate,
+    { headers: { CSRFPreventionToken: csrf }, params: { csrf_token: csrf, ticket } }
+  );
+  return data;
+};
+
+export const useCreateVMMutation = (
+  auth: Auth,
+  queryClient: any,
+  addAlert: (message: string, type: string) => void,
+  closeModal: () => void
+) => {
+  return useMutation({
+    mutationFn: ({ vmCreate, node }: { vmCreate: VMCreate; node: string }) =>
+      createVM({ node, vmCreate, csrf: auth.csrf_token, ticket: auth.ticket }),
+    onSuccess: (upid: string, { node }: { vmCreate: VMCreate; node: string }) => {
+      addAlert('VM creation initiated successfully', 'success');
+      const pollTask = async () => {
+        try {
+          const { data: taskStatus } = await axios.get<TaskStatus>(
+            `${API_BASE}/task/${node}/${upid}`,
+            { params: { csrf_token: auth.csrf_token, ticket: auth.ticket } }
+          );
+          if (taskStatus.status === 'stopped') {
+            if (taskStatus.exitstatus !== 'OK') {
+              addAlert(`VM creation failed: ${taskStatus.exitstatus}`, 'error');
+            } else {
+              addAlert('VM creation completed successfully.', 'success');
+            }
+            setTimeout(() => { queryClient.invalidateQueries({ queryKey: ['vms'] }); }, 5000);
+            return;
+          }
+          setTimeout(pollTask, 1000);
+        } catch {
+          addAlert('Polling for VM creation failed.', 'error');
+        }
+      };
+      pollTask();
+      closeModal();
+    },
+    onError: (error: any) => {
+      const message = error.response?.data?.detail || error.message || 'Unknown error';
+      addAlert(`Error creating VM: ${message}`, 'error');
+      closeModal();
     },
   });
 };

@@ -55,7 +55,7 @@ const DisksView = ({
         {isModalOpen ? (
           <button
             onClick={closeModal}
-            className="p-2 hover:bg-red-50 dark:hover:bg-red-950/50 hover:text-red-600 dark:hover:text-red-400 rounded-lg transition-all duration-200 group"
+            className="p-2 hover:bg-red-50 hover:text-red-600 rounded-lg transition-all duration-200 group"
             aria-label="Close"
           >
             <svg className="w-4 h-4 group-hover:rotate-90 group-hover:scale-110 transition-all duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">

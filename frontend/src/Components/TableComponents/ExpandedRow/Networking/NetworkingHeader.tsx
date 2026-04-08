@@ -50,9 +50,9 @@ const NetworkingHeader = ({ loading, onRefresh, onAddNIC, vmStatus }: Networking
         <button
           onClick={onAddNIC}
           disabled={disableAddNIC}
-          className={`${styles.button} ${styles['button-blue']} ${disableAddNIC ? styles['button-disabled'] : ''}`}
+          className={`${styles['button-small']} ${styles['button-small-blue']} ${disableAddNIC ? styles['button-small-disabled'] : ''}`}
         >
-          <FiPlus size={14} /> Add NIC
+          <FiPlus size={12} /> Add NIC
         </button>
       </div>
 
@@ -83,9 +83,9 @@ const NetworkingHeader = ({ loading, onRefresh, onAddNIC, vmStatus }: Networking
       <button
         onClick={onRefresh}
         disabled={loading}
-        className={`${styles.button} ${loading ? styles['button-disabled'] : styles['button-blue']}`}
+        className={`${styles['button-small']} ${loading ? styles['button-small-disabled'] : styles['button-small-blue']}`}
       >
-        <FiRefreshCw size={14} className={loading ? 'animate-spin' : ''} /> {loading ? 'Refreshing...' : 'Refresh'}
+        <FiRefreshCw size={12} className={loading ? 'animate-spin' : ''} /> {loading ? 'Loading' : 'Refresh'}
       </button>
     </div>
   );

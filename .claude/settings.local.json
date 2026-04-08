@@ -9,7 +9,15 @@
       "Bash(grep -h \"from 'lucide-react' import\" /j/Projects/Local-PVE/frontend/src/Components/**/*.tsx)",
       "Bash(npx tsc:*)",
       "Bash(./node_modules/.bin/tsc --noEmit)",
-      "Bash(python -c \"import ast; ast.parse\\(open\\('Modules/routes/console.py'\\).read\\(\\)\\); print\\('console.py syntax OK'\\)\")"
+      "Bash(python -c \"import ast; ast.parse\\(open\\('Modules/routes/console.py'\\).read\\(\\)\\); print\\('console.py syntax OK'\\)\")",
+      "Bash(powershell -Command ':*)",
+      "Bash(powershell.exe -File -)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d.get\\('scripts',{}\\)\\)\")",
+      "Bash(python C:/Users/gilsh/.claude/projects/j--Projects-Local-PVE/fix_safe.py)",
+      "Bash(python C:/Users/gilsh/.claude/projects/j--Projects-Local-PVE/write_hook.py)",
+      "Bash(python write_createvm.py)",
+      "Bash(python -c ':*)",
+      "Bash(python C:/Users/gilsh/.claude/projects/j--Projects-Local-PVE/write_deploy_clean.py)"
     ]
   }
 }

@@ -25,6 +25,9 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: 
   const [editingVmid, setEditingVmid] = useState<number | null>(null);
   const [selectedVmids, setSelectedVmids] = useState<Set<number>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
+  const [broadcastConfirm, setBroadcastConfirm] = useState<{
+    action: string; label: string; count: number; color: string;
+  } | null>(null);
 
   const toggleSelect = (vmid: number) => {
     setSelectedVmids(prev => {
@@ -160,11 +163,27 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: 
   };
 
   const broadcastButtons: { action: string; label: string; color: string }[] = [
-    { action: 'start',    label: 'Start All',    color: 'bg-green-600 hover:bg-green-700' },
-    { action: 'shutdown', label: 'Shutdown All',  color: 'bg-amber-500 hover:bg-amber-600' },
-    { action: 'reboot',   label: 'Reboot All',   color: 'bg-blue-600 hover:bg-blue-700'   },
-    { action: 'stop',     label: 'Force Stop All', color: 'bg-red-600 hover:bg-red-700'   },
+    { action: 'start',    label: 'Start All',      color: 'bg-green-600 hover:bg-green-700' },
+    { action: 'shutdown', label: 'Shutdown All',   color: 'bg-amber-500 hover:bg-amber-600' },
+    { action: 'reboot',   label: 'Reboot All',     color: 'bg-blue-600 hover:bg-blue-700'   },
+    { action: 'stop',     label: 'Force Stop All', color: 'bg-red-600 hover:bg-red-700'     },
   ];
+
+  // Compute eligibility counts per action so buttons can be greyed out
+  const vmMap = new Map(sortedVms.map(v => [v.vmid, v]));
+  const eligibleCounts = Object.fromEntries(
+    broadcastButtons.map(({ action }) => {
+      const eligible = broadcastEligible[action] ?? [];
+      const count = [...selectedVmids].filter(id => {
+        const v = vmMap.get(id);
+        return v && eligible.includes(v.status?.toLowerCase() || '');
+      }).length;
+      return [action, count];
+    })
+  );
+
+  // Disable broadcast buttons while any selected VM has a pending action
+  const anySelectedPending = [...selectedVmids].some(id => (pendingActions[id]?.length ?? 0) > 0);
 
   return (
     <>
@@ -186,15 +205,32 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: 
             {selectedVmids.size} VMs selected
           </span>
           <div className="h-4 w-px bg-blue-200" />
-          {broadcastButtons.map(({ action, label, color }) => (
-            <button
-              key={action}
-              onClick={() => broadcastAction(action)}
-              className={`px-3 py-1.5 rounded-lg text-white text-xs font-semibold transition-colors ${color}`}
-            >
-              {label}
-            </button>
-          ))}
+          {broadcastButtons.map(({ action, label, color }) => {
+            const count = eligibleCounts[action] ?? 0;
+            const disabled = count === 0 || anySelectedPending;
+            return (
+              <button
+                key={action}
+                onClick={() => !disabled && setBroadcastConfirm({ action, label, count, color })}
+                disabled={disabled}
+                title={
+                  anySelectedPending
+                    ? 'Operation in progress…'
+                    : disabled
+                      ? `No selected VMs are eligible for "${action}"`
+                      : `${count} VM${count !== 1 ? 's' : ''} eligible`
+                }
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors
+                  ${disabled
+                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    : `text-white ${color}`
+                  }`}
+              >
+                {label}
+                {!disabled && <span className="ml-1 opacity-70">({count})</span>}
+              </button>
+            );
+          })}
           <button
             onClick={() => setSelectedVmids(new Set())}
             className="ml-auto px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 text-xs font-medium hover:bg-blue-100 transition-colors"
@@ -204,7 +240,7 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: 
         </div>
       )}
 
-      <div className="overflow-hidden mb-6 bg-white rounded-xl border border-gray-200 shadow-sm">
+      <div className="overflow-x-auto mb-6 bg-white rounded-xl border border-gray-200 shadow-sm">
         <table className="w-full text-sm text-gray-700 border-collapse">
           <TableHeader
             sortConfig={sortConfig}
@@ -242,12 +278,51 @@ const MachinesTable = ({ vms, auth, queryClient, node, addAlert, openConsole }: 
                   loaderMinDuration={LOADER_MIN_DURATION}
                   isSelected={selectedVmids.has(vm.vmid)}
                   onToggleSelect={() => toggleSelect(vm.vmid)}
+                  existingVmNames={sortedVms.map(v => v.name)}
                 />
               );
             })}
           </tbody>
         </table>
       </div>
+
+      {/* Broadcast confirmation modal */}
+      {broadcastConfirm && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/40 z-[9990]"
+            onClick={() => setBroadcastConfirm(null)}
+          />
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[9991]
+                          bg-white rounded-xl shadow-xl p-5 border border-gray-200 w-72">
+            <h3 className="text-sm font-semibold text-gray-900 mb-1">{broadcastConfirm.label}</h3>
+            <p className="text-sm text-gray-500 mb-3">
+              This will {broadcastConfirm.action === 'stop' ? 'force stop' : broadcastConfirm.action}{' '}
+              <strong className="text-gray-800">{broadcastConfirm.count}</strong>{' '}
+              VM{broadcastConfirm.count !== 1 ? 's' : ''}.
+            </p>
+            {broadcastConfirm.action === 'stop' && (
+              <p className="text-xs text-amber-600 font-medium mb-3">
+                Force stop may cause data loss on running VMs.
+              </p>
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={() => setBroadcastConfirm(null)}
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { broadcastAction(broadcastConfirm.action); setBroadcastConfirm(null); }}
+                className={`flex-1 px-3 py-2 rounded-lg text-sm font-semibold text-white transition-colors ${broadcastConfirm.color}`}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </>
   );
 };

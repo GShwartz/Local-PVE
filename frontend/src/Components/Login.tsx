@@ -22,6 +22,8 @@ const Login = ({ onLoginSuccess }: LoginProps) => {
       document.cookie = `CSRFPreventionToken=${data.csrf_token}; path=/; SameSite=Strict; Secure`;
       localStorage.setItem('csrf_token', data.csrf_token);
       localStorage.setItem('ticket', data.ticket);
+      localStorage.setItem('username', form.username);
+      localStorage.setItem('role', data.role ?? 'admin');
 
       toast.success('Welcome back!');
       onLoginSuccess({ ...data, username: form.username, role: data.role ?? 'admin' });

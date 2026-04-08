@@ -6,6 +6,15 @@ import './CSS/index.css';
 
 const queryClient = new QueryClient();
 
+// Keep the CSS custom property --vh in sync with the actual visible viewport height.
+// This ensures the layout recalculates when DevTools open, the browser chrome
+// shows/hides on mobile, or the window is resized.
+function syncViewportHeight() {
+  document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+}
+syncViewportHeight();
+window.addEventListener('resize', syncViewportHeight);
+
 // Error boundary component
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
