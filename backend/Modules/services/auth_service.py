@@ -24,7 +24,7 @@ class AuthService:
                 username = "app@pve"  # Default username
             if not password:
                 import os
-                password = os.getenv('PROXMOX_PASSWORD')
+                password = str(os.getenv('PROXMOX_PASSWORD'))
                 if not password:
                     raise ValueError("No password provided and PROXMOX_PASSWORD not set")
 

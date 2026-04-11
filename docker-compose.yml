@@ -3,7 +3,10 @@ version: "3.9"
 # ── Volumes ──────────────────────────────────────────────────────────────────
 volumes:
   postgres_data:
-  helpers_data:
+  harbor_registry_data:
+  harbor_database_data:
+  harbor_redis_data:
+  minio_data:
 
 # ── Services ─────────────────────────────────────────────────────────────────
 services:
@@ -27,31 +30,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # ── Helpers / Files sidecar ──────────────────────────────────────────────────
-  # Always-alive container that holds scripts, templates, and cloud-init files.
-  # Other services mount the same named volume to access these files.
-  helpers:
-    image: alpine:3.19
-    container_name: local-pve-helpers
-    restart: unless-stopped
-    volumes:
-      - ./helpers:/helpers:ro          # host source → read-only inside container
-      - helpers_data:/data/helpers     # writable copy written at startup
-    command: >
-      sh -c "
-        cp -r /helpers/. /data/helpers/ &&
-        echo 'Helpers synced. Watching for changes…' &&
-        while true; do
-          sleep 3600 &&
-          cp -r /helpers/. /data/helpers/;
-        done
-      "
-    healthcheck:
-      test: ["CMD", "test", "-d", "/data/helpers/cloud-init"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-
   # ── FastAPI Backend ─────────────────────────────────────────────────────────
   backend:
     build:
@@ -61,16 +39,11 @@ services:
     restart: unless-stopped
     env_file: ./backend/.env
     environment:
-      # Override DB host to point at the postgres container
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-gil}:${POSTGRES_PASSWORD}@postgres:5432/local_pve
-    volumes:
-      - helpers_data:/app/helpers:ro   # access scripts/templates from helpers sidecar
     ports:
       - "8000:8000"
     depends_on:
       postgres:
-        condition: service_healthy
-      helpers:
         condition: service_healthy
 
   # ── React Frontend (nginx) ──────────────────────────────────────────────────
@@ -86,3 +59,92 @@ services:
       - "80:80"
     depends_on:
       - backend
+
+  # ── MinIO (S3-compatible storage) ───────────────────────────────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: local-pve-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio123}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Web console
+
+  # ── Harbor Dependencies ─────────────────────────────────────────────────────
+  harbor-db:
+    image: postgres:14-alpine
+    container_name: harbor-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: registry
+      POSTGRES_USER: harbor
+      POSTGRES_PASSWORD: harbor123
+    volumes:
+      - harbor_database_data:/var/lib/postgresql/data
+
+  harbor-redis:
+    image: redis:7-alpine
+    container_name: harbor-redis
+    restart: unless-stopped
+    volumes:
+      - harbor_redis_data:/data
+
+  harbor-registry:
+    image: goharbor/registry-photon:v2.10.0
+    container_name: harbor-registry
+    restart: unless-stopped
+    volumes:
+      - harbor_registry_data:/storage
+    depends_on:
+      - harbor-db
+      - harbor-redis
+
+  harbor-core:
+    image: goharbor/harbor-core:v2.10.0
+    container_name: harbor-core
+    restart: unless-stopped
+    environment:
+      CORE_SECRET: "core-secret"
+      JOBSERVICE_SECRET: "job-secret"
+      DATABASE_TYPE: "postgresql"
+      POSTGRESQL_HOST: harbor-db
+      POSTGRESQL_PORT: 5432
+      POSTGRESQL_DATABASE: registry
+      POSTGRESQL_USERNAME: harbor
+      POSTGRESQL_PASSWORD: harbor123
+      REDIS_HOST: harbor-redis
+      REDIS_PORT: 6379
+    depends_on:
+      - harbor-db
+      - harbor-redis
+
+  harbor-portal:
+    image: goharbor/harbor-portal:v2.10.0
+    container_name: harbor-portal
+    restart: unless-stopped
+
+  harbor-jobservice:
+    image: goharbor/harbor-jobservice:v2.10.0
+    container_name: harbor-jobservice
+    restart: unless-stopped
+    environment:
+      CORE_SECRET: "core-secret"
+      JOBSERVICE_SECRET: "job-secret"
+    depends_on:
+      - harbor-core
+
+  harbor-nginx:
+    image: goharbor/nginx-photon:v2.10.0
+    container_name: harbor-nginx
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      - harbor-core
+      - harbor-portal
+      

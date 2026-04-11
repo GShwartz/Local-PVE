@@ -17,7 +17,15 @@
       "Bash(python C:/Users/gilsh/.claude/projects/j--Projects-Local-PVE/write_hook.py)",
       "Bash(python write_createvm.py)",
       "Bash(python -c ':*)",
-      "Bash(python C:/Users/gilsh/.claude/projects/j--Projects-Local-PVE/write_deploy_clean.py)"
+      "Bash(python C:/Users/gilsh/.claude/projects/j--Projects-Local-PVE/write_deploy_clean.py)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8000/)",
+      "Bash(python C:/Users/gilsh/.claude/projects/j--Projects-Local-PVE/patch_createvm.py)",
+      "Bash(python C:/Users/gilsh/.claude/projects/j--Projects-Local-PVE/patch_createvm2.py)",
+      "Bash(python C:/Users/gilsh/.claude/projects/j--Projects-Local-PVE/patch_createvm3.py)",
+      "Bash(xargs grep:*)",
+      "Bash(find j:/Projects/Local-PVE/frontend/src -name \"*.tsx\" -exec wc -l {} +)",
+      "Bash(npm run:*)",
+      "Bash(grep -E \"\\(App|main|index\\)\\\\.tsx$\")"
     ]
   }
 }

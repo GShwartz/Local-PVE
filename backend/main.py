@@ -14,6 +14,8 @@ import asyncio
 import ssl
 import os
 import re
+import json
+import uuid
 
 from Modules.logger import init_logger
 from Modules.models import (
@@ -46,6 +48,39 @@ from Modules.database.db_models import AppUser
 
 class DiskExpandRequest(BaseModel):
     new_size: int  # GB
+
+# ── User helpers directory ────────────────────────────────────────────────────
+
+HELPERS_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'helpers', 'users')
+
+def _ensure_user_dir(user_dir_id: str) -> str:
+    """Create helpers/users/<user_dir_id>/ if it doesn't exist. Returns the full path."""
+    path = os.path.join(HELPERS_ROOT, user_dir_id)
+    os.makedirs(path, exist_ok=True)
+    return path
+
+def _get_or_create_user_dir(username: str) -> str:
+    """
+    Deterministically map a username to a user_<9-char-uuid> directory.
+    The mapping is persisted in helpers/users/index.json so the same user
+    always gets the same directory across restarts.
+    """
+    os.makedirs(HELPERS_ROOT, exist_ok=True)
+    index_path = os.path.join(HELPERS_ROOT, 'index.json')
+    try:
+        with open(index_path, 'r', encoding='utf-8') as f:
+            index: dict = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        index = {}
+
+    if username not in index:
+        index[username] = f"user_{uuid.uuid4().hex[:9]}"
+        with open(index_path, 'w', encoding='utf-8') as f:
+            json.dump(index, f, indent=2)
+
+    user_dir_id = index[username]
+    _ensure_user_dir(user_dir_id)
+    return user_dir_id
 
 
 # Logging setup
@@ -94,13 +129,14 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Proxmox Controller API", lifespan=lifespan)
 
-# CORS
+# CORS — must be added before any other middleware so error responses also carry CORS headers
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://localhost:5174"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Include console routers
@@ -173,6 +209,9 @@ async def login(
     if auth_response is None:
         raise HTTPException(status_code=401, detail="Authentication failed")
 
+    # Create / resolve user helpers directory
+    user_dir = _get_or_create_user_dir(login_data.username)
+
     # Store session server-side
     try:
         await create_session(
@@ -182,12 +221,12 @@ async def login(
             proxmox_username=login_data.username,
         )
         await log_action(db, action="login", username=login_data.username,
-                         details={"proxmox_user": login_data.username, "role": role})
+                         details={"proxmox_user": login_data.username, "role": role, "user_dir": user_dir})
     except Exception as e:
         logger.warning(f"Audit log failed for login: {e}")
 
     # Create response with Proxmox cookies for console access
-    response = JSONResponse(content={**auth_response, "role": role})
+    response = JSONResponse(content={**auth_response, "role": role, "user_dir": user_dir})
 
     # Set Proxmox authentication cookies for console
     # This allows the console to work without separate Proxmox login
@@ -216,6 +255,23 @@ async def login(
     )
 
     return response
+
+
+@app.post("/auth/refresh")
+async def refresh_auth(
+    auth: AuthService = Depends(get_auth_service),
+):
+    """Re-authenticate using admin Proxmox credentials.
+    Called by the frontend when a stale ticket is detected (e.g. after backend restart).
+    """
+    proxmox_user = os.getenv('PROXMOX_USER', 'app@pve')
+    proxmox_password = os.getenv('PROXMOX_PASSWORD', '')
+    try:
+        auth_response = auth.login(proxmox_user, proxmox_password)
+        return auth_response
+    except Exception:
+        raise HTTPException(status_code=401, detail="Token refresh failed")
+
 
 @app.get("/vms/{node}")
 async def list_vms(
@@ -461,6 +517,30 @@ async def create_vm(
         logger.warning(f"Audit log failed for vm_create: {e}")
     return result
 
+@app.post("/user/{user_dir}/vm-configs")
+async def save_vm_config(
+    user_dir: str,
+    config: dict = Body(...),
+):
+    """Save a VM creation config JSON into the user's helpers directory."""
+    # Basic path-traversal guard
+    if not user_dir.startswith("user_") or "/" in user_dir or "\\" in user_dir or ".." in user_dir:
+        raise HTTPException(status_code=400, detail="Invalid user_dir")
+
+    dir_path = _ensure_user_dir(user_dir)
+    vm_name = config.get("name", "vm")
+    # Use a timestamp suffix so multiple configs for the same name don't overwrite each other
+    import time
+    filename = f"{vm_name}_{int(time.time())}.json"
+    file_path = os.path.join(dir_path, filename)
+
+    with open(file_path, 'w', encoding='utf-8') as f:
+        json.dump(config, f, indent=2)
+
+    logger.info(f"VM config saved: {file_path}")
+    return {"saved": filename, "path": file_path}
+
+
 @app.post("/vm/{node}/qemu/{vmid}/add-disk")
 async def add_disk(
     node: str,
@@ -645,6 +725,37 @@ async def expand_disk(
         logger.warning(f"Audit log failed for disk_expand: {e}")
     return result
 
+@app.get("/node/{node}/bridges")
+async def list_bridges(
+    node: str,
+    csrf_token: str,
+    ticket: str,
+    svc: VMService = Depends(get_vm_service),
+):
+    """Return the list of Linux bridge names available on a Proxmox node (e.g. vmbr0, vmbr1)."""
+    from urllib.parse import unquote
+    import requests as _requests
+    import urllib3 as _urllib3
+    _urllib3.disable_warnings()
+
+    _ticket = unquote(ticket)
+    session = _requests.Session()
+    session.verify = False
+    headers = {"CSRFPreventionToken": unquote(csrf_token), "Cookie": f"PVEAuthCookie={_ticket}"}
+    url = f"https://{os.getenv('PROXMOX_HOST', 'pve.home.lab')}:8006/api2/json/nodes/{node}/network"
+    resp = session.get(url, headers=headers)
+    if resp.status_code != 200:
+        raise HTTPException(status_code=resp.status_code, detail=f"Proxmox network query failed: {resp.text}")
+    ifaces = resp.json().get("data", [])
+    bridges = sorted(
+        iface["iface"] for iface in ifaces
+        if iface.get("type") == "bridge" and iface.get("iface", "").startswith("vmbr")
+    )
+    if not bridges:
+        bridges = ["vmbr0"]  # safe fallback
+    return {"bridges": bridges}
+
+
 @app.delete("/vm/{node}/qemu/{vmid}/network")
 async def remove_network_interface(
     node: str,
@@ -695,13 +806,13 @@ async def update_network_interface(
 # ── DB-backed endpoints ───────────────────────────────────────────────────────
 
 class VMMetadataRequest(BaseModel):
-    notes: str = None
-    tags: str = None
+    notes: str | None = None
+    tags: str | None = None
 
 class DiskMetadataRequest(BaseModel):
-    disk_uuid: str = None
-    disk_type: str = None
-    note: str = None
+    disk_uuid: str | None = None
+    disk_type: str | None = None
+    note: str | None = None
 
 @app.get("/vm/{node}/{vmid}/metadata")
 async def get_vm_metadata_endpoint(
@@ -721,19 +832,30 @@ async def set_vm_metadata_endpoint(
     body: VMMetadataRequest,
     db: AsyncSession = Depends(get_db),
 ):
+    # This now works perfectly because body.notes is str | None 
+    # and upsert_vm_metadata accepts str | None.
     meta = await upsert_vm_metadata(db, node, vmid, notes=body.notes, tags=body.tags)
-    return {"node": node, "vmid": vmid, "notes": meta.notes, "tags": meta.tags, "updated_at": meta.updated_at}
+    return {
+        "node": node, 
+        "vmid": vmid, 
+        "notes": meta.notes, 
+        "tags": meta.tags, 
+        "updated_at": meta.updated_at
+    }
 
 @app.get("/audit-log")
 async def get_audit_log_endpoint(
-    vmid: int = None,
-    node: str = None,
-    action: str = None,
+    # FIX: Add '| None' to allow the default value of None
+    vmid: int | None = None,
+    node: str | None = None,
+    action: str | None = None,
     limit: int = 100,
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
 ):
-    logs = await get_audit_logs(db, vmid=vmid, node=node, action=action, limit=limit, offset=offset)
+    logs = await get_audit_logs(
+        db, vmid=vmid, node=node, action=action, limit=limit, offset=offset
+    )
     return [
         {
             "id": entry.id,
@@ -845,14 +967,14 @@ async def deactivate_user(user_id: int, db: AsyncSession = Depends(get_db)):
 
 # ── Helpers file server ───────────────────────────────────────────────────────
 
-HELPERS_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), "helpers")
+_HELPERS_FILES_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "helpers")
 
 @app.get("/helpers/{category}/{filename}")
 async def get_helper_file(category: str, filename: str):
     """Serve a file from the helpers/ directory (cloud-init scripts, templates, etc.)."""
     safe_cat  = os.path.basename(category)
     safe_file = os.path.basename(filename)
-    path = os.path.join(HELPERS_ROOT, safe_cat, safe_file)
+    path = os.path.join(_HELPERS_FILES_ROOT, safe_cat, safe_file)
     if not os.path.isfile(path):
         raise HTTPException(status_code=404, detail=f"Helper file not found: {category}/{filename}")
     with open(path, "r", encoding="utf-8") as f:
@@ -863,7 +985,7 @@ async def get_helper_file(category: str, filename: str):
 async def list_helper_files(category: str):
     """List available files in a helpers sub-directory."""
     safe_cat = os.path.basename(category)
-    path = os.path.join(HELPERS_ROOT, safe_cat)
+    path = os.path.join(_HELPERS_FILES_ROOT, safe_cat)
     if not os.path.isdir(path):
         raise HTTPException(status_code=404, detail=f"Helper category not found: {category}")
     files = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
@@ -968,8 +1090,8 @@ async def clone_disk(
 class CreateStorageRequest(BaseModel):
     storage_id: str
     path: str
-    content: str        # comma-separated Proxmox content types, e.g. "images,iso"
-    node: str = None    # optional: restrict storage to a specific node
+    content: str        
+    node: str | None = None  # Add the | None here
 
 @app.post("/storage")
 async def create_storage(

@@ -1,6 +1,6 @@
 // src/components/VM/DiskModal/DiskExpandModal.tsx
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../../../../api';
 import ModalWrapper from './ModalWrapper';
 import DiskForm from './DiskForm';
 import { VM, Auth } from '../../../../types';
@@ -64,17 +64,7 @@ const DiskExpandModal = ({
     try {
       addAlert(`Expanding ${diskKey} from ${currentSize}GB to ${size}GB...`, 'info');
 
-      await axios.post(
-        `http://localhost:8000/vm/${node}/qemu/${vm.vmid}/disk/${diskKey}/expand`,
-        { new_size: size },
-        {
-          params: {
-            csrf_token: auth.csrf_token,
-            ticket: auth.ticket
-          },
-          headers: { 'Content-Type': 'application/json' }
-        }
-      );
+      await api.post(`/vm/${node}/qemu/${vm.vmid}/disk/${diskKey}/expand`, { new_size: size });
 
       addAlert(`✅ Disk ${diskKey} expanded to ${size}GB successfully.`, 'success');
       refreshConfig();

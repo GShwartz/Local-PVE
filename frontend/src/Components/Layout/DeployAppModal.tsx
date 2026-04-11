@@ -1,11 +1,9 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import axios from 'axios';
+import api from '../../api';
 import { Plus, Trash2, X, Zap } from 'lucide-react';
 import { Auth, TaskStatus, VMCreate } from '../../types';
 import { useDraggable } from '../../hooks/useDraggable';
-
-const API_BASE = 'http://localhost:8000';
 
 // ── Types ──────────────────────────────────────────────────────────────────────────────────
 
@@ -149,20 +147,14 @@ const useDeployMutation = (
 ) => {
   return useMutation({
     mutationFn: async ({ vmCreate, node, powerOn }: { vmCreate: VMCreate & { user_data?: string }; node: string; powerOn: boolean }) => {
-      const { data: upid } = await axios.post<string>(
-        `${API_BASE}/vm/${node}`, vmCreate,
-        { headers: { 'CSRFPreventionToken': auth.csrf_token }, params: { csrf_token: auth.csrf_token, ticket: auth.ticket } }
-      );
+      const { data: upid } = await api.post<string>(`/vm/${node}`, vmCreate);
       if (powerOn) {
         const pollAndStart = async (retries = 30) => {
           try {
-            const { data: t } = await axios.get<TaskStatus>(`${API_BASE}/task/${node}/${upid}`,
-              { params: { csrf_token: auth.csrf_token, ticket: auth.ticket } });
+            const { data: t } = await api.get<TaskStatus>(`/task/${node}/${upid}`);
             if (t.status === 'stopped') {
               if (t.exitstatus === 'OK') {
-                await axios.post(`${API_BASE}/vm/${node}/${vmCreate.name}/start`, {},
-                  { headers: { 'CSRFPreventionToken': auth.csrf_token }, params: { csrf_token: auth.csrf_token, ticket: auth.ticket } }
-                );
+                await api.post(`/vm/${node}/${vmCreate.name}/start`);
                 addAlert('VM deployed and started.', 'success');
               }
               queryClient.invalidateQueries({ queryKey: ['vms'] });
@@ -212,6 +204,13 @@ const DeployAppModal = ({ isOpen, closeModal, auth, node, queryClient, addAlert 
   const [selectedNode, setSelectedNode] = useState(node);
   const [ciTemplateId, setCiTemplateId] = useState('');
   const [powerOn,      setPowerOn]      = useState(true);
+
+  // Hardware
+  const [cpus, setCpus] = useState(2);
+  const [ram,  setRam]  = useState(2048);
+  const [diskSizeGb, setDiskSizeGb] = useState(20);
+  const [extraDisks, setExtraDisks] = useState<{ sizeGb: number }[]>([]);
+  const [nics, setNics] = useState<{ model: string; bridge: string }[]>([{ model: 'virtio', bridge: 'vmbr0' }]);
 
   // Add custom app form (shown in Panel 3 when category === 'Custom')
   const [newAppName,       setNewAppName]       = useState('');
@@ -289,7 +288,11 @@ const DeployAppModal = ({ isOpen, closeModal, auth, node, queryClient, addAlert 
       : selectedApp.helperScript || undefined;
 
     deployMutation.mutate({
-      vmCreate: { name: vmName.trim(), cpus: 2, ram: 2048, source: baseOS, uefi: false, ...(user_data ? { user_data } : {}) },
+      vmCreate: {
+        name: vmName.trim(), cpus, ram, source: baseOS, uefi: false,
+        disk_size: diskSizeGb,
+        ...(user_data ? { user_data } : {}),
+      },
       node: selectedNode,
       powerOn,
     });
@@ -299,6 +302,8 @@ const DeployAppModal = ({ isOpen, closeModal, auth, node, queryClient, addAlert 
     resetPosition();
     setSelectedAppId(null); setVmName(''); setBaseOS('');
     setCiTemplateId(''); setPowerOn(true);
+    setCpus(2); setRam(2048); setDiskSizeGb(20);
+    setExtraDisks([]); setNics([{ model: 'virtio', bridge: 'vmbr0' }]);
     setNewAppName(''); setNewAppBaseOS(osList[0] ?? ''); setNewAppCiTemplate('');
     closeModal();
   };
@@ -309,7 +314,7 @@ const DeployAppModal = ({ isOpen, closeModal, auth, node, queryClient, addAlert 
   const labelCls  = 'block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5';
 
   // Panel height for overflow control
-  const PANEL_H = 520;
+  const PANEL_H = 600;
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
@@ -429,6 +434,81 @@ const DeployAppModal = ({ isOpen, closeModal, auth, node, queryClient, addAlert 
                     <select value={baseOS} onChange={e => setBaseOS(e.target.value)} className={fieldBase}>
                       {osList.map(os => <option key={os} value={os}>{os}</option>)}
                     </select>
+                  </div>
+
+                  {/* Hardware */}
+                  <div className="pt-2 border-t border-gray-100">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Hardware</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className={labelCls}>CPUs</label>
+                        <select value={cpus} onChange={e => setCpus(parseInt(e.target.value))} className={fieldBase}>
+                          {[1, 2, 4, 8].map(o => <option key={o} value={o}>{o} {o === 1 ? 'core' : 'cores'}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className={labelCls}>RAM</label>
+                        <select value={ram} onChange={e => setRam(parseInt(e.target.value))} className={fieldBase}>
+                          {[512, 1024, 2048, 4096, 8192].map(o => <option key={o} value={o}>{o >= 1024 ? `${o / 1024} GB` : `${o} MB`}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Storage */}
+                  <div className="pt-2 border-t border-gray-100">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Storage</p>
+                    <div className="space-y-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400 w-16 flex-shrink-0">Primary</span>
+                        <input type="number" min={1} max={2000} value={diskSizeGb} onChange={e => setDiskSizeGb(parseInt(e.target.value) || 20)}
+                          className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-colors text-right" />
+                        <span className="text-sm text-gray-500 flex-shrink-0">GB</span>
+                      </div>
+                      {extraDisks.map((disk, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <span className="text-xs text-gray-400 w-16 flex-shrink-0">Disk {idx + 2}</span>
+                          <input type="number" min={1} max={2000} value={disk.sizeGb} onChange={e => setExtraDisks(prev => prev.map((d, i) => i === idx ? { ...d, sizeGb: parseInt(e.target.value) || 20 } : d))}
+                            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-colors text-right" />
+                          <span className="text-sm text-gray-500 flex-shrink-0">GB</span>
+                          <button type="button" onClick={() => setExtraDisks(prev => prev.filter((_, i) => i !== idx))}
+                            className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors">
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      ))}
+                      <button type="button" onClick={() => setExtraDisks(prev => [...prev, { sizeGb: 20 }])}
+                        className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors">
+                        <Plus size={12} /> Add Disk
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Networking */}
+                  <div className="pt-2 border-t border-gray-100">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Networking</p>
+                    <div className="space-y-2.5">
+                      {nics.map((nic, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <select value={nic.model} onChange={e => setNics(prev => prev.map((n, i) => i === idx ? { ...n, model: e.target.value } : n))}
+                            className="flex-none border border-gray-300 rounded-lg px-2 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-colors w-24">
+                            {['virtio', 'e1000', 'e1000e', 'rtl8139', 'vmxnet3'].map(m => <option key={m} value={m}>{m}</option>)}
+                          </select>
+                          <input type="text" value={nic.bridge} onChange={e => setNics(prev => prev.map((n, i) => i === idx ? { ...n, bridge: e.target.value } : n))}
+                            placeholder="vmbr0"
+                            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-colors" />
+                          <button type="button" onClick={() => { if (nics.length > 1) setNics(prev => prev.filter((_, i) => i !== idx)); }}
+                            disabled={nics.length <= 1}
+                            className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      ))}
+                      <button type="button" onClick={() => setNics(prev => [...prev, { model: 'virtio', bridge: 'vmbr0' }])}
+                        className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors">
+                        <Plus size={12} /> Add NIC
+                      </button>
+                    </div>
                   </div>
 
                   <div>

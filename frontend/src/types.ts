@@ -5,6 +5,7 @@ export interface Auth {
   csrf_token: string;
   username?: string;
   role?: 'admin' | 'operator' | 'viewer';
+  user_dir?: string;
 }
 
 export interface VM {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+import api from './src/api';
 import Navbar from './src/Components/Layout/Navbar';
 import Sidebar, { Page } from './src/Components/Layout/Sidebar';
 import MachinesTable from './src/Components/TableComponents/MachinesTable';
@@ -16,7 +16,6 @@ import SettingsView from './src/Components/Settings/SettingsView';
 import IntegrationsView from './src/Components/Integrations/IntegrationsView';
 import { Auth, VM } from './src/types';
 
-const API_BASE = 'http://localhost:8000';
 const NODE = 'pve';
 
 const pageTitles: Record<Page, string> = {
@@ -27,8 +26,8 @@ const pageTitles: Record<Page, string> = {
   settings:     'Settings',
 };
 
-const fetchVMs = async ({ node, csrf, ticket }: { node: string; csrf: string; ticket: string }): Promise<VM[]> => {
-  const { data } = await axios.get<VM[]>(`${API_BASE}/vms/${node}`, { params: { csrf_token: csrf, ticket } });
+const fetchVMs = async (node: string): Promise<VM[]> => {
+  const { data } = await api.get<VM[]>(`/vms/${node}`);
   return data;
 };
 
@@ -58,8 +57,29 @@ function App() {
     if (ticket && csrf_token) {
       const username = localStorage.getItem('username') ?? undefined;
       const role     = (localStorage.getItem('role') as Auth['role']) ?? 'admin';
-      setAuth({ ticket, csrf_token, username, role });
+      const user_dir = localStorage.getItem('user_dir') ?? undefined;
+      setAuth({ ticket, csrf_token, username, role, user_dir });
     }
+  }, []);
+
+  // Listen for auth events from the API interceptor
+  useEffect(() => {
+    const onLogout = () => {
+      ['ticket', 'csrf_token', 'username', 'role', 'user_dir'].forEach(k => localStorage.removeItem(k));
+      setAuth(null);
+      addAlert('Session expired. Please log in again.', 'warning');
+    };
+    const onRefreshed = (e: Event) => {
+      const { ticket, csrf_token } = (e as CustomEvent).detail;
+      setAuth(prev => prev ? { ...prev, ticket, csrf_token } : prev);
+      addAlert('Session refreshed automatically.', 'info');
+    };
+    window.addEventListener('auth:logout', onLogout);
+    window.addEventListener('auth:refreshed', onRefreshed);
+    return () => {
+      window.removeEventListener('auth:logout', onLogout);
+      window.removeEventListener('auth:refreshed', onRefreshed);
+    };
   }, []);
 
   const role = auth?.role ?? 'admin';
@@ -92,10 +112,11 @@ function App() {
   };
 
   const { data: vms, error: vmsError, isLoading } = useQuery({
-    queryKey: ['vms', NODE, auth?.csrf_token, auth?.ticket],
-    queryFn: () => fetchVMs({ node: NODE, csrf: auth?.csrf_token || '', ticket: auth?.ticket || '' }),
+    queryKey: ['vms', NODE],
+    queryFn: () => fetchVMs(NODE),
     enabled: !!auth,
     refetchInterval: 2000,
+    placeholderData: keepPreviousData,  // keep old list visible during background refetch
   });
 
   useEffect(() => {
@@ -121,7 +142,7 @@ function App() {
         <Navbar
           username={auth.username}
           onLogout={() => {
-            ['ticket', 'csrf_token', 'username', 'role'].forEach(k => localStorage.removeItem(k));
+            ['ticket', 'csrf_token', 'username', 'role', 'user_dir'].forEach(k => localStorage.removeItem(k));
             setAuth(null);
           }}
           alertHistory={alertHistory}
@@ -163,7 +184,7 @@ function App() {
                     Error fetching machines: {vmsError.message}
                   </div>
                 )}
-                {isLoading && (
+                {isLoading && !vms && (
                   <div className="flex justify-center items-center py-20">
                     <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500" />
                   </div>
@@ -223,7 +244,10 @@ function App() {
         node={NODE}
         queryClient={queryClient}
         addAlert={addAlert}
-        onNavigateToCloudInit={() => { setIsCreateModalOpen(false); setActivePage('integrations'); }}
+        onNavigateToCloudInit={() => { 
+          setIsCreateModalOpen(false); 
+          setActivePage('integrations'); // Navigates to the page where Cloud-Init is
+        }}
       />
       <CreateK8sModal
         isOpen={isCreateK8sModalOpen}

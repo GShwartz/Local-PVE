@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import axios from 'axios';
+import api from '../../api';
 import { ClipboardList, RefreshCw, Filter, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
-
-const API = 'http://localhost:8000';
 
 interface AuditEntry {
   id: number;
@@ -41,7 +39,7 @@ const actionColor: Record<string, string> = {
 };
 
 const fetchAuditLog = async (params: { vmid?: number; node?: string; action?: string; limit: number; offset: number }): Promise<AuditEntry[]> => {
-  const { data } = await axios.get<AuditEntry[]>(`${API}/audit-log`, { params });
+  const { data } = await api.get<AuditEntry[]>(`/audit-log`, { params });
   return data;
 };
 

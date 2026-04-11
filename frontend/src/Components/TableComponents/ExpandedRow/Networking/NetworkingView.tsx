@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../../../../api';
 import { VM, VMConfigResponse, ProxmoxVMConfig } from '../../../../types';
 import styles from '../../../../CSS/ExpandedArea.module.css';
 import NetworkingHeader from './NetworkingHeader';
@@ -42,7 +42,7 @@ const NetworkingView = ({ vm, node, auth, addAlert, refreshVMs }: NetworkingView
     return 'Add NIC';
   };
 
-  const API_BASE = 'http://localhost:8000';
+  // API calls use centralized api instance
 
   const parseNetConfig = (key: string, value: string): NetworkInterface => {
     const parts = value.split(',');
@@ -82,10 +82,7 @@ const NetworkingView = ({ vm, node, auth, addAlert, refreshVMs }: NetworkingView
     try {
       setLoading(true);
       setError(null);
-      const res = await axios.get<VMConfigResponse>(
-        `${API_BASE}/vm/${node}/qemu/${vm.vmid}/config`,
-        { params: { csrf_token: auth.csrf_token, ticket: auth.ticket } }
-      );
+      const res = await api.get<VMConfigResponse>(`/vm/${node}/qemu/${vm.vmid}/config`);
 
       const config: ProxmoxVMConfig = res.data.config;
       const nets = Object.entries(config)
@@ -134,25 +131,12 @@ const NetworkingView = ({ vm, node, auth, addAlert, refreshVMs }: NetworkingView
 
     try {
       if (editNIC) {
-        await axios.delete(`${API_BASE}/vm/${node}/qemu/${vm.vmid}/network`, {
-          params: {
-            csrf_token: auth.csrf_token,
-            ticket: auth.ticket,
-            nic: nicKey
-          }
+        await api.delete(`/vm/${node}/qemu/${vm.vmid}/network`, {
+          params: { nic: nicKey }
         });
       }
 
-      await axios.put(
-        `${API_BASE}/vm/${node}/qemu/${vm.vmid}/network`,
-        config,
-        {
-          params: {
-            csrf_token: auth.csrf_token,
-            ticket: auth.ticket
-          }
-        }
-      );
+      await api.put(`/vm/${node}/qemu/${vm.vmid}/network`, config);
 
       addAlert(`${editNIC ? 'Updated' : 'Added'} NIC ${nicKey}`, 'success');
       fetchNetworking(true);
@@ -168,16 +152,9 @@ const NetworkingView = ({ vm, node, auth, addAlert, refreshVMs }: NetworkingView
 
   const handleRemoveNIC = async (nicName: string) => {
     try {
-      await axios.delete(
-        `${API_BASE}/vm/${node}/qemu/${vm.vmid}/network`,
-        {
-          params: {
-            csrf_token: auth.csrf_token,
-            ticket: auth.ticket,
-            nic: nicName
-          }
-        }
-      );
+      await api.delete(`/vm/${node}/qemu/${vm.vmid}/network`, {
+        params: { nic: nicName }
+      });
       addAlert(`Removed NIC ${nicName}`, 'success');
       fetchNetworking(true);
       refreshVMs();

@@ -1,5 +1,6 @@
 import { QueryClient } from '@tanstack/react-query';
 import { VM, Auth, TaskStatus } from '../types';
+import api from '../api';
 
 interface Params {
   vm: VM;
@@ -8,7 +9,6 @@ interface Params {
   refreshVMs: () => void;
   queryClient: QueryClient;
   setIsRemoving: (v: boolean) => void;
-  API_BASE_URL: string;
   PROXMOX_NODE: string;
   setShowRemoveConfirm: (v: boolean) => void;
 }
@@ -20,7 +20,6 @@ export const useRemoveVM = ({
   refreshVMs,
   queryClient,
   setIsRemoving,
-  API_BASE_URL,
   PROXMOX_NODE,
   setShowRemoveConfirm,
 }: Params) => {
@@ -33,28 +32,13 @@ export const useRemoveVM = ({
     queryClient.setQueryData<VM[]>(['vms'], (oldVms) => oldVms?.filter((v) => v.vmid !== vm.vmid) || []);
 
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/vm/${PROXMOX_NODE}/qemu/${vm.vmid}?csrf_token=${encodeURIComponent(
-          auth.csrf_token
-        )}&ticket=${encodeURIComponent(auth.ticket)}`,
-        { method: 'DELETE' }
-      );
-
-      if (!response.ok) throw new Error(`Failed to initiate VM deletion: ${await response.text()}`);
-
-      let upid = await response.text();
-      upid = upid.trim().replace(/^"|"$/g, '');
+      const { data: upidRaw } = await api.delete<string>(`/vm/${PROXMOX_NODE}/qemu/${vm.vmid}`);
+      const upid = String(upidRaw).trim().replace(/^"|"$/g, '');
 
       let taskStatus: TaskStatus;
       do {
-        const taskResponse = await fetch(
-          `${API_BASE_URL}/task/${PROXMOX_NODE}/${encodeURIComponent(
-            upid
-          )}?csrf_token=${encodeURIComponent(auth.csrf_token)}&ticket=${encodeURIComponent(auth.ticket)}`
-        );
-        if (!taskResponse.ok) throw new Error(`Failed to get task status: ${await taskResponse.text()}`);
-
-        taskStatus = await taskResponse.json();
+        const { data } = await api.get<TaskStatus>(`/task/${PROXMOX_NODE}/${encodeURIComponent(upid)}`);
+        taskStatus = data;
         if (taskStatus.status !== 'stopped') await new Promise((resolve) => setTimeout(resolve, 500));
       } while (taskStatus.status !== 'stopped');
 
@@ -64,7 +48,8 @@ export const useRemoveVM = ({
       refreshVMs();
     } catch (error: any) {
       queryClient.setQueryData<VM[]>(['vms'], previousVms);
-      addAlert(`Failed to delete VM "${vm.name}": ${error.message}`, 'error');
+      const msg = error?.response?.data?.detail || error.message;
+      addAlert(`Failed to delete VM "${vm.name}": ${msg}`, 'error');
     } finally {
       setIsRemoving(false);
     }

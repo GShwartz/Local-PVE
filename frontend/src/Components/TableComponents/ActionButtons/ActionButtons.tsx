@@ -1,6 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
 import { VM, Auth } from '../../../types';
 import { UseMutationResult } from '@tanstack/react-query';
+import api from '../../../api';
 
 import StartButton from './StartButton';
 import StopButton from './StopButton';
@@ -34,7 +35,6 @@ interface ActionButtonsProps {
 }
 
 const PROXMOX_NODE = 'pve';
-const API_BASE_URL = 'http://localhost:8000';
 
 const ActionButtons = ({
   vm,
@@ -309,19 +309,9 @@ const ActionButtons = ({
     setIsDiskCloneLoading(true);
     addAlert(`Cloning disk "${diskKey}" of VM "${vm.name}"...`, 'info');
     try {
-      const resp = await fetch(
-        `${API_BASE_URL}/vm/${PROXMOX_NODE}/qemu/${vm.vmid}/clone-disk` +
-        `?csrf_token=${encodeURIComponent(auth.csrf_token)}&ticket=${encodeURIComponent(auth.ticket)}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ disk_key: diskKey, target_storage: targetStorage, save_path: savePath }),
-        }
-      );
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        throw new Error(err?.detail ?? resp.statusText);
-      }
+      await api.post(`/vm/${PROXMOX_NODE}/qemu/${vm.vmid}/clone-disk`, {
+        disk_key: diskKey, target_storage: targetStorage, save_path: savePath,
+      });
       addAlert(`Disk "${diskKey}" clone initiated.`, 'success');
     } catch (e: any) {
       addAlert(`Disk clone failed: ${e.message}`, 'error');
@@ -335,15 +325,7 @@ const ActionButtons = ({
     addAlert(`Removing VM "${vm.name}"...`, 'warning');
 
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/vm/${PROXMOX_NODE}/qemu/${vm.vmid}?csrf_token=${encodeURIComponent(
-          auth.csrf_token
-        )}&ticket=${encodeURIComponent(auth.ticket)}`,
-        { method: 'DELETE' }
-      );
-
-      if (!response.ok) throw new Error('Failed to delete VM');
-
+      await api.delete(`/vm/${PROXMOX_NODE}/qemu/${vm.vmid}`);
       addAlert(`VM "${vm.name}" removed successfully.`, 'success');
       await refreshVMs();
     } catch (error: any) {

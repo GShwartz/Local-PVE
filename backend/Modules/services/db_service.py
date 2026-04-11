@@ -14,13 +14,13 @@ from Modules.database.db_models import AppUser, AuditLog, VMMetadata, UserSessio
 async def log_action(
     db: AsyncSession,
     action: str,
-    node: Optional[str] = None,
-    vmid: Optional[int] = None,
-    username: Optional[str] = None,
-    user_id: Optional[int] = None,
-    details: Optional[dict] = None,
+    node: str | None = None,
+    vmid: int | None = None,
+    username: str | None = None,
+    user_id: int | None = None,
+    details: dict | None = None,
     status: str = "success",
-    error_message: Optional[str] = None,
+    error_message: str | None = None,
 ) -> AuditLog:
     entry = AuditLog(
         action=action,
@@ -40,9 +40,9 @@ async def log_action(
 
 async def get_audit_logs(
     db: AsyncSession,
-    vmid: Optional[int] = None,
-    node: Optional[str] = None,
-    action: Optional[str] = None,
+    vmid: int | None = None,
+    node: str | None = None,
+    action: str | None = None,
     limit: int = 100,
     offset: int = 0,
 ) -> list[AuditLog]:
@@ -60,7 +60,7 @@ async def get_audit_logs(
 
 # ── VM Metadata ───────────────────────────────────────────────────────────────
 
-async def get_vm_metadata(db: AsyncSession, node: str, vmid: int) -> Optional[VMMetadata]:
+async def get_vm_metadata(db: AsyncSession, node: str, vmid: int) -> VMMetadata | None:
     result = await db.execute(
         select(VMMetadata).where(VMMetadata.node == node, VMMetadata.vmid == vmid)
     )
@@ -71,8 +71,8 @@ async def upsert_vm_metadata(
     db: AsyncSession,
     node: str,
     vmid: int,
-    notes: Optional[str] = None,
-    tags: Optional[str] = None,
+    notes: str | None = None,
+    tags: str | None = None,
 ) -> VMMetadata:
     now = datetime.now(timezone.utc)
     stmt = (
@@ -95,8 +95,8 @@ async def create_session(
     db: AsyncSession,
     proxmox_ticket: str,
     proxmox_csrf_token: str,
-    proxmox_username: Optional[str] = None,
-    user_id: Optional[int] = None,
+    proxmox_username: str | None = None,
+    user_id: int | None = None,
     ttl_seconds: int = 7200,
 ) -> UserSession:
     now = datetime.now(timezone.utc)
@@ -115,7 +115,7 @@ async def create_session(
     return session
 
 
-async def get_session(db: AsyncSession, session_id: str) -> Optional[UserSession]:
+async def get_session(db: AsyncSession, session_id: str) -> UserSession | None:
     result = await db.execute(
         select(UserSession).where(
             UserSession.session_id == session_id,
@@ -136,7 +136,7 @@ async def invalidate_session(db: AsyncSession, session_id: str) -> None:
 
 # ── App Users ─────────────────────────────────────────────────────────────────
 
-async def get_user_by_username(db: AsyncSession, username: str) -> Optional[AppUser]:
+async def get_user_by_username(db: AsyncSession, username: str) -> AppUser | None:
     result = await db.execute(
         select(AppUser).where(AppUser.username == username, AppUser.is_active == True)
     )
@@ -162,9 +162,9 @@ async def upsert_disk_metadata(
     vmid: int,
     node: str,
     disk_key: str,
-    disk_uuid: Optional[str] = None,
-    disk_type: Optional[str] = None,
-    note: Optional[str] = None,
+    disk_uuid: str | None = None,
+    disk_type: str | None = None,
+    note: str | None = None,
 ) -> DiskMetadata:
     now = datetime.now(timezone.utc)
     stmt = (
@@ -184,7 +184,7 @@ async def upsert_disk_metadata(
 
 async def get_disk_metadata(
     db: AsyncSession, vmid: int, disk_key: str
-) -> Optional[DiskMetadata]:
+) -> DiskMetadata | None:
     result = await db.execute(
         select(DiskMetadata).where(
             DiskMetadata.vmid == vmid,

@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import axios from 'axios';
+import api from '../api';
 import type { Auth, VM, TaskStatus } from '../types';
 
 interface Changes {
@@ -27,9 +27,8 @@ export function useApplyChanges(params: {
     setTableApplying(true);
 
     try {
-      const latestStatus = await axios.get<{ status: string }>(`http://localhost:8000/vm/${node}/qemu/${vm.vmid}/status`, {
-        params: { csrf_token: auth.csrf_token, ticket: auth.ticket },
-      }).then((r) => r.data.status);
+      const latestStatus = await api.get<{ status: string }>(`/vm/${node}/qemu/${vm.vmid}/status`)
+        .then((r) => r.data.status);
 
       const updates: any = {};
       if (changesToApply.vmname) updates.name = changesToApply.vmname;
@@ -52,9 +51,7 @@ export function useApplyChanges(params: {
           // Poll task until complete…
           let status: TaskStatus | null = null;
           do {
-            status = (await axios.get<TaskStatus>(`http://localhost:8000/task/${node}/${upid}`, {
-              params: { csrf_token: auth.csrf_token, ticket: auth.ticket },
-            })).data;
+            status = (await api.get<TaskStatus>(`/task/${node}/${upid}`)).data;
             if (status.status !== 'stopped') await new Promise((res) => setTimeout(res, 500));
           } while (status?.status !== 'stopped');
 
@@ -64,9 +61,7 @@ export function useApplyChanges(params: {
           const max = 10, delay = 1000;
           let updatedVM: VM | null = null;
           for (let i = 0; i < max; i++) {
-            const result = (await axios.get<VM>(`http://localhost:8000/vm/${node}/qemu/${vm.vmid}/config`, {
-              params: { csrf_token: auth.csrf_token, ticket: auth.ticket },
-            })).data;
+            const result = (await api.get<VM>(`/vm/${node}/qemu/${vm.vmid}/config`)).data;
             const expectedName = changesToApply.vmname ?? vm.name;
             const expectedCPUs = changesToApply.cpu ?? vm.cpus;
             const expectedRAM = updates.ram ?? vm.ram;

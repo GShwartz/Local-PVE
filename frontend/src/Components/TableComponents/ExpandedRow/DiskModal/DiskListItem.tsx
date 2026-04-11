@@ -1,4 +1,4 @@
-import axios from 'axios';
+import api from '../../../../api';
 import { VM } from '../../../../types';
 import { useState, useRef, useEffect } from 'react';
 import DiskExpandForm from './DiskExpandForm';
@@ -58,23 +58,11 @@ const DiskListItem = ({
     try {
       if (vm.status === 'running') {
         addAlert(`VM ${vm.vmid} is running. Sending shutdown before disk removal...`, 'info');
-        await axios.post(
-          `http://localhost:8000/vm/${node}/qemu/${vm.vmid}/shutdown`,
-          null,
-          {
-            params: {
-              csrf_token: auth.csrf_token,
-              ticket: auth.ticket
-            }
-          }
-        );
+        await api.post(`/vm/${node}/qemu/${vm.vmid}/shutdown`);
       }
 
       // Delete the disk
-      await axios.delete(`http://localhost:8000/vm/${node}/qemu/${vm.vmid}/disk/${diskKey}`, {
-        params: { csrf_token: auth.csrf_token, ticket: auth.ticket },
-        headers: { 'Content-Type': 'application/json' }
-      });
+      await api.delete(`/vm/${node}/qemu/${vm.vmid}/disk/${diskKey}`);
 
       // Wait a moment for the backend operation to complete
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -86,14 +74,8 @@ const DiskListItem = ({
 
       while (attempts < maxAttempts) {
         try {
-          const configResp = await axios.get<{ config: any }>(
-            `http://localhost:8000/vm/${node}/qemu/${vm.vmid}/config`,
-            {
-              params: {
-                csrf_token: auth.csrf_token,
-                ticket: auth.ticket
-              }
-            }
+          const configResp = await api.get<{ config: any }>(
+            `/vm/${node}/qemu/${vm.vmid}/config`,
           );
 
           const config = configResp.data.config || {};

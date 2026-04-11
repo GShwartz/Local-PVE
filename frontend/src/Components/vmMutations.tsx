@@ -1,95 +1,48 @@
 import { useMutation } from '@tanstack/react-query';
 import { Auth, TaskStatus, VMCloneRequest, VMCreate } from '../types';
-import axios from 'axios';
-
-const API_BASE = 'http://localhost:8000';
+import api from '../api';
 
 interface ControlParams {
   node: string;
   vmid: number;
   action: string;
-  csrf: string;
-  ticket: string;
 }
 
 interface UpdateConfigParams {
   node: string;
   vmid: number;
   updates: { name?: string; cpus?: number; ram?: number };
-  csrf: string;
-  ticket: string;
 }
 
 interface SnapshotParams {
   node: string;
   vmid: number;
   snapname: string;
-  csrf: string;
-  ticket: string;
 }
 
-const controlVM = async ({ node, vmid, action, csrf, ticket }: ControlParams): Promise<string> => {
-  const { data } = await axios.post<string>(
-    `${API_BASE}/vm/${node}/qemu/${vmid}/${action}`,
-    {},
-    {
-      headers: { CSRFPreventionToken: csrf },
-      params: { csrf_token: csrf, ticket },
-      withCredentials: true,
-    }
-  );
+const controlVM = async ({ node, vmid, action }: ControlParams): Promise<string> => {
+  const { data } = await api.post<string>(`/vm/${node}/qemu/${vmid}/${action}`);
   return data;
 };
 
-const updateVMConfig = async ({ node, vmid, updates, csrf, ticket }: UpdateConfigParams): Promise<string> => {
-  const { data } = await axios.post<string>(
-    `${API_BASE}/vm/${node}/qemu/${vmid}/update_config`,
-    updates,
-    {
-      headers: { CSRFPreventionToken: csrf },
-      params: { csrf_token: csrf, ticket },
-      withCredentials: true,
-    }
-  );
+const updateVMConfig = async ({ node, vmid, updates }: UpdateConfigParams): Promise<string> => {
+  const { data } = await api.post<string>(`/vm/${node}/qemu/${vmid}/update_config`, updates);
   return data;
 };
 
-const revertSnapshot = async ({ node, vmid, snapname, csrf, ticket }: SnapshotParams): Promise<string> => {
-  const { data } = await axios.post<string>(
-    `${API_BASE}/vm/${node}/qemu/${vmid}/snapshot/${snapname}/revert`,
-    {},
-    {
-      headers: { CSRFPreventionToken: csrf },
-      params: { csrf_token: csrf, ticket },
-      withCredentials: true,
-    }
-  );
+const revertSnapshot = async ({ node, vmid, snapname }: SnapshotParams): Promise<string> => {
+  const { data } = await api.post<string>(`/vm/${node}/qemu/${vmid}/snapshot/${snapname}/revert`);
   return data;
 };
 
-const deleteSnapshot = async ({ node, vmid, snapname, csrf, ticket }: SnapshotParams): Promise<string> => {
-  const { data } = await axios.delete<string>(
-    `${API_BASE}/vm/${node}/qemu/${vmid}/snapshot/${snapname}`,
-    {
-      headers: { CSRFPreventionToken: csrf },
-      params: { csrf_token: csrf, ticket },
-      withCredentials: true,
-    }
-  );
+const deleteSnapshot = async ({ node, vmid, snapname }: SnapshotParams): Promise<string> => {
+  const { data } = await api.delete<string>(`/vm/${node}/qemu/${vmid}/snapshot/${snapname}`);
   return data;
 };
 
-const createSnapshot = async ({ node, vmid, snapname, csrf, ticket }: SnapshotParams): Promise<string> => {
+const createSnapshot = async ({ node, vmid, snapname }: SnapshotParams): Promise<string> => {
   const payload = { snapname, description: '', vmstate: 0 };
-  const { data } = await axios.post<string>(
-    `${API_BASE}/vm/${node}/qemu/${vmid}/snapshot`,
-    payload,
-    {
-      headers: { CSRFPreventionToken: csrf },
-      params: { csrf_token: csrf, ticket },
-      withCredentials: true,
-    }
-  );
+  const { data } = await api.post<string>(`/vm/${node}/qemu/${vmid}/snapshot`, payload);
   return data;
 };
 
@@ -112,15 +65,7 @@ export const useVMMutation = (
           full: true,
           target: node,
         };
-        const { data } = await axios.post<string>(
-          `${API_BASE}/vm/${node}/qemu/${vmid}/clone`,
-          payload,
-          {
-            headers: { CSRFPreventionToken: auth.csrf_token },
-            params: { csrf_token: auth.csrf_token, ticket: auth.ticket },
-            withCredentials: true,
-          }
-        );
+        const { data } = await api.post<string>(`/vm/${node}/qemu/${vmid}/clone`, payload);
         return data;
       }
 
@@ -129,10 +74,10 @@ export const useVMMutation = (
         if (name) updates.name = name;
         if (cpus !== undefined) updates.cpus = cpus;
         if (ram !== undefined) updates.ram = ram;
-        return await updateVMConfig({ node, vmid, updates, csrf: auth.csrf_token, ticket: auth.ticket });
+        return await updateVMConfig({ node, vmid, updates });
       }
 
-      return await controlVM({ node, vmid, action, csrf: auth.csrf_token, ticket: auth.ticket });
+      return await controlVM({ node, vmid, action });
     },
 
     onMutate: (vars) => {
@@ -150,10 +95,7 @@ export const useVMMutation = (
       
       const pollTask = async () => {
         try {
-          const { data: status } = await axios.get<TaskStatus>(
-            `${API_BASE}/task/${node}/${upid}`,
-            { params: { csrf_token: auth.csrf_token, ticket: auth.ticket } }
-          );
+          const { data: status } = await api.get<TaskStatus>(`/task/${node}/${upid}`);
           
           console.log('📊 Poll result for VM', vmid, action, ':', status);
           
@@ -233,7 +175,7 @@ export const useSnapshotMutation = (
 ) => {
   return useMutation<string, any, { vmid: number; snapname: string; name?: string }, unknown>({
     mutationFn: ({ vmid, snapname }) =>
-      revertSnapshot({ node, vmid, snapname, csrf: auth.csrf_token, ticket: auth.ticket }),
+      revertSnapshot({ node, vmid, snapname }),
     onMutate: ({ vmid, snapname, name }) => {
       addAlert(`Reverting VM ${name || ''} (${vmid}) to snapshot "${snapname}"...`, 'info');
       setPendingActions(prev => ({
@@ -244,10 +186,7 @@ export const useSnapshotMutation = (
     onSuccess: (upid, { vmid, snapname, name }) => {
       const poll = async () => {
         try {
-          const { data: status } = await axios.get<TaskStatus>(
-            `${API_BASE}/task/${node}/${upid}`,
-            { params: { csrf_token: auth.csrf_token, ticket: auth.ticket } }
-          );
+          const { data: status } = await api.get<TaskStatus>(`/task/${node}/${upid}`);
           if (status.status === 'stopped') {
             if (status.exitstatus !== 'OK') {
               addAlert(`VM ${name || ''} (${vmid}) failed to revert snapshot "${snapname}": ${status.exitstatus}`, 'error');
@@ -292,7 +231,7 @@ export const useDeleteSnapshotMutation = (
 ) => {
   return useMutation<string, any, { vmid: number; snapname: string; name?: string }, unknown>({
     mutationFn: ({ vmid, snapname }) =>
-      deleteSnapshot({ node, vmid, snapname, csrf: auth.csrf_token, ticket: auth.ticket }),
+      deleteSnapshot({ node, vmid, snapname }),
     onMutate: ({ vmid, snapname, name }) => {
       addAlert(`Deleting snapshot "${snapname}" from VM ${name || ''} (${vmid})...`, 'info');
       setPendingActions(prev => ({
@@ -303,10 +242,7 @@ export const useDeleteSnapshotMutation = (
     onSuccess: (upid, { vmid, snapname, name }) => {
       const poll = async () => {
         try {
-          const { data: status } = await axios.get<TaskStatus>(
-            `${API_BASE}/task/${node}/${upid}`,
-            { params: { csrf_token: auth.csrf_token, ticket: auth.ticket } }
-          );
+          const { data: status } = await api.get<TaskStatus>(`/task/${node}/${upid}`);
           if (status.status === 'stopped') {
             if (status.exitstatus !== 'OK') {
               addAlert(`Snapshot deletion failed for VM ${name || ''} (${vmid}): ${status.exitstatus}`, 'error');
@@ -355,7 +291,7 @@ export const useCreateSnapshotMutation = (
       if (!isValidSnapshotName(snapname)) {
         throw new Error('Invalid snapshot name');
       }
-      return createSnapshot({ node, vmid, snapname, csrf: auth.csrf_token, ticket: auth.ticket });
+      return createSnapshot({ node, vmid, snapname });
     },
     onMutate: ({ vmid, snapname, name }) => {
       addAlert(`Creating snapshot "${snapname}" for VM ${name || ''} (${vmid})...`, 'info');
@@ -368,10 +304,7 @@ export const useCreateSnapshotMutation = (
       closeModal();
       const poll = async () => {
         try {
-          const { data: status } = await axios.get<TaskStatus>(
-            `${API_BASE}/task/${node}/${upid}`,
-            { params: { csrf_token: auth.csrf_token, ticket: auth.ticket } }
-          );
+          const { data: status } = await api.get<TaskStatus>(`/task/${node}/${upid}`);
           if (status.status === 'stopped') {
             if (status.exitstatus !== 'OK') {
               addAlert(`Snapshot "${snapname}" creation failed for VM ${name || ''} (${vmid}): ${status.exitstatus}`, 'error');
@@ -410,12 +343,8 @@ export const useCreateSnapshotMutation = (
 
 // ── VM Creation ────────────────────────────────────────────────────────────────
 
-const createVM = async ({ node, vmCreate, csrf, ticket }: { node: string; vmCreate: VMCreate; csrf: string; ticket: string }): Promise<string> => {
-  const { data } = await axios.post<string>(
-    `${API_BASE}/vm/${node}`,
-    vmCreate,
-    { headers: { CSRFPreventionToken: csrf }, params: { csrf_token: csrf, ticket } }
-  );
+const createVM = async ({ node, vmCreate }: { node: string; vmCreate: VMCreate }): Promise<string> => {
+  const { data } = await api.post<string>(`/vm/${node}`, vmCreate);
   return data;
 };
 
@@ -427,15 +356,12 @@ export const useCreateVMMutation = (
 ) => {
   return useMutation({
     mutationFn: ({ vmCreate, node }: { vmCreate: VMCreate; node: string }) =>
-      createVM({ node, vmCreate, csrf: auth.csrf_token, ticket: auth.ticket }),
+      createVM({ node, vmCreate }),
     onSuccess: (upid: string, { node }: { vmCreate: VMCreate; node: string }) => {
       addAlert('VM creation initiated successfully', 'success');
       const pollTask = async () => {
         try {
-          const { data: taskStatus } = await axios.get<TaskStatus>(
-            `${API_BASE}/task/${node}/${upid}`,
-            { params: { csrf_token: auth.csrf_token, ticket: auth.ticket } }
-          );
+          const { data: taskStatus } = await api.get<TaskStatus>(`/task/${node}/${upid}`);
           if (taskStatus.status === 'stopped') {
             if (taskStatus.exitstatus !== 'OK') {
               addAlert(`VM creation failed: ${taskStatus.exitstatus}`, 'error');

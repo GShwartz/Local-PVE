@@ -3,6 +3,7 @@ import { FiPause, FiPlay } from 'react-icons/fi';
 import { VM, Auth } from '../../../types';
 import { UseMutationResult } from '@tanstack/react-query';
 import ActionButton from './ActionButton';
+import api from '../../../api';
 
 interface SuspendResumeButtonProps {
   vm: VM;
@@ -38,7 +39,7 @@ const SuspendResumeButton: React.FC<SuspendResumeButtonProps> = ({
   const [localSuspended, setLocalSuspended] = useState(
     vm.status === 'paused' || (vm.status === 'running' && vm.ip_address === 'N/A')
   );
-  const API_BASE_URL = 'http://localhost:8000';
+  // API calls use centralized api instance
 
   // Use ref to track the last sent hints to prevent unnecessary calls
   const lastHintsRef = useRef<{ resumeShowing: boolean; resumeEnabled: boolean } | null>(null);
@@ -72,14 +73,8 @@ const SuspendResumeButton: React.FC<SuspendResumeButtonProps> = ({
 
           for (let i = 0; i < maxRetries; i++) {
             try {
-              const response = await fetch(
-                `${API_BASE_URL}/vm/${node}/qemu/${vm.vmid}/status?csrf_token=${encodeURIComponent(
-                  auth.csrf_token
-                )}&ticket=${encodeURIComponent(auth.ticket)}`
-              );
-              if (!response.ok) break;
-              const data = await response.json();
-              currentStatus = data.status;
+              const response = await api.get<{ status: string }>(`/vm/${node}/qemu/${vm.vmid}/status`);
+              currentStatus = response.data.status;
               if (currentStatus === targetStatus) break;
             } catch {
               break;

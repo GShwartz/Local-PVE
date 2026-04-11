@@ -3,7 +3,7 @@ import { useQuery, useQueryClient, UseMutationResult } from '@tanstack/react-que
 import { useState, useMemo, useEffect } from 'react';
 import { VM, Auth, Snapshot } from '../../types';
 import { useApplyChanges } from '../../hooks/useApplyChanges';
-import axios from 'axios';
+import api from '../../api';
 
 import VMNameCell from './Row/VMNameCell';
 import CPUCell from './Row/CPUCell';
@@ -44,18 +44,11 @@ interface TableRowProps {
 const getSnapshots = async ({
   node,
   vmid,
-  csrf,
-  ticket,
 }: {
   node: string;
   vmid: number;
-  csrf: string;
-  ticket: string;
 }): Promise<Snapshot[]> => {
-  const { data } = await axios.get<Snapshot[]>(
-    `http://localhost:8000/vm/${node}/qemu/${vmid}/snapshots`,
-    { params: { csrf_token: csrf, ticket } }
-  );
+  const { data } = await api.get<Snapshot[]>(`/vm/${node}/qemu/${vmid}/snapshots`);
   return data;
 };
 
@@ -86,9 +79,9 @@ const TableRow = ({
   const [isApplying, setIsApplying] = useState(false);
 
   const { data: snapshots, isLoading: snapshotsLoading, error: snapshotsError } = useQuery({
-    queryKey: ['snapshots', node, vm.vmid, auth.csrf_token, auth.ticket],
+    queryKey: ['snapshots', node, vm.vmid],
     queryFn: () =>
-      getSnapshots({ node, vmid: vm.vmid, csrf: auth.csrf_token, ticket: auth.ticket }),
+      getSnapshots({ node, vmid: vm.vmid }),
     enabled: snapshotView.has(vm.vmid),
   });
 

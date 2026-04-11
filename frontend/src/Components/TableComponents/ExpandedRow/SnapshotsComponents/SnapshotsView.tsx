@@ -4,7 +4,7 @@ import { VM, Snapshot, Auth } from '../../../../types';
 import { useState, useEffect } from 'react';
 import styles from '../../../../CSS/ExpandedArea.module.css';
 import SnapshotModal from './SnapshotModal';
-import axios from 'axios';
+import api from '../../../../api';
 
 interface SnapshotsViewProps {
   vm: VM;
@@ -80,15 +80,9 @@ const SnapshotsView = ({
   // Local mutation for creating snapshots
   const createSnapshotMutation = useMutation<string, any, { vmid: number; snapname: string }>({
     mutationFn: async ({ vmid, snapname }): Promise<string> => {
-      const response = await axios.post(
-        `http://localhost:8000/vm/${node}/qemu/${vmid}/snapshot`,
+      const response = await api.post(
+        `/vm/${node}/qemu/${vmid}/snapshot`,
         { snapname, description: '' },
-        {
-          params: {
-            csrf_token: auth.csrf_token,
-            ticket: auth.ticket,
-          },
-        }
       );
       return response.data as string;
     },

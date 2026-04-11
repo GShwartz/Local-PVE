@@ -1,6 +1,6 @@
 import { UseMutationResult } from '@tanstack/react-query';
 import { useQuery } from '@tanstack/react-query';
-import axios from 'axios';
+import api from '../../../../api';
 import { Snapshot } from '../../../../types';
 import { useState, useEffect, useRef } from 'react';
 import styles from '../../../../CSS/ExpandedArea.module.css';
@@ -18,11 +18,8 @@ interface SnapshotModalProps {
   auth: { csrf_token: string; ticket: string };
 }
 
-const getSnapshots = async ({ node, vmid, csrf, ticket }: { node: string; vmid: number; csrf: string; ticket: string }): Promise<Snapshot[]> => {
-  const { data } = await axios.get<Snapshot[]>(
-    `http://localhost:8000/vm/${node}/${vmid}/snapshots`,
-    { params: { csrf_token: csrf, ticket } }
-  );
+const getSnapshots = async ({ node, vmid }: { node: string; vmid: number }): Promise<Snapshot[]> => {
+  const { data } = await api.get<Snapshot[]>(`/vm/${node}/${vmid}/snapshots`);
   return data;
 };
 
@@ -39,8 +36,8 @@ const SnapshotModal = ({
   auth,
 }: SnapshotModalProps) => {
   const { data: snapshots, isLoading: snapshotsLoading } = useQuery({
-    queryKey: ['snapshots', node, currentVmid, auth.csrf_token, auth.ticket],
-    queryFn: () => getSnapshots({ node, vmid: currentVmid!, csrf: auth.csrf_token, ticket: auth.ticket }),
+    queryKey: ['snapshots', node, currentVmid],
+    queryFn: () => getSnapshots({ node, vmid: currentVmid! }),
     enabled: !!currentVmid && isOpen,
   });
   const [isNameTaken, setIsNameTaken] = useState(false);

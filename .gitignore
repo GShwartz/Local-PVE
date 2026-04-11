@@ -29,6 +29,7 @@ pnpm-debug.log*
 .vscode/
 .idea/
 *.swp
+CLAUDE.md
 
 # Git
 .git/

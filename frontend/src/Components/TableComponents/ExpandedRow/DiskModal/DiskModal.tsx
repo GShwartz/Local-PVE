@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { VM, Auth } from '../../../../types';
-import axios from 'axios';
+import api from '../../../../api';
 import ModalWrapper from './ModalWrapper';
 import DiskWarning from './DiskWarning';
 import DiskForm from './DiskForm';
@@ -96,16 +96,9 @@ const DiskModal = ({
 
       console.log('Sending disk request body:', diskRequestBody);
 
-      const addResponse = await axios.post(
-        `http://localhost:8000/vm/${node}/qemu/${vm.vmid}/add-disk`,
+      const addResponse = await api.post(
+        `/vm/${node}/qemu/${vm.vmid}/add-disk`,
         diskRequestBody,
-        {
-          headers: { 'Content-Type': 'application/json' },
-          params: {
-            csrf_token: auth.csrf_token,
-            ticket: auth.ticket,
-          },
-        }
       );
 
       console.log('Disk creation response:', addResponse.data);
@@ -114,16 +107,10 @@ const DiskModal = ({
       console.log('Matched unusedKey:', unusedKey);
 
       if (unusedKey) {
-        const activateResponse = await axios.post<ActivateResponseData>(
-          `http://localhost:8000/vm/${node}/qemu/${vm.vmid}/activate-unused-disk/${unusedKey}`,
+        const activateResponse = await api.post<ActivateResponseData>(
+          `/vm/${node}/qemu/${vm.vmid}/activate-unused-disk/${unusedKey}`,
           {},
-          {
-            params: {
-              csrf_token: auth.csrf_token,
-              ticket: auth.ticket,
-              target_controller: controller,
-            },
-          }
+          { params: { target_controller: controller } },
         );
 
         const data = activateResponse.data;

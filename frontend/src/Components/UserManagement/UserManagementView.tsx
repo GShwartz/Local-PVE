@@ -1,9 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import axios from 'axios';
+import api from '../../api';
 import { Users, Plus, Pencil, Trash2, ShieldCheck, Eye, Settings, X, Check, AlertCircle, type LucideIcon } from 'lucide-react';
-
-const API = 'http://localhost:8000';
 
 type Role = 'admin' | 'operator' | 'viewer';
 
@@ -27,7 +25,7 @@ const roleConfig: Record<Role, { label: string; icon: LucideIcon; color: string;
 };
 
 const fetchUsers = async (): Promise<AppUser[]> => {
-  const { data } = await axios.get<AppUser[]>(`${API}/users`);
+  const { data } = await api.get<AppUser[]>(`/users`);
   return data;
 };
 
@@ -59,7 +57,7 @@ const CreateUserModal = ({
     setSaving(true);
     setError('');
     try {
-      await axios.post(`${API}/users`, { username: form.username, password: form.password, role: form.role });
+      await api.post(`/users`, { username: form.username, password: form.password, role: form.role });
       onCreated(`User "${form.username}" created successfully.`);
       onClose();
     } catch (err: any) {
@@ -198,7 +196,7 @@ const UserManagementView = ({ addAlert }: UserManagementViewProps) => {
 
   const updateRoleMutation = useMutation({
     mutationFn: async ({ id, role }: { id: number; role: Role }) => {
-      await axios.patch(`${API}/users/${id}`, { role });
+      await api.patch(`/users/${id}`, { role });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['app-users'] });
@@ -209,7 +207,7 @@ const UserManagementView = ({ addAlert }: UserManagementViewProps) => {
   });
 
   const deactivateMutation = useMutation({
-    mutationFn: async (id: number) => { await axios.delete(`${API}/users/${id}`); },
+    mutationFn: async (id: number) => { await api.delete(`/users/${id}`); },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['app-users'] });
       addAlert('User deactivated.', 'success');

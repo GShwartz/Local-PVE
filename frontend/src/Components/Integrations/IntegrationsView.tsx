@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plug, Github, Webhook, Database, Cloud, ArrowLeft } from 'lucide-react';
+import { Plug, Webhook, Database, Cloud, ArrowLeft, Box, HardDrive, Terminal } from 'lucide-react';
 import CloudInitView from './CloudInitView';
 
 interface IntegrationsViewProps {
@@ -83,27 +83,28 @@ const IntegrationsView = ({ addAlert }: IntegrationsViewProps) => {
           onClick={() => setSubView('cloud-init')}
         />
         <IntegrationCard
-          icon={Webhook}
-          name="Webhooks"
-          description="Send event notifications to external HTTP endpoints when VMs change state."
+          icon={Box}
+          name="Harbor Registry"
+          description="Manage and host container images locally with a secure, enterprise-grade registry powered by Harbor."
           badge="coming soon"
-          color="bg-violet-500"
+          color="bg-indigo-500"
         />
         <IntegrationCard
-          icon={Github}
-          name="GitHub Actions"
-          description="Trigger VM workflows directly from CI/CD pipelines via GitHub Actions."
+          icon={HardDrive}
+          name="MinIO Object Storage"
+          description="Provide S3-compatible object storage for VM assets, backups, and application data using MinIO."
           badge="coming soon"
-          color="bg-gray-800"
-        />
-        <IntegrationCard
-          icon={Database}
-          name="Prometheus Metrics"
-          description="Expose VM metrics via a /metrics endpoint compatible with Prometheus scraping."
-          badge="coming soon"
-          color="bg-orange-500"
+          color="bg-emerald-500"
         />
       </div>
+      <IntegrationCard
+        icon={Terminal}
+        name="Ansible Playbooks"
+        description="Automate post-deployment configuration. Orchestrate multi-node setups and software installation across your Proxmox fleet."
+        badge="coming soon"
+        color="bg-slate-700"
+        // onClick={() => setSubView('ansible')} // Uncomment once you build the view
+      />
 
       <div className="mt-6 px-4 py-3 bg-blue-50 rounded-xl border border-blue-100 flex items-center gap-3">
         <Plug size={16} className="text-blue-500 flex-shrink-0" />

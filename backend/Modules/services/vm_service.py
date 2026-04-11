@@ -63,8 +63,13 @@ class VMService:
         async with httpx.AsyncClient(verify=False, timeout=10.0) as client:
             try:
                 r = await client.get(base_url, headers=headers, cookies=cookies)
+                if r.status_code == 401:
+                    self.logger.warning("Proxmox ticket expired or invalid (401)")
+                    raise HTTPException(status_code=401, detail="Proxmox ticket expired")
                 r.raise_for_status()
                 vms = r.json().get("data", [])
+            except HTTPException:
+                raise
             except Exception as e:
                 self.logger.error(f"Failed to fetch base VM list: {str(e)}")
                 return []

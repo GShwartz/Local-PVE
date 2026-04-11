@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import axios from 'axios';
+import api from '../../../../api';
 import { VM } from '../../../../types';
 
 interface VMConfigResponse {
@@ -11,12 +11,7 @@ const useDiskConfig = (vmid: number, node: string, auth: { csrf_token: string; t
 
   const fetchConfig = async () => {
     try {
-      const res = await axios.get<VMConfigResponse>(
-        `http://localhost:8000/vm/${node}/qemu/${vmid}/config`,
-        {
-          params: { csrf_token: auth.csrf_token, ticket: auth.ticket }
-        }
-      );
+      const res = await api.get<VMConfigResponse>(`/vm/${node}/qemu/${vmid}/config`);
       setConfig(res.data.config);
     } catch (err) {
       console.error('❌ Failed to fetch VM config:', err);

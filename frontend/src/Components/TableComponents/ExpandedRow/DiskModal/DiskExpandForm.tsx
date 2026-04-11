@@ -1,6 +1,6 @@
 // src/components/TableComponents/ExpandedRow/DiskModal/DiskExpandForm.tsx
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../../../../api';
 import { VM } from '../../../../types';
 import styles from '../../../../CSS/ExpandedArea.module.css';
 
@@ -57,25 +57,13 @@ const DiskExpandForm = ({
       // First, check VM status and shutdown if running
       if (vm.status === 'running') {
         addAlert(`VM ${vm.vmid} is running. Shutting down before disk expansion...`, 'info');
-        await axios.post(
-          `http://localhost:8000/vm/${node}/qemu/${vm.vmid}/shutdown`,
-          null,
-          {
-            params: {
-              csrf_token: auth.csrf_token,
-              ticket: auth.ticket
-            }
-          }
-        );
+        await api.post(`/vm/${node}/qemu/${vm.vmid}/shutdown`);
 
         // Wait for shutdown
         let attempts = 0;
         while (attempts < 30) { // 30 attempts = 30 seconds
           try {
-            const statusRes = await axios.get(
-              `http://localhost:8000/vm/${node}/qemu/${vm.vmid}/status`,
-              { params: { csrf_token: auth.csrf_token, ticket: auth.ticket } }
-            );
+            const statusRes = await api.get<{ status: string }>(`/vm/${node}/qemu/${vm.vmid}/status`);
             if (statusRes.data.status === 'stopped') break;
           } catch (err) {
             // Ignore errors during status check
@@ -86,16 +74,7 @@ const DiskExpandForm = ({
       }
 
       // Expand the disk
-      await axios.post(
-        `http://localhost:8000/vm/${node}/qemu/${vm.vmid}/disk/${diskKey}/expand`,
-        { new_size: size },
-        {
-          params: {
-            csrf_token: auth.csrf_token,
-            ticket: auth.ticket
-          }
-        }
-      );
+      await api.post(`/vm/${node}/qemu/${vm.vmid}/disk/${diskKey}/expand`, { new_size: size });
 
       addAlert(`✅ Disk ${diskKey} expanded from ${currentSize}GB to ${size}GB`, 'success');
       await refreshConfig();
@@ -103,16 +82,7 @@ const DiskExpandForm = ({
       // Restart VM if it was running
       if (vm.status === 'running') {
         addAlert(`Starting VM ${vm.vmid}...`, 'info');
-        await axios.post(
-          `http://localhost:8000/vm/${node}/qemu/${vm.vmid}/start`,
-          null,
-          {
-            params: {
-              csrf_token: auth.csrf_token,
-              ticket: auth.ticket
-            }
-          }
-        );
+        await api.post(`/vm/${node}/qemu/${vm.vmid}/start`);
       }
     } catch (err: any) {
       const detail = err?.response?.data?.detail || err?.message || 'Unknown error';

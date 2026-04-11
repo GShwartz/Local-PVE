@@ -1,4 +1,4 @@
-import axios from 'axios';
+import api from '../../../../api';
 import { VM, Auth, VMStatus } from '../../../../types';
 
 export const getUsedBusNumbers = (vm: VM, controller: string): number[] => {
@@ -28,15 +28,7 @@ export const getVMStatus = async (
   node: string,
   auth: Auth
 ): Promise<VMStatus> => {
-  const response = await axios.get<{ status: VMStatus }>(
-    `http://localhost:8000/vm/${node}/qemu/${vmid}/status`,
-    {
-      params: {
-        csrf_token: auth.csrf_token,
-        ticket: auth.ticket,
-      },
-    }
-  );
+  const response = await api.get<{ status: VMStatus }>(`/vm/${node}/qemu/${vmid}/status`);
   return response.data.status;
 };
 
@@ -46,16 +38,7 @@ export const controlVM = async (
   node: string,
   auth: Auth
 ) => {
-  await axios.post(
-    `http://localhost:8000/vm/${node}/qemu/${vmid}/${action}`,
-    {},
-    {
-      params: {
-        csrf_token: auth.csrf_token,
-        ticket: auth.ticket,
-      },
-    }
-  );
+  await api.post(`/vm/${node}/qemu/${vmid}/${action}`);
 };
 
 export const waitForVMStatus = async (
@@ -83,15 +66,7 @@ export const findMatchingUnusedDisk = async (
 ): Promise<string | undefined> => {
   const maxRetries = 10;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    const configResp = await axios.get<{ config: VM['config'] }>(
-      `http://localhost:8000/vm/${node}/qemu/${vmid}/config`,
-      {
-        params: {
-          csrf_token: auth.csrf_token,
-          ticket: auth.ticket,
-        },
-      }
-    );
+    const configResp = await api.get<{ config: VM['config'] }>(`/vm/${node}/qemu/${vmid}/config`);
 
     const config = configResp.data.config || {};
     console.log(`Attempt ${attempt}: VM config`, config);

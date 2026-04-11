@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import axios from 'axios';
+import api from '../api';
 import toast from 'react-hot-toast';
 import { Server } from 'lucide-react';
 import { Auth, LoginForm } from '../types';
@@ -16,7 +16,7 @@ const Login = ({ onLoginSuccess }: LoginProps) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      const { data } = await axios.post<Auth>('http://localhost:8000/login', form);
+      const { data } = await api.post<Auth>('/login', form);
 
       document.cookie = `PVEAuthCookie=${data.ticket}; path=/; SameSite=Strict; Secure`;
       document.cookie = `CSRFPreventionToken=${data.csrf_token}; path=/; SameSite=Strict; Secure`;
@@ -24,6 +24,7 @@ const Login = ({ onLoginSuccess }: LoginProps) => {
       localStorage.setItem('ticket', data.ticket);
       localStorage.setItem('username', form.username);
       localStorage.setItem('role', data.role ?? 'admin');
+      if (data.user_dir) localStorage.setItem('user_dir', data.user_dir);
 
       toast.success('Welcome back!');
       onLoginSuccess({ ...data, username: form.username, role: data.role ?? 'admin' });

@@ -5,6 +5,7 @@ import ActionButtons from '../ActionButtons/ActionButtons';
 import ApplyButton from '../ActionButtons/ApplyButton';
 import HDDCell from './HDDCell';
 import StatusBadge from './StatusBadge';
+import api from '../../../api';
 
 const parseRAMToNumber = (ram: string): number => {
   if (ram.endsWith('GB')) return parseInt(ram.replace('GB', '')) * 1024;
@@ -48,11 +49,8 @@ const MainVMRow = ({
     if (Object.keys(updates).length === 0) return;
 
     try {
-      const res = await fetch(`http://localhost:8000/vm/${auth.node}/qemu/${vmid}/status`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      const { status: currentStatus } = await res.json();
+      const res = await api.get<{ status: string }>(`/vm/pve/qemu/${vmid}/status`);
+      const { status: currentStatus } = res.data;
 
       if ((updates.cpus || updates.ram) && currentStatus === 'running') {
         addAlert(`Cannot apply CPU or RAM changes for running VM ${vmid}`, 'error');
